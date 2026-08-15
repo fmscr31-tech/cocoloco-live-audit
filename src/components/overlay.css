@@ -1,0 +1,1035 @@
+/* ==========================================
+   COCOLOCO LIVE MANAGER - ESPN / NFL / NFL BROADCAST STYLE (COMPACT HUD)
+   ========================================== */
+
+.hud-container{
+  width: 480px;
+  min-height: 145px;
+  padding: 8px 12px 6px 12px; /* Reclaimed top dead space, transferred to vertical content flow */
+  background: linear-gradient(
+    180deg,
+    #ff7043 0%,
+    #ff9e00 25%,
+    #ffd166 45%,
+    #48cae4 70%,
+    #e0a96d 100%
+  );
+  border: 1.5px solid rgba(255, 209, 102, 0.7);
+  border-radius: 8px;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  position: relative;
+  overflow: hidden;
+  z-index: 100; /* Layer Governance: Protected HUD */
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.7),
+    0 0 20px rgba(255, 158, 0, 0.4),
+    inset 0 0 30px rgba(255, 255, 255, 0.25);
+}
+
+.hud-container::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 10% 15%, rgba(255, 215, 0, 0.45) 0%, transparent 35%),
+    radial-gradient(circle at 90% 15%, rgba(0, 180, 216, 0.35) 0%, transparent 35%),
+    linear-gradient(180deg, rgba(14, 45, 75, 0.35) 0%, rgba(14, 45, 75, 0.65) 100%);
+  backdrop-filter: blur(1px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes tropicalShimmer {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
+
+/* ==========================================
+   HEADER & DYNAMIC BROADCAST HEADER STATES
+   ========================================== */
+
+.hud-top{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 3px;
+  margin-bottom: 4px;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 2;
+}
+
+.broadcast-header-waiting {
+  border-bottom-color: rgba(0, 229, 255, 0.3);
+}
+
+.broadcast-header-active {
+  border-bottom-color: rgba(255, 51, 102, 0.6);
+  background: rgba(255, 51, 102, 0.05);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.broadcast-header-correct {
+  border-bottom-color: rgba(255, 215, 0, 0.8);
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 4px;
+  padding: 2px 6px;
+  animation: broadcastPulse 0.4s ease;
+}
+
+.broadcast-header-ended {
+  border-bottom-color: rgba(160, 174, 192, 0.5);
+  background: rgba(160, 174, 192, 0.08);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.broadcast-header-freeze {
+  border-bottom-color: rgba(0, 245, 255, 0.9);
+  background: rgba(0, 245, 255, 0.12);
+  border-radius: 4px;
+  padding: 2px 6px;
+  animation: broadcastPulse 0.4s ease;
+}
+
+@keyframes broadcastPulse {
+  0% { transform: scale(0.99); opacity: 0.85; }
+  50% { transform: scale(1.01); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.logo-container{
+  display: flex;
+  flex-direction: column;
+}
+
+.main-title{
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.sub-title{
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #00e5ff;
+  text-transform: uppercase;
+}
+
+.battle-status{
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #cc0033;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px rgba(204, 0, 51, 0.4);
+}
+
+
+/* ==========================================
+   BATTLE TITLE & INFO
+   ========================================== */
+
+.battle-name{
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #00e5ff;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  position: relative;
+  z-index: 2;
+}
+
+
+/* ==========================================
+   SCOREBOARD & TEAM CARDS (DEPTH & SHADOWS)
+   ========================================== */
+
+.scoreboard{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+}
+
+.team-wrapper{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.team-card{
+  position: relative;
+  overflow: hidden; /* Prevent any internal overflow or escape */
+  width: 100%;
+  height: 90px; /* Spacious fixed height to fully accommodate title, score, and rounds badge */
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: linear-gradient(145deg, rgba(28, 26, 46, 0.94), rgba(18, 18, 28, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 2;
+}
+
+.team-one .team-card{
+  border-top: 3px solid #ff3366;
+}
+
+.team-two .team-card{
+  border-top: 3px solid #00bfff;
+}
+
+.team-card.punished{
+  border-color: #ff3333;
+  background: rgba(40, 10, 10, 0.9);
+}
+
+/* TEAM NAMES: Professional sports headline style */
+.team-name{
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.1;
+}
+
+/* TEAM SCORES: Big athletic scoreboard numbers */
+.team-score{
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffd700;
+  margin: 1px 0;
+  letter-spacing: -1px;
+  text-shadow: 0 2px 8px rgba(255,215,0,0.4);
+}
+
+
+/* ==========================================
+   TEAM MODE MVP CONTAINERS (GUARANTEED VISIBILITY)
+   ========================================== */
+
+.players-box{
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: linear-gradient(145deg, rgba(16, 16, 24, 0.95), rgba(26, 20, 40, 0.95));
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+  position: relative;
+  z-index: 2;
+}
+
+.players-title{
+  text-align: center;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+  color: #ffd700;
+  text-transform: uppercase;
+}
+
+.gamer-player{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px;
+  margin-top: 2px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.player-name{
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.player-points{
+  color: #ffd700;
+  font-weight: 900;
+  font-size: 9px;
+}
+
+
+/* ==========================================
+   LIVE ACTIVITY POPUP FEED - COMPACT BANNER MATCHING TIMER WIDTH
+   ========================================== */
+
+.timer-sidebar-column {
+  position: relative;
+  min-width: 130px !important;
+  width: 130px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.timer-feed-compact-card {
+  background: linear-gradient(135deg, rgba(16, 20, 42, 0.97), rgba(8, 12, 26, 0.99));
+  border: 1.5px solid rgba(0, 240, 255, 0.6);
+  border-radius: 10px !important;
+  width: 104px !important; /* Matches timer clock width exactly */
+  min-height: 98px !important; /* Expanded vertical height utilizing reclaimed top dead space */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 5px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), 0 0 12px rgba(0, 240, 255, 0.3);
+  animation: feedPopCompact 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  pointer-events: none;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.timer-feed-compact-card .compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-bottom: 1px;
+}
+
+.timer-feed-compact-card .compact-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.timer-feed-compact-card .compact-title {
+  font-size: 8px;
+  font-weight: 900;
+  color: #00ffcc;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 5px rgba(0, 255, 204, 0.8);
+}
+
+.timer-feed-compact-card .donor-name {
+  display: block;
+  font-weight: 900;
+  font-size: 0.68rem;
+  color: #ffd700;
+  line-height: 1.1;
+  text-transform: uppercase;
+  text-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 92px;
+  margin: 1px 0;
+}
+
+.timer-feed-compact-card .effect-badge {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 900;
+  color: #ffffff;
+  background: rgba(0, 240, 255, 0.2);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  border-radius: 3px;
+  padding: 0.5px 4px;
+  margin: 1px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 92px;
+}
+
+.timer-feed-compact-card .ability-badge {
+  display: block;
+  font-size: 0.55rem;
+  font-weight: 900;
+  color: #ff3366;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  text-shadow: 0 0 5px rgba(255, 51, 102, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 92px;
+}
+
+@keyframes feedPopCompact {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(1px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
+/* ==========================================
+   INDIVIDUAL MODE: REAL-TIME JS 2D PHYSICS & ULTRA-REALISTIC 3D GLASS BUBBLES
+   ========================================== */
+
+@keyframes leaderFlicker {
+  0%, 100% { box-shadow: 0 0 25px rgba(255,215,0,0.8), inset 0 0 12px rgba(255,255,255,0.8); border-color: #ffd700; }
+  50% { box-shadow: 0 0 45px rgba(255,215,0,1), inset 0 0 22px rgba(255,255,255,1); border-color: #ffffff; }
+}
+
+@keyframes inflateShake {
+  0% { transform: scale(1) translate(0, 0); }
+  20% { transform: scale(1.15) translate(-3px, 2px); }
+  40% { transform: scale(1.3) translate(3px, -2px); }
+  60% { transform: scale(1.4) translate(-2px, -2px); }
+  80% { transform: scale(1.5) translate(2px, 2px); }
+  100% { transform: scale(1.6) translate(0, 0); }
+}
+
+@keyframes bubblePopExplosion {
+  0% { transform: scale(1.6); opacity: 1; filter: brightness(2); }
+  40% { transform: scale(2.2); opacity: 0.9; filter: brightness(3.5); }
+  100% { transform: scale(0); opacity: 0; filter: brightness(5); }
+}
+
+@keyframes bubblePanicShake {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  15% { transform: translate(-5px, 4px) scale(0.92) rotate(-5deg); }
+  30% { transform: translate(5px, -4px) scale(1.08) rotate(5deg); }
+  45% { transform: translate(-4px, -3px) scale(0.95) rotate(-3deg); }
+  60% { transform: translate(4px, 3px) scale(1.05) rotate(3deg); }
+  75% { transform: translate(-3px, 2px) scale(0.98) rotate(-1deg); }
+  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+}
+
+.bubble-arena {
+  position: relative;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 220px !important; /* Expanded vertical height for maximum player bubble space */
+  overflow: hidden;
+  border-radius: 6px;
+  box-sizing: border-box;
+  backdrop-filter: blur(6px);
+}
+
+.player-avatar-bubble {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 3.5px solid rgba(255, 255, 255, 0.85);
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.15) 35%,
+    rgba(0, 0, 0, 0.3) 100%
+  ), var(--bubble-base-color, rgba(0, 240, 255, 0.4));
+  box-shadow:
+    inset 4px 4px 10px rgba(255, 255, 255, 0.7),
+    inset -6px -6px 14px rgba(0, 0, 0, 0.45),
+    0 8px 20px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-sizing: border-box;
+  text-align: center;
+  overflow: hidden;
+  transition: transform 0.05s linear;
+}
+
+.player-avatar-bubble::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 15%;
+  width: 35%;
+  height: 20%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  filter: blur(1px);
+  transform: rotate(-30deg);
+  pointer-events: none;
+}
+
+.player-avatar-bubble.is-leader {
+  --bubble-base-color: rgba(255, 215, 0, 0.55);
+  border: 4px solid rgba(255, 235, 120, 0.95);
+  animation: leaderFlicker 2s infinite ease-in-out;
+  z-index: 10;
+}
+
+.player-avatar-bubble.is-tier2 {
+  --bubble-base-color: rgba(0, 240, 255, 0.45);
+  z-index: 8;
+}
+
+.player-avatar-bubble.is-tier3 {
+  --bubble-base-color: rgba(255, 0, 127, 0.45);
+  z-index: 7;
+}
+
+.player-avatar-bubble.is-challenger {
+  --bubble-base-color: rgba(131, 56, 236, 0.4);
+  z-index: 5;
+}
+
+.player-avatar-bubble.jelly-impact {
+  transform: scale(1.15, 0.85);
+}
+
+.player-avatar-bubble.inflating {
+  animation: inflateShake 0.6s ease forwards !important;
+  z-index: 99;
+}
+
+.player-avatar-bubble.popping {
+  animation: bubblePopExplosion 0.4s ease forwards !important;
+  z-index: 99;
+}
+
+.player-avatar-bubble.damaged {
+  animation: bubblePanicShake 0.35s ease-in-out infinite !important;
+  border-color: #ff3333 !important;
+  box-shadow: 0 0 35px rgba(255, 51, 51, 0.9), inset 0 0 15px rgba(255, 0, 0, 0.9) !important;
+}
+
+
+/* ==========================================
+   DISTINCT ROUNDS SECTION (PROMINENT BADGE UI)
+   ========================================== */
+
+.team-rounds-container{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  min-width: 95px;
+  height: 24px;
+  padding: 3px 12px;
+  margin: 2px auto 0 auto;
+  background: rgba(0, 210, 255, 0.15);
+  border: 1.5px solid #00d2ff;
+  border-radius: 12px;
+  box-sizing: border-box;
+  box-shadow: 0 0 12px rgba(0, 210, 255, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+.rounds-title{
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  color: #00d2ff;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+  text-shadow: 0 0 6px rgba(0,210,255,0.8);
+}
+
+.rounds-digits{
+  font-size: 13px;
+  font-weight: 900;
+  color: #ffd700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+  text-shadow: 0 0 8px rgba(255,215,0,0.9);
+}
+
+
+/* ==========================================
+   FREEZE TIMER BADGE & MVP ICE LAYER OVERLAY (WITH FALLING SNOW)
+   ========================================== */
+
+@keyframes freezeActivation {
+  0% { transform: scale(0.8); filter: brightness(2); box-shadow: 0 0 30px #00f0ff; }
+  50% { transform: scale(1.1); filter: brightness(1.5); box-shadow: 0 0 25px #00f0ff, inset 0 0 15px #ffffff; }
+  100% { transform: scale(1); filter: brightness(1); box-shadow: 0 0 15px rgba(0,240,255,0.6); }
+}
+
+.freeze-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(0, 180, 216, 0.3);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid #a0e6ff;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  color: #00f0ff;
+  text-shadow: 0 0 8px rgba(0,240,255,0.9);
+  animation: freezeActivation 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  box-shadow: 0 0 15px rgba(0,240,255,0.5), inset 0 0 8px rgba(255,255,255,0.7);
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.freeze-timer-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(white 1px, transparent 0), radial-gradient(white 1.5px, transparent 0);
+  background-size: 10px 10px, 16px 16px;
+  background-position: 0 0, 5px 5px;
+  opacity: 0.6;
+  animation: snowfall 2.5s linear infinite;
+  pointer-events: none;
+}
+
+.mvp-ice-layer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(160, 230, 255, 0.35), rgba(0, 180, 216, 0.3));
+  backdrop-filter: blur(3px);
+  border: 1.5px solid rgba(0, 240, 255, 0.8);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  box-shadow: inset 0 0 15px rgba(255,255,255,0.8), 0 0 20px rgba(0,240,255,0.6);
+  animation: freezeActivation 0.4s ease-out;
+}
+
+
+/* ==========================================
+   CENTER PANEL (VERSUS, TIMER)
+   ========================================== */
+
+.center-score{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 70px;
+}
+
+.versus{
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1a202c;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 800;
+  color: #a0aec0;
+}
+
+/* TIMER: Professional game clock appearance */
+.timer{
+  font-size: 22px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(0,245,255,0.6);
+}
+
+
+/* ==========================================
+   LIVE PHASE TIMER (REUSABLE COUNTDOWN)
+   ========================================== */
+
+.live-phase-timer-container{
+  margin: 4px auto 3px auto;
+  width: 100%;
+  background: linear-gradient(135deg, rgba(255, 140, 0, 0.95), rgba(220, 50, 50, 0.95));
+  border: 2px solid #ffd700;
+  border-radius: 6px;
+  padding: 4px 10px;
+  text-align: center;
+  z-index: 150; /* Layer Governance */
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.7), inset 0 0 6px rgba(255, 255, 255, 0.6);
+  animation: phasePulse 0.8s infinite alternate ease-in-out;
+}
+
+.live-phase-title{
+  font-size: 9px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  text-transform: uppercase;
+}
+
+.live-phase-digits{
+  font-size: 16px;
+  font-weight: 900;
+  color: #ffd700;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+  margin-top: 1px;
+}
+
+@keyframes phasePulse {
+  0% { transform: scale(1); box-shadow: 0 0 12px rgba(255, 215, 0, 0.5); }
+  100% { transform: scale(1.01); box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+}
+
+
+/* ==========================================
+   BATTLE FREEZE BOX (CASTIGO ACTIVO)
+   ========================================== */
+
+.battle-freeze-box{
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  background: linear-gradient(135deg, rgba(200, 20, 20, 0.96), rgba(100, 10, 10, 0.98));
+  border: 1.5px solid rgba(0, 245, 255, 0.9);
+  border-radius: 6px;
+  padding: 3px 8px;
+  text-align: center;
+  z-index: 250;
+  box-sizing: border-box;
+  box-shadow: 0 0 25px rgba(255, 51, 51, 0.85), inset 0 0 8px rgba(0, 245, 255, 0.6);
+  animation: freezeAlertPulse 1.2s infinite alternate ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes freezeAlertPulse {
+  0% { box-shadow: 0 0 15px rgba(255, 51, 51, 0.7), inset 0 0 6px rgba(0, 245, 255, 0.4); filter: brightness(1); }
+  100% { box-shadow: 0 0 30px rgba(255, 51, 51, 1), inset 0 0 12px rgba(0, 245, 255, 0.9); filter: brightness(1.15); }
+}
+
+.freeze-header{
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #00f5ff;
+  letter-spacing: 0.8px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.freeze-target{
+  font-size: 9.5px;
+  font-weight: 900;
+  color: #ffffff;
+  text-transform: uppercase;
+  margin: 1px 0;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.freeze-timer{
+  font-size: 14px;
+  font-weight: 900;
+  color: #00E5FF;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.9), 0 2px 4px rgba(0,0,0,0.9);
+  margin-top: 1px;
+}
+
+
+/* ==========================================
+   ALERTS & CELEBRATIONS (POPUP) - Z-INDEX 200/300
+   ========================================== */
+
+.broadcast-event-banner{
+  position: absolute;
+  top: 54%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200; /* Layer Governance: Ability Effects */
+  width: 82px;
+  height: 50px;
+  background: linear-gradient(135deg, rgba(50, 42, 12, 0.94), rgba(75, 62, 18, 0.97));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 215, 0, 0.6);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.8), 0 0 12px rgba(255,215,0,0.3);
+  padding: 2px 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  animation: broadcastBannerIn 0.2s ease-out;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.broadcast-banner-icon{
+  font-size: 10px;
+  line-height: 1;
+  margin-bottom: 1px;
+  filter: drop-shadow(0 0 4px rgba(255,215,0,0.8));
+}
+
+.broadcast-banner-player{
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  margin-bottom: 1px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+
+.broadcast-banner-action{
+  font-size: 6.5px;
+  font-weight: 900;
+  color: #ffd700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  line-height: 1;
+  text-shadow: 0 0 4px rgba(255,215,0,0.8);
+}
+
+@keyframes broadcastBannerIn{
+  0%{ opacity: 0; transform: translate(-50%, -4px); }
+  100%{ opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes cowboyPulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(255,100,50,0.6), inset 0 0 10px rgba(255,255,255,0.5); border-color: #ff6622; }
+  50% { box-shadow: 0 0 35px rgba(255,140,50,0.9), inset 0 0 20px rgba(255,255,255,0.9); border-color: #ff9933; }
+}
+
+.celebration{
+  position: absolute;
+  z-index: 300; /* Layer Governance: Critical Alerts */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: #1a202c;
+  border: 1px solid #ffd700;
+  padding: 10px 18px;
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+  animation: celebrationIn 0.3s ease;
+}
+
+@keyframes celebrationIn{
+  0%{
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  20%{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  85%{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100%{
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+}
+
+
+/* ==========================================
+   RESPONSIVE (OBS / MOBILE)
+   ========================================== */
+
+@media(max-width: 600px){
+  .hud-container{
+    width: 100%;
+    padding: 4px;
+  }
+  .main-title{
+    font-size: 11px;
+  }
+  .timer{
+    font-size: 16px;
+  }
+  .versus{
+    width: 18px;
+    height: 18px;
+    font-size: 8px;
+  }
+}
+
+@keyframes snowfall {
+  0% { background-position: 0 0, 8px 8px; }
+  100% { background-position: 0 16px, 8px 24px; }
+}
+
+@keyframes goldenShineSweep {
+  0% { left: -100%; opacity: 0; }
+  30% { opacity: 0.8; }
+  50% { left: 150%; opacity: 0; }
+  100% { left: 150%; opacity: 0; }
+}
+
+@keyframes goldenImpact {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.85); box-shadow: 0 0 100px rgba(255,215,0,1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); box-shadow: 0 0 80px rgba(255,215,0,0.9); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 60px rgba(255,215,0,0.8); }
+}
+
+@keyframes scoreShake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-2px, 2px) rotate(-1deg); }
+  40% { transform: translate(2px, -2px) rotate(1deg); }
+  60% { transform: translate(-1px, -1px) rotate(0deg); }
+  80% { transform: translate(2px, 1px) rotate(1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+@keyframes resetCardShake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-3px, 2px) rotate(-1.5deg); }
+  40% { transform: translate(3px, -2px) rotate(1.5deg); }
+  60% { transform: translate(-2px, -1px) rotate(0deg); }
+  80% { transform: translate(2px, 2px) rotate(1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+@keyframes bulletFlash {
+  0%, 100% { border-color: rgba(255, 255, 255, 0.2); box-shadow: none; }
+  50% { border-color: #ff3333; box-shadow: 0 0 25px rgba(255, 51, 51, 0.9), inset 0 0 15px rgba(255, 0, 0, 0.8); }
+}
+
+@keyframes galaxyRoundBoost {
+  0% { transform: scale(1); box-shadow: 0 0 12px rgba(0,210,255,0.4); filter: brightness(1); }
+  35% { transform: scale(1.35); box-shadow: 0 0 35px #00d2ff, 0 0 55px #ff007f, inset 0 0 20px #ffffff; filter: brightness(2); border-color: #ffffff; }
+  70% { transform: scale(1.15); box-shadow: 0 0 25px #00d2ff, 0 0 40px rgba(255,0,127,0.8); filter: brightness(1.5); }
+  100% { transform: scale(1); box-shadow: 0 0 20px rgba(0,210,255,0.7), 0 0 10px rgba(255,0,127,0.5); filter: brightness(1); }
+}
+
+@keyframes scareJumpscare {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); filter: brightness(1) contrast(1); }
+  10% { transform: translate3d(-10px, 8px, 0) rotate(-3deg); filter: brightness(1.9) contrast(1.6) sepia(0.8) hue-rotate(-50deg); }
+  20% { transform: translate3d(12px, -10px, 0) rotate(3deg); filter: brightness(0.7) contrast(1.8); }
+  30% { transform: translate3d(-12px, -6px, 0) rotate(-2deg); filter: brightness(2) contrast(1.5) sepia(0.9) hue-rotate(-40deg); }
+  40% { transform: translate3d(10px, 10px, 0) rotate(2deg); filter: brightness(1.2) contrast(1.4); }
+  50% { transform: translate3d(-8px, -8px, 0) rotate(-1.5deg); filter: brightness(1.8) contrast(1.6) sepia(0.8) hue-rotate(-50deg); }
+  70% { transform: translate3d(6px, -6px, 0) rotate(1deg); filter: brightness(1.3) contrast(1.3); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); filter: brightness(1) contrast(1); }
+}
+
+.hud-container.scare-active {
+  animation: scareJumpscare 1s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;
+  box-shadow: inset 0 0 120px #ff0000, 0 6px 20px rgba(0,0,0,0.8), 0 0 30px rgba(255,0,0,0.8) !important;
+  border: 2px solid #ff0000 !important;
+}
+
+.scare-popup-banner {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 500;
+  background: rgba(200, 0, 0, 0.95);
+  border: 3px solid #ffff00;
+  border-radius: 10px;
+  padding: 8px 16px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(255,0,0,1), 0 0 20px rgba(255,255,255,0.8);
+  animation: scareBannerPop 1s ease-out forwards;
+}
+
+@keyframes scareBannerPop {
+  0% { transform: translate(-50%, -50%) scale(0.2) rotate(-10deg); opacity: 0; }
+  20% { transform: translate(-50%, -50%) scale(1.2) rotate(5deg); opacity: 1; }
+  80% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.9) rotate(0deg); opacity: 0; }
+}
+
+.clean-number-pop {
+  animation: cleanNumberPop 0.2s ease forwards !important;
+}
+
+.galaxy-rounds-boost {
+  animation: galaxyRoundBoost 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+  border: 2px solid #00d2ff !important;
+  background: linear-gradient(135deg, rgba(0,210,255,0.85), rgba(180,0,255,0.85)) !important;
+}
+
+.team-card.damaged {
+  animation: resetCardShake 0.35s ease-in-out infinite, bulletFlash 0.3s ease-in-out infinite !important;
+  border: 2px solid #ff3333 !important;
+  box-shadow: 0 0 25px rgba(255, 51, 51, 0.8), inset 0 0 12px rgba(255, 0, 0, 0.6) !important;
+}
+
+@keyframes rankUpPulse {
+  0% { transform: translateY(12px) scale(0.97); opacity: 0.8; }
+  50% { transform: translateY(-4px) scale(1.02); filter: drop-shadow(0 0 12px #39ff88); }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.rank-up-highlight {
+  animation: rankUpPulse 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+  border-color: #39ff88 !important;
+  box-shadow: 0 0 22px rgba(57, 255, 136, 0.9), inset 0 0 10px rgba(57, 255, 136, 0.6) !important;
+  background: linear-gradient(135deg, rgba(57, 255, 136, 0.28), rgba(14, 65, 105, 0.3)) !important;
+}
+
+@keyframes deltaBadgePop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.rank-delta-badge {
+  background: rgba(57, 255, 136, 0.25);
+  border: 1px solid #39ff88;
+  color: #39ff88;
+  font-size: 7.5px;
+  font-weight: 900;
+  padding: 1px 4px;
+  border-radius: 3px;
+  animation: deltaBadgePop 0.4s ease forwards;
+  text-shadow: 0 0 6px rgba(57, 255, 136, 0.8);
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
