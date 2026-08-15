@@ -1,8 +1,68 @@
 import { eventBus } from "./eventBus";
+import { loadData, saveData } from "./storageManager";
+import { setPlayers } from "./stateManager";
 
 export const players = [];
 
 const REGISTRATION_STORAGE_KEY = "cocoloco_registered_players_v2";
+const PLAYER_STORAGE_KEY = "cocoloco_live_data";
+
+// ==============================
+// PERSISTENCIA CANONICA DE JUGADORES
+// ==============================
+// Manual scoring was previously kept only in the in-memory playerManager array.
+// That made the score appear to reset after a refresh and could leave the
+// dashboard/overlay with different snapshots. The playerManager is the source
+// of truth for individual player scores, so every mutation is persisted here.
+function persistPlayers() {
+  try {
+    const current = loadData() || {};
+    saveData({
+      ...current,
+      players: players.map(player => ({ ...player }))
+    });
+  } catch (error) {
+    console.warn("[PlayerManager] Failed to persist players:", error);
+  }
+}
+
+function publishPlayersState() {
+  try {
+    setPlayers(players);
+  } catch (error) {
+    console.warn("[PlayerManager] Failed to publish players state:", error);
+  }
+}
+
+function hydratePlayersFromStorage() {
+  if (typeof localStorage === "undefined") return;
+
+  try {
+    const data = loadData();
+    if (!data || !Array.isArray(data.players) || data.players.length === 0) return;
+
+    data.players.forEach(source => {
+      if (!source || !source.id) return;
+      if (players.some(player => player.id === source.id)) return;
+      players.push({
+        ...source,
+        points: Number.isFinite(Number(source.points)) ? Number(source.points) : 0,
+        wins: Number.isFinite(Number(source.wins)) ? Number(source.wins) : 0,
+        wordsFound: Number.isFinite(Number(source.wordsFound)) ? Number(source.wordsFound) : 0,
+        updatedAt: source.updatedAt || Date.now()
+      });
+    });
+
+    publishPlayersState();
+    console.log("[PlayerManager] Restored persisted players:", players.length);
+  } catch (error) {
+    console.warn("[PlayerManager] Failed to restore persisted players:", error);
+  }
+}
+
+// Restore the canonical player list as soon as this module is loaded so an
+// overlay/admin refresh does not temporarily fall back to zeroed scores.
+hydratePlayersFromStorage();
 
 // ==============================
 // RESOLVER DE IDENTIDAD
@@ -77,6 +137,9 @@ eventBus.subscribe("game:score_updated", (payload) => {
     players.push({ ...snapshot, updatedAt: Date.now() });
   }
 
+  publishPlayersState();
+  persistPlayers();
+
   console.log("[PlayerManager] Score snapshot synchronized:", snapshot);
 });
 
@@ -99,10 +162,28 @@ export function addPlayer(input) {
   );
 
   if (exists) {
-    if (avatar && !exists.avatar) exists.avatar = avatar;
-    if (tiktokId && !exists.tiktokId) exists.tiktokId = tiktokId;
-    if (username && !exists.username) exists.username = username;
-    if (input && typeof input === "object" && input.teamId && !exists.teamId) exists.teamId = input.teamId;
+    let changed = false;
+    if (avatar && !exists.avatar) {
+      exists.avatar = avatar;
+      changed = true;
+    }
+    if (tiktokId && !exists.tiktokId) {
+      exists.tiktokId = tiktokId;
+      changed = true;
+    }
+    if (username && !exists.username) {
+      exists.username = username;
+      changed = true;
+    }
+    if (input && typeof input === "object" && input.teamId && !exists.teamId) {
+      exists.teamId = input.teamId;
+      changed = true;
+    }
+    if (changed) {
+      exists.updatedAt = Date.now();
+      publishPlayersState();
+      persistPlayers();
+    }
     return exists;
   }
 
@@ -127,6 +208,9 @@ export function addPlayer(input) {
   };
 
   players.push(newPlayer);
+  publishPlayersState();
+  persistPlayers();
+  eventBus.emit("player:created", { player: { ...newPlayer } });
   console.log("[PlayerManager] Player identity stored:", newPlayer);
   return newPlayer;
 }
@@ -139,7 +223,11 @@ export function removePlayer(playerId) {
     p => p.id === playerId || p.tiktokId === playerId || p.playerId === playerId
   );
   if (index === -1) return null;
-  return players.splice(index, 1)[0];
+  const removed = players.splice(index, 1)[0];
+  publishPlayersState();
+  persistPlayers();
+  eventBus.emit("player:updated", { player: { ...removed, removed: true } });
+  return removed;
 }
 
 // ==============================
@@ -158,6 +246,9 @@ export function addWin(playerId) {
   player.points += 1;
   player.streak++;
   player.updatedAt = Date.now();
+
+  publishPlayersState();
+  persistPlayers();
 
   eventBus.emit("game:score_updated", {
     playerId: player.id,
@@ -182,15 +273,24 @@ export function addPoints(playerId, points = 1) {
     return null;
   }
 
-  player.points += points;
+  const delta = Number(points);
+  if (!Number.isFinite(delta) || delta === 0) return player;
+
+  const previousPoints = Number(player.points) || 0;
+  player.points = Math.max(0, previousPoints + delta);
   player.updatedAt = Date.now();
+
+  // This mutation is authoritative. Persist BEFORE broadcasting so a refresh
+  // cannot race the score update and temporarily restore the old value.
+  publishPlayersState();
+  persistPlayers();
 
   eventBus.emit("game:score_updated", {
     playerId: player.id,
     username: player.name,
-    pointsAdded: points,
+    pointsAdded: player.points - previousPoints,
     newTotal: player.points,
-    source: "POINTS",
+    source: delta < 0 ? "MANUAL_REMOVE" : "POINTS",
     timestamp: Date.now(),
     playerSnapshot: { ...player }
   });
@@ -207,6 +307,8 @@ export function assignTeam(playerId, teamId) {
   if (player.teamId && player.teamId !== teamId) return player;
   player.teamId = teamId;
   player.updatedAt = Date.now();
+  publishPlayersState();
+  persistPlayers();
   return player;
 }
 
@@ -218,6 +320,8 @@ export function removeTeam(playerId) {
   if (!player) return null;
   player.teamId = null;
   player.updatedAt = Date.now();
+  publishPlayersState();
+  persistPlayers();
   return player;
 }
 
@@ -229,6 +333,8 @@ export function setAvatar(playerId, avatar) {
   if (!player) return null;
   player.avatar = avatar;
   player.updatedAt = Date.now();
+  publishPlayersState();
+  persistPlayers();
   return player;
 }
 
@@ -265,6 +371,8 @@ export function getLeaderboard() {
 // ==============================
 export function resetPlayers() {
   players.length = 0;
+  publishPlayersState();
+  persistPlayers();
 }
 
 export function resetRoundScores() {
@@ -273,4 +381,6 @@ export function resetRoundScores() {
     p.wins = 0;
     p.updatedAt = Date.now();
   });
+  publishPlayersState();
+  persistPlayers();
 }
