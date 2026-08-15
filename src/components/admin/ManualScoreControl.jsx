@@ -5,59 +5,57 @@ import { dashboardAPI } from "../../core/dashboardAPI";
 import { registrationManager } from "../../core/registrationManager";
 import { eventBus } from "../../core/eventBus";
 
-const clampAmount = (value) => Math.max(1, Math.min(99, Number(value) || 1));
+const getAmount = value => Math.min(99, Math.max(1, Math.abs(Number(value)) || 1));
 
-function playerIdentityMatches(core, registered) {
-  const ids = [core.id, core.playerId, core.tiktokId, core.username].filter(Boolean).map(String);
-  const registeredIds = [registered.playerId, registered.id, registered.username].filter(Boolean).map(String);
-  if (ids.some(id => registeredIds.includes(id))) return true;
-
-  const coreName = String(core.displayName || core.name || "").trim().toLowerCase();
-  const registeredName = String(registered.displayName || registered.name || registered.username || "").trim().toLowerCase();
-  return Boolean(coreName && registeredName && coreName === registeredName);
+function samePlayer(core, registered) {
+  const coreIds = [core.id, core.playerId, core.tiktokId, core.username].filter(Boolean).map(String);
+  const regIds = [registered.playerId, registered.id, registered.username].filter(Boolean).map(String);
+  if (coreIds.some(id => regIds.includes(id))) return true;
+  const a = String(core.displayName || core.name || "").trim().toLowerCase();
+  const b = String(registered.displayName || registered.name || registered.username || "").trim().toLowerCase();
+  return Boolean(a && b && a === b);
 }
 
 function buildCanonicalPlayers() {
-  const corePlayers = getPlayers() || [];
-  const registeredPlayers = registrationManager.getRegisteredPlayers() || [];
+  const core = getPlayers() || [];
+  const registered = registrationManager.getRegisteredPlayers() || [];
   const result = [];
-  const seenIds = new Set();
+  const seen = new Set();
 
-  corePlayers.forEach(player => {
+  core.forEach(player => {
     if (!player) return;
-    const key = String(player.id || player.playerId || player.tiktokId || player.username || player.name || "").trim();
-    if (!key || seenIds.has(key)) return;
-    seenIds.add(key);
+    const key = String(player.id || player.playerId || player.tiktokId || player.username || player.name || "");
+    if (!key || seen.has(key)) return;
+    seen.add(key);
     result.push({ ...player });
   });
 
-  registeredPlayers.forEach(registered => {
-    if (!registered) return;
-    const existing = result.find(player => playerIdentityMatches(player, registered));
-
+  registered.forEach(reg => {
+    if (!reg) return;
+    const existing = result.find(player => samePlayer(player, reg));
     if (existing) {
-      existing.playerId = existing.playerId || registered.playerId;
-      existing.tiktokId = existing.tiktokId || registered.playerId;
-      existing.username = existing.username || registered.username;
-      existing.displayName = existing.displayName || registered.displayName;
-      existing.name = existing.name || registered.displayName || registered.name;
-      existing.teamId = existing.teamId || registered.teamId || null;
+      existing.playerId = existing.playerId || reg.playerId;
+      existing.tiktokId = existing.tiktokId || reg.playerId;
+      existing.username = existing.username || reg.username;
+      existing.displayName = existing.displayName || reg.displayName;
+      existing.name = existing.name || reg.displayName || reg.name;
+      existing.teamId = existing.teamId || reg.teamId || null;
       return;
     }
 
-    const fallbackId = registered.playerId || registered.id || registered.username;
-    if (!fallbackId || seenIds.has(String(fallbackId))) return;
-    seenIds.add(String(fallbackId));
+    const id = reg.playerId || reg.id || reg.username;
+    if (!id || seen.has(String(id))) return;
+    seen.add(String(id));
     result.push({
-      id: fallbackId,
-      playerId: fallbackId,
-      tiktokId: fallbackId,
-      username: registered.username || registered.displayName || fallbackId,
-      name: registered.displayName || registered.name || registered.username || fallbackId,
-      displayName: registered.displayName || registered.name || registered.username || fallbackId,
-      points: Number(registered.points) || 0,
-      wins: Number(registered.wins) || 0,
-      teamId: registered.teamId || null
+      id,
+      playerId: id,
+      tiktokId: id,
+      username: reg.username || reg.displayName || id,
+      name: reg.displayName || reg.name || reg.username || id,
+      displayName: reg.displayName || reg.name || reg.username || id,
+      points: Number(reg.points) || 0,
+      wins: Number(reg.wins) || 0,
+      teamId: reg.teamId || null
     });
   });
 
@@ -80,32 +78,21 @@ export function ManualScoreControl() {
     setPlayers(nextPlayers);
     setTeams(nextTeams);
 
-    if (selectedPlayerId && !nextPlayers.some(p => String(p.id || p.playerId) === String(selectedPlayerId))) {
-      setSelectedPlayerId("");
-    }
-    if (selectedTeamId && !nextTeams.some(t => String(t.id) === String(selectedTeamId))) {
-      setSelectedTeamId(nextTeams[0]?.id || "");
-    }
-    if (!selectedTeamId && nextTeams.length) setSelectedTeamId(nextTeams[0].id);
+    if (selectedPlayerId && !nextPlayers.some(p => String(p.id || p.playerId) === String(selectedPlayerId))) setSelectedPlayerId("");
+    if (nextTeams.length && (!selectedTeamId || !nextTeams.some(t => String(t.id) === String(selectedTeamId)))) setSelectedTeamId(nextTeams[0].id);
   };
 
   useEffect(() => {
     refreshData();
-    const unsubMode = dashboardAPI.subscribeToModeChange(({ mode }) => setGameMode(mode));
-    const unsubReg = eventBus.subscribe("registration:updated", refreshData);
-    const unsubScore = eventBus.subscribe("game:score_updated", refreshData);
-    const unsubPlayer = eventBus.subscribe("player:updated", refreshData);
-    const unsubCreated = eventBus.subscribe("player:created", refreshData);
-    const unsubRemoved = eventBus.subscribe("registration:player_removed", refreshData);
-
-    return () => {
-      unsubMode && unsubMode();
-      unsubReg && unsubReg();
-      unsubScore && unsubScore();
-      unsubPlayer && unsubPlayer();
-      unsubCreated && unsubCreated();
-      unsubRemoved && unsubRemoved();
-    };
+    const subscriptions = [
+      dashboardAPI.subscribeToModeChange(({ mode }) => setGameMode(mode)),
+      eventBus.subscribe("registration:updated", refreshData),
+      eventBus.subscribe("game:score_updated", refreshData),
+      eventBus.subscribe("player:updated", refreshData),
+      eventBus.subscribe("player:created", refreshData),
+      eventBus.subscribe("registration:player_removed", refreshData)
+    ];
+    return () => subscriptions.forEach(unsub => unsub && unsub());
   }, []);
 
   const showFeedback = (message, isError = false) => {
@@ -113,49 +100,43 @@ export function ManualScoreControl() {
     window.setTimeout(() => setFeedback(null), 2500);
   };
 
-  const getSelectedPlayer = () => {
-    if (selectedPlayerId) {
-      return players.find(p => String(p.id || p.playerId) === String(selectedPlayerId)) || null;
-    }
-
-    if (customPlayerName.trim()) {
-      return addPlayer({ name: customPlayerName.trim() });
-    }
-
+  const targetPlayer = () => {
+    if (selectedPlayerId) return players.find(p => String(p.id || p.playerId) === String(selectedPlayerId)) || null;
+    if (customPlayerName.trim()) return addPlayer({ name: customPlayerName.trim() });
     return null;
   };
 
   const handleIndividualAction = (type, delta) => {
-    const target = getSelectedPlayer();
-    if (!target) {
+    const player = targetPlayer();
+    if (!player) {
       showFeedback("⚠️ Selecciona un jugador antes de aplicar el ajuste.", true);
       return;
     }
 
-    const amount = clampAmount(delta);
-    const signedAmount = type === "point" ? amount : amount;
-    const current = Number(type === "point" ? target.points : target.wins) || 0;
-    const next = Math.max(0, current + signedAmount);
+    const amount = getAmount(delta);
+    const signedDelta = delta < 0 ? -amount : amount;
+    const current = Number(type === "point" ? player.points : player.wins) || 0;
+    const next = Math.max(0, current + signedDelta);
     const actualDelta = next - current;
 
     if (actualDelta !== 0) {
       if (type === "point") {
-        addPoints(target.id || target.playerId, actualDelta);
-        target.points = next;
+        addPoints(player.id || player.playerId, actualDelta);
+        player.points = next;
       } else {
-        target.wins = next;
+        player.wins = next;
         eventBus.emit("game:score_updated", {
-          playerId: target.id || target.playerId,
-          points: target.points || 0,
-          wins: target.wins,
+          playerId: player.id || player.playerId,
+          points: player.points || 0,
+          wins: player.wins,
           manual: true,
-          playerSnapshot: { ...target }
+          playerSnapshot: { ...player }
         });
       }
     }
 
-    showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${target.name || target.displayName} (${next}).`);
-    eventBus.publish("player:updated", { player: { ...target } });
+    showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${player.name || player.displayName} (${next}).`);
+    eventBus.publish("player:updated", { player: { ...player } });
     refreshData();
   };
 
@@ -166,9 +147,10 @@ export function ManualScoreControl() {
       return;
     }
 
-    const amount = clampAmount(delta);
+    const amount = getAmount(delta);
+    const signedDelta = delta < 0 ? -amount : amount;
     const current = Number(type === "point" ? team.points : team.wins) || 0;
-    const next = Math.max(0, current + amount);
+    const next = Math.max(0, current + signedDelta);
     const actualDelta = next - current;
 
     if (type === "point" && actualDelta !== 0) {
@@ -179,56 +161,31 @@ export function ManualScoreControl() {
     }
 
     showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${team.name} (${next}).`);
-    eventBus.emit("game:score_updated", {
-      teamId: team.id,
-      points: team.points || 0,
-      wins: team.wins || 0,
-      manual: true
-    });
+    eventBus.emit("game:score_updated", { teamId: team.id, points: team.points || 0, wins: team.wins || 0, manual: true });
     refreshData();
   };
 
   const isTeamMode = String(gameMode || "").toUpperCase().includes("TEAM");
+  const buttonBase = { color: "white", border: "none", padding: "9px 6px", borderRadius: "6px", fontWeight: 900, cursor: "pointer", fontSize: "12px" };
 
-  const buttonBase = {
-    flex: 1,
-    color: "white",
-    border: "none",
-    padding: "9px 6px",
-    borderRadius: "6px",
-    fontWeight: 900,
-    cursor: "pointer",
-    fontSize: "12px"
-  };
-
-  const ActionButtons = ({ type, onAction, positiveLabel, negativeLabel }) => (
+  const ActionButtons = ({ type, onAction }) => (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) 1fr repeat(3, 1fr)", gap: "5px" }}>
-      {[1, 5, 10].map(amount => (
-        <button key={`plus-${amount}`} onClick={() => onAction(type, amount)} style={{ ...buttonBase, background: "linear-gradient(135deg, #48bb78, #38a169)" }}>
-          +{amount}
-        </button>
-      ))}
+      {[1, 5, 10].map(amount => <button key={`plus-${amount}`} onClick={() => onAction(type, amount)} style={{ ...buttonBase, background: "linear-gradient(135deg, #48bb78, #38a169)" }}>+{amount}</button>)}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#718096", fontSize: "10px", fontWeight: 900 }}>AJUSTE</div>
-      {[1, 5, 10].map(amount => (
-        <button key={`minus-${amount}`} onClick={() => onAction(type, -amount)} style={{ ...buttonBase, background: "linear-gradient(135deg, #e53e3e, #c53030)" }}>
-          −{amount}
-        </button>
-      ))}
+      {[1, 5, 10].map(amount => <button key={`minus-${amount}`} onClick={() => onAction(type, -amount)} style={{ ...buttonBase, background: "linear-gradient(135deg, #e53e3e, #c53030)" }}>−{amount}</button>)}
     </div>
   );
 
+  const modeHelp = "CADA BOTÓN ES UNA ACCIÓN INDEPENDIENTE · NO QUEDA NINGUNA CANTIDAD GUARDADA";
+
   return (
-    <div style={{ background: "linear-gradient(135deg, #1b1429, #120d22)", border: "2px solid rgba(255, 215, 0, 0.4)", borderRadius: "14px", padding: "20px", boxShadow: "0 10px 30px rgba(0,0,0,0.6)", color: "white", display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "10px" }}>
+    <div style={{ background: "linear-gradient(135deg, #1b1429, #120d22)", border: "2px solid rgba(255,215,0,.4)", borderRadius: "14px", padding: "20px", boxShadow: "0 10px 30px rgba(0,0,0,.6)", color: "white", display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,.1)", paddingBottom: "10px" }}>
         <h3 style={{ margin: 0, fontSize: "16px", color: "#ffd700", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 900 }}>🎛️ MANUAL SCORE & ROUND CONTROL</h3>
-        <span style={{ fontSize: "11px", color: "#00f5ff", background: "rgba(0,245,255,0.1)", padding: "3px 8px", borderRadius: "6px", fontWeight: 800 }}>Mode: {isTeamMode ? "TEAM (EQUIPOS)" : "INDIVIDUAL"}</span>
+        <span style={{ fontSize: "11px", color: "#00f5ff", background: "rgba(0,245,255,.1)", padding: "3px 8px", borderRadius: "6px", fontWeight: 800 }}>Mode: {isTeamMode ? "TEAM (EQUIPOS)" : "INDIVIDUAL"}</span>
       </div>
 
-      {feedback && (
-        <div style={{ background: feedback.isError ? "rgba(229,62,62,.2)" : "rgba(72,187,120,.2)", border: `1px solid ${feedback.isError ? "#e53e3e" : "#48bb78"}`, color: feedback.isError ? "#feb2b2" : "#9ae6b4", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 800, textAlign: "center" }}>
-          {feedback.message}
-        </div>
-      )}
+      {feedback && <div style={{ background: feedback.isError ? "rgba(229,62,62,.2)" : "rgba(72,187,120,.2)", border: `1px solid ${feedback.isError ? "#e53e3e" : "#48bb78"}`, color: feedback.isError ? "#feb2b2" : "#9ae6b4", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 800, textAlign: "center" }}>{feedback.message}</div>}
 
       {!isTeamMode ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -237,10 +194,7 @@ export function ManualScoreControl() {
               <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>Seleccionar Jugador:</label>
               <select value={selectedPlayerId} onChange={e => { setSelectedPlayerId(e.target.value); setCustomPlayerName(""); }} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "12px", fontWeight: 700 }}>
                 <option value="">-- Seleccionar de lista --</option>
-                {players.map(p => {
-                  const id = p.id || p.playerId;
-                  return <option key={String(id)} value={String(id)}>{p.name || p.displayName} ({Number(p.points) || 0} pts)</option>;
-                })}
+                {players.map(p => { const id = p.id || p.playerId; return <option key={String(id)} value={String(id)}>{p.name || p.displayName} ({Number(p.points) || 0} pts)</option>; })}
               </select>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -248,42 +202,22 @@ export function ManualScoreControl() {
               <input type="text" placeholder="Ej. Fernando" value={customPlayerName} onChange={e => { setCustomPlayerName(e.target.value); setSelectedPlayerId(""); }} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "12px", fontWeight: 700 }} />
             </div>
           </div>
-
-          <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>
-            CADA BOTÓN ES UNA ACCIÓN INDEPENDIENTE · NO QUEDA NINGUNA CANTIDAD GUARDADA
-          </div>
-
+          <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>{modeHelp}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900, textAlign: "center" }}>🪙 PUNTOS</span>
-              <ActionButtons type="point" onAction={handleIndividualAction} />
-            </div>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900, textAlign: "center" }}>🏆 RONDAS (WINS)</span>
-              <ActionButtons type="round" onAction={handleIndividualAction} />
-            </div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900, textAlign: "center" }}>🪙 PUNTOS</span><ActionButtons type="point" onAction={handleIndividualAction} /></div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900, textAlign: "center" }}>🏆 RONDAS (WINS)</span><ActionButtons type="round" onAction={handleIndividualAction} /></div>
           </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>Seleccionar Equipo:</label>
-            <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "13px", fontWeight: 900 }}>
-              {teams.map(t => <option key={t.id} value={t.id}>{t.name} ({Number(t.points) || 0} pts)</option>)}
-            </select>
+            <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "13px", fontWeight: 900 }}>{teams.map(t => <option key={t.id} value={t.id}>{t.name} ({Number(t.points) || 0} pts)</option>)}</select>
           </div>
-          <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>
-            CADA BOTÓN ES UNA ACCIÓN INDEPENDIENTE · NO QUEDA NINGUNA CANTIDAD GUARDADA
-          </div>
+          <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>{modeHelp}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900, textAlign: "center" }}>🪙 PUNTOS</span>
-              <ActionButtons type="point" onAction={handleTeamAction} />
-            </div>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900, textAlign: "center" }}>🏆 RONDAS (WINS)</span>
-              <ActionButtons type="round" onAction={handleTeamAction} />
-            </div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900, textAlign: "center" }}>🪙 PUNTOS</span><ActionButtons type="point" onAction={handleTeamAction} /></div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900, textAlign: "center" }}>🏆 RONDAS (WINS)</span><ActionButtons type="round" onAction={handleTeamAction} /></div>
           </div>
         </div>
       )}
