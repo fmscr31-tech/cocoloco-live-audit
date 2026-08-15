@@ -14,6 +14,32 @@ let roundWinners = new Set();
 eventBus.subscribe("round:started", () => { roundWinners.clear(); });
 eventBus.subscribe("ROUND_STARTED", () => { roundWinners.clear(); });
 
+// When registration is explicitly cleared, the canonical player roster must
+// also be cleared in EVERY browser context. RegistrationManager already emits
+// this event through the cross-window EventBus/BroadcastChannel. Clearing only
+// the registration Map was insufficient because playerManager kept the old
+// players alive, so the Overlay continued rendering them from getLeaderboard().
+eventBus.subscribe("registration:cleared", () => {
+  const previousPlayers = [...players];
+
+  previousPlayers.forEach(player => {
+    if (player?.id) {
+      removePlayer(player.id);
+    }
+  });
+
+  // removePlayer() normally handles persistence, but explicitly synchronize
+  // the shared game state after the entire roster has been cleared.
+  gameState.players.length = 0;
+  gameState.teams = getTeams();
+  setPlayers(gameState.players);
+  setTeams(gameState.teams);
+  saveState();
+
+  // Force any overlay-local visual state to release immediately as well.
+  eventBus.emit("overlay:reset");
+});
+
 import {
   startTimer,
   pauseTimer,
