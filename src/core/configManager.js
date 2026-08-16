@@ -4,7 +4,7 @@ import { ABILITY_REGISTRY } from "../config/abilityRegistry";
 import { GIFT_ABILITY_MAP } from "../config/giftAbilityMap";
 
 const CONFIG_STORAGE_KEY = "cocoloco_system_config";
-const ABILITY_SOUND_MIGRATION_VERSION = 2;
+const ABILITY_SOUND_MIGRATION_VERSION = 3;
 
 const DEFAULT_GIFT_SOUNDS = [
   { giftName: "Heart Me", giftId: "heart_me", sound: "/Sounds/mudo.mp3", enabled: true },
@@ -26,14 +26,27 @@ const DEFAULT_FREEZE_CONFIG = {
  *
  * IMPORTANT:
  * - Existing user configuration is preserved.
- * - One-time migrations only repair known legacy/default values.
- * - After migration, user-selected ability sounds remain authoritative.
+ * - Defaults are used only when a configuration section is genuinely missing.
+ * - User-selected ability/gift/freeze sounds are NEVER replaced by a default.
+ * - Writes always start from the latest localStorage snapshot so another
+ *   browser tab/window cannot overwrite newer sound selections with stale data.
  */
 class ConfigManager {
   constructor() {
     const stored = this.loadConfig();
     this.config = stored || this.createDefaultConfig();
     this.migrateConfiguration();
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", (event) => {
+        if (event.key !== CONFIG_STORAGE_KEY || !event.newValue) return;
+        try {
+          this.config = JSON.parse(event.newValue);
+        } catch (e) {
+          // Ignore malformed external storage updates.
+        }
+      });
+    }
   }
 
   createDefaultConfig() {
@@ -73,44 +86,22 @@ class ConfigManager {
     try {
       localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(this.config));
     } catch (e) {
-      // fallback storage error suppression
+      console.warn("[ConfigManager] Failed to persist configuration:", e);
     }
   }
 
   /**
-   * Repairs known legacy ability sound defaults exactly once.
-   * This does NOT overwrite future user selections.
+   * Repairs only missing structural configuration.
+   *
+   * Version 3 deliberately removes the old sound migration behavior. A sound
+   * selected by the operator is user data, even if it happens to equal a
+   * historical/default sound path. It must never be rewritten automatically.
    */
   migrateConfiguration() {
     let changed = false;
 
     if (!this.config.abilities || typeof this.config.abilities !== "object") {
       this.config.abilities = { ...ABILITY_REGISTRY };
-      changed = true;
-    } else if ((this.config.abilitySoundMigrationVersion || 0) < ABILITY_SOUND_MIGRATION_VERSION) {
-      const legacySounds = new Set([
-        "/5-4-3-2-1-are-you-ready.mp3",
-        "/Sounds/5-4-3-2-1-are-you-ready.mp3"
-      ]);
-
-      for (const [abilityId, canonicalAbility] of Object.entries(ABILITY_REGISTRY)) {
-        const storedAbility = this.config.abilities[abilityId];
-        if (!storedAbility) {
-          this.config.abilities[abilityId] = { ...canonicalAbility };
-          changed = true;
-          continue;
-        }
-
-        if (legacySounds.has(storedAbility.sound)) {
-          this.config.abilities[abilityId] = {
-            ...storedAbility,
-            sound: canonicalAbility.sound
-          };
-          changed = true;
-        }
-      }
-
-      this.config.abilitySoundMigrationVersion = ABILITY_SOUND_MIGRATION_VERSION;
       changed = true;
     }
 
@@ -134,6 +125,7 @@ class ConfigManager {
       changed = true;
     } else {
       const freeze = this.config.battleEffects.freeze;
+
       if (!freeze.activationGift || freeze.activationGift === "STAR") {
         freeze.activationGift = DEFAULT_FREEZE_CONFIG.activationGift;
         changed = true;
@@ -160,6 +152,11 @@ class ConfigManager {
       }
     }
 
+    if ((this.config.abilitySoundMigrationVersion || 0) < ABILITY_SOUND_MIGRATION_VERSION) {
+      this.config.abilitySoundMigrationVersion = ABILITY_SOUND_MIGRATION_VERSION;
+      changed = true;
+    }
+
     if (changed) this.persist();
   }
 
@@ -178,17 +175,29 @@ class ConfigManager {
   }
 
   /**
-   * Updates a configuration section or property and persists the changes.
+   * Updates a configuration section/property and persists the change.
+   *
+   * CRITICAL: reload the latest persisted configuration before applying the
+   * update. Multiple dashboard/overlay tabs otherwise hold independent stale
+   * snapshots and one tab can accidentally restore old ability sounds.
    */
   set(path, value) {
     if (!path) return;
+
+    const latest = this.loadConfig();
+    if (latest && typeof latest === "object") {
+      this.config = latest;
+    }
+
     const parts = path.split(".");
     let current = this.config;
+
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (!current[part]) current[part] = {};
+      if (!current[part] || typeof current[part] !== "object") current[part] = {};
       current = current[part];
     }
+
     current[parts[parts.length - 1]] = value;
     this.persist();
   }
