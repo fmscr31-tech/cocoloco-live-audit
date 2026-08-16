@@ -66,6 +66,9 @@ class ChatCommandParser {
       const configuredAnswer = this.normalize(
         winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
       );
+
+      // ACTIVE ROUND is the source of truth. The persisted Win Limpia config is
+      // only a fallback for legacy rounds that contain no answer snapshot.
       const roundAnswer = this.normalize(
         currentRound?.correctAnswer ??
         currentRound?.answer ??
@@ -76,8 +79,8 @@ class ChatCommandParser {
         ""
       );
 
-      const targetAnswer = configuredAnswer || roundAnswer;
-      const answerSource = configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND";
+      const targetAnswer = roundAnswer || configuredAnswer;
+      const answerSource = roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG_FALLBACK";
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
@@ -112,13 +115,9 @@ class ChatCommandParser {
 
           console.log("[WIN LIMPIA MATCH]", { matchedRegPlayer, scoringId });
 
-          // CRITICAL LIVE FIX:
-          // RegistrationManager is the authoritative source for the participant
-          // identity, while playerManager owns the score. In separate LIVE
-          // browser contexts the score-side player can be missing even though
-          // registration is valid. Materialize that exact registered identity
-          // into playerManager BEFORE calling playerWin(). This makes the +1
-          // point path deterministic and keeps the normal playerWin event flow.
+          // Materialize the registered participant into playerManager before
+          // scoring. This is required when LIVE/admin/overlay are separate
+          // browser contexts with independent in-memory player arrays.
           const scoringPlayer = addPlayer({
             name: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
             displayName: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
@@ -132,17 +131,19 @@ class ChatCommandParser {
             scoringId,
             localPlayerId: scoringPlayer?.id || null,
             localTikTokId: scoringPlayer?.tiktokId || null,
-            beforePoints: scoringPlayer?.points ?? null
+            beforePoints: scoringPlayer?.points ?? null,
+            beforeWins: scoringPlayer?.wins ?? null
           });
 
           const player = playerWin(scoringId);
           if (player) {
-            console.log("[WIN LIMPIA SUCCESS] +1 POINT", {
+            console.log("[WIN LIMPIA SUCCESS] +1 POINT +1 WIN", {
               playerId: player.id,
               tiktokId: player.tiktokId,
               player: player.name,
               points: player.points,
               wins: player.wins,
+              wordsFound: player.wordsFound,
               correctAnswer: targetAnswer
             });
 
@@ -151,6 +152,7 @@ class ChatCommandParser {
               player,
               correctAnswer: targetAnswer,
               pointsAdded: 1,
+              winsAdded: 1,
               source: "WIN_LIMPIA"
             });
 
