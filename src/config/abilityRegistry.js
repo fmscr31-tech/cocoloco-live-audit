@@ -1,6 +1,7 @@
 /**
- * Ability Registry v3
+ * Ability Registry v4
  * Centralized configuration defining game abilities independently from gifts.
+ * Point values are PER GIFT UNIT; the dispatcher multiplies by quantity/repeatCount.
  */
 export const ABILITY_REGISTRY = {
   silent_challenge: {
@@ -16,7 +17,7 @@ export const ABILITY_REGISTRY = {
     abilityId: "creative_challenge",
     display: { name: "Reto Creativo", icon: "🤠", color: "orange", animation: "cowboyPulse" },
     gameAction: { type: "CHALLENGE", value: "ACT_OR_DRAW" },
-    scoreAction: { type: "ADD_POINTS", value: 1 },
+    scoreAction: { type: "ADD_POINTS", value: 5 },
     sound: "/Sounds/Sombrero Vaquero.mp3",
     enabled: true,
     duration: 2500
