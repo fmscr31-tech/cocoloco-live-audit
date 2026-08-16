@@ -9,6 +9,7 @@ class ChatCommandParser {
   constructor() {
     this.initListener();
     this.initWinListener();
+    this.initContextoBridge();
   }
 
   initListener() {
@@ -16,9 +17,61 @@ class ChatCommandParser {
   }
 
   initWinListener() {
-    // WIN LIMPIA is now an external result signal. Contexto/TikFinity tells us
-    // who won; this parser must never infer a win from the text itself.
     eventBus.subscribe("win:detected", (event) => this.processWinSignal(event));
+  }
+
+  initContextoBridge() {
+    if (typeof window === "undefined") return;
+    if (window.__COCOLOCO_CONTEXTO_BRIDGE__) return;
+    window.__COCOLOCO_CONTEXTO_BRIDGE__ = true;
+
+    const install = () => {
+      const gameManager = window.GameManager;
+      if (!gameManager || typeof gameManager.endRound !== "function") {
+        window.setTimeout(install, 250);
+        return;
+      }
+
+      if (gameManager.__COCOLOCO_WIN_BRIDGE__) return;
+      const originalEndRound = gameManager.endRound;
+
+      gameManager.endRound = function(result, winners = [], answer = "") {
+        const normalizedResult = String(result || "").trim().toLowerCase();
+
+        if (normalizedResult === "win" && !window.__COCOLOCO_LAST_WIN_SIGNAL__) {
+          const winner = Array.isArray(winners) ? winners[0] : winners;
+          if (winner && typeof winner === "object") {
+            const payload = {
+              type: "WIN_LIMPIA",
+              winLimpia: true,
+              playerId: winner.playerId || winner.userId || winner.tiktokId || winner.uniqueId || winner.id || "",
+              userId: winner.userId || winner.playerId || winner.tiktokId || winner.uniqueId || winner.id || "",
+              username: winner.username || winner.uniqueId || "",
+              displayName: winner.displayName || winner.name || winner.nickname || winner.username || winner.uniqueId || "Jugador",
+              avatar: winner.avatar || winner.photoUrl || winner.profilePictureUrl || winner.photo || "",
+              source: "CONTEXTO_GAME_MANAGER",
+              answer: answer || "",
+              timestamp: Date.now()
+            };
+
+            window.__COCOLOCO_LAST_WIN_SIGNAL__ = true;
+            console.log("[WIN LIMPIA CONTEXTO BRIDGE]", payload);
+            eventBus.publish("win:detected", payload);
+
+            window.setTimeout(() => {
+              window.__COCOLOCO_LAST_WIN_SIGNAL__ = false;
+            }, 1000);
+          }
+        }
+
+        return originalEndRound.apply(this, arguments);
+      };
+
+      gameManager.__COCOLOCO_WIN_BRIDGE__ = true;
+      console.log("[WIN LIMPIA CONTEXTO BRIDGE INSTALLED]");
+    };
+
+    install();
   }
 
   normalize(value) {
@@ -75,7 +128,6 @@ class ChatCommandParser {
     });
     console.log("[CHAT LIVE 05] COMMAND CONFIG", config);
 
-    // Registration remains command-driven and unchanged.
     if (regState.status === "OPEN") {
       if (config.registrationMode !== "CHAT" && config.registrationMode !== "MIXED") {
         eventBus.publish("chat:command_rejected", { event, reason: "CHAT_REGISTRATION_DISABLED" });
@@ -128,12 +180,40 @@ class ChatCommandParser {
     }
 
     if (activeRound) {
-      // IMPORTANT: A normal chat message is NOT a WIN LIMPIA anymore.
-      // The winning answer is owned by Contexto Interactive. Once Contexto
-      // emits win:detected, processWinSignal() awards the point using identity
-      // only. There is deliberately no configuredAnswer/roundAnswer comparison.
-      eventBus.publish("chat:command_rejected", { event, reason: "ACTIVE_ROUND_CHAT_IGNORED" });
-      return { accepted: false, reason: "ACTIVE_ROUND_CHAT_IGNORED" };
+      // During the active round, every normal chat goes to the authoritative
+      // Contexto engine. Contexto decides whether rank === 1. We do NOT compare
+      // the chat text against a configured answer here.
+      const contextoUser = {
+        ...event,
+        comment: rawMessage,
+        message: rawMessage,
+        uniqueId: event.uniqueId || event.username || eventPlayerId,
+        username: event.username || event.uniqueId || "",
+        nickname: event.displayName || event.nickname || event.username || "Jugador",
+        displayName: event.displayName || event.nickname || event.username || "Jugador",
+        userId: event.userId || event.playerId || eventPlayerId,
+        playerId: event.playerId || event.userId || eventPlayerId,
+        photoUrl: event.photoUrl || event.profilePictureUrl || event.avatar || ""
+      };
+
+      if (typeof window !== "undefined" && typeof window.handleRealComment === "function") {
+        console.log("[WIN LIMPIA CHAT -> CONTEXTO]", {
+          playerId: contextoUser.playerId,
+          username: contextoUser.username,
+          comment: contextoUser.comment
+        });
+        try {
+          window.handleRealComment(contextoUser);
+          return { accepted: true, forwardedToContexto: true };
+        } catch (error) {
+          console.error("[WIN LIMPIA CONTEXTO FORWARD ERROR]", error);
+          return { accepted: false, reason: "CONTEXTO_FORWARD_FAILED" };
+        }
+      }
+
+      console.warn("[WIN LIMPIA CONTEXTO UNAVAILABLE] Active-round chat could not be forwarded");
+      eventBus.publish("chat:command_rejected", { event, reason: "CONTEXTO_UNAVAILABLE" });
+      return { accepted: false, reason: "CONTEXTO_UNAVAILABLE" };
     }
 
     eventBus.publish("chat:command_rejected", { event, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" });
