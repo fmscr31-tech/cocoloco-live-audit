@@ -17,22 +17,35 @@ function normalizeAnswer(value) {
     .toLowerCase();
 }
 
-// The answer belongs to the ACTIVE ROUND. Once a round starts, a stale
-// Win-Limpia configuration from localStorage must never replace that answer.
-// Configuration is only a fallback when the round start did not provide one.
-//
-// IMPORTANT: Do NOT mutate currentRound.correctAnswer when the operator edits
-// the next/default Win Limpia configuration during an active round. Otherwise
-// an old value in one tab can silently replace the word actually selected for
-// the current round.
+// Win Limpia is an operator-controlled LIVE command. If the operator changes
+// the active answer, the active round must immediately follow that change.
+// The old implementation intentionally ignored this event and left the round
+// frozen on a stale word (for example "clase" while the LIVE control showed
+// "paradoja"), which made the chat parser reject the real answer.
 eventBus.subscribe("config:command_updated", ({ config } = {}) => {
   if (!currentRound || currentRound.status !== "active") return;
 
-  console.log("[ROUND ANSWER CONFIG UPDATE IGNORED FOR ACTIVE ROUND]", {
+  const nextAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
+  if (!nextAnswer) return;
+
+  const previousAnswer = normalizeAnswer(currentRound.correctAnswer || "");
+  if (previousAnswer === nextAnswer) return;
+
+  currentRound.correctAnswer = nextAnswer;
+
+  console.log("[ROUND ANSWER UPDATED LIVE]", {
     roundId: currentRound.id,
-    activeRoundAnswer: currentRound.correctAnswer || null,
-    configuredAnswer: normalizeAnswer(config?.winLimpia?.correctAnswer || ""),
-    source: "ACTIVE_ROUND_IS_AUTHORITATIVE"
+    previousAnswer: previousAnswer || null,
+    activeRoundAnswer: nextAnswer,
+    source: "LIVE_WIN_LIMPIA_CONFIG"
+  });
+
+  eventBus.publish("round:answer_snapshot", {
+    roundId: currentRound.id,
+    correctAnswer: nextAnswer,
+    previousAnswer: previousAnswer || null,
+    source: "LIVE_WIN_LIMPIA_CONFIG",
+    timestamp: Date.now()
   });
 });
 
@@ -41,17 +54,13 @@ export function startRound(data = {}) {
   const configuredAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
   const explicitAnswer = normalizeAnswer(data.correctAnswer ?? data.answer ?? data.word ?? "");
 
-  // CRITICAL WIN LIMPIA RULE:
-  // The word explicitly selected for THIS round is authoritative.
-  // Only fall back to the persisted Win Limpia configuration when the round
-  // start payload contains no answer at all. This prevents a stale value such
-  // as "clase" in localStorage from overriding a newly selected word such as
-  // "nomada".
+  // The explicit round-start answer is preferred when supplied. Otherwise use
+  // the currently configured Win Limpia answer.
   const roundAnswer = explicitAnswer || configuredAnswer;
   const answerSource = explicitAnswer
     ? "ROUND_START_DATA"
     : configuredAnswer
-      ? "COMMAND_CONFIG_WIN_LIMPIA_FALLBACK"
+      ? "COMMAND_CONFIG_WIN_LIMPIA"
       : "EMPTY";
 
   currentRound = {
