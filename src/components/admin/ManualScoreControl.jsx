@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getPlayers, addPlayer, addPoints } from "../../core/playerManager";
 import { getTeams, addTeamPoints, adjustTeamWins, syncConfiguredTeams } from "../../core/TeamManager";
 import { dashboardAPI } from "../../core/dashboardAPI";
@@ -72,13 +72,35 @@ export function ManualScoreControl() {
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [feedback, setFeedback] = useState(null);
 
+  // React state is asynchronous. EventBus callbacks registered once on mount
+  // can otherwise keep the initial selectedTeamId (usually "") and fall back
+  // to the first team after every score event. The refs below are the runtime
+  // truth for the current manual selector and are updated synchronously when
+  // the user changes the dropdown.
+  const selectedTeamIdRef = useRef("");
+  const selectedPlayerIdRef = useRef("");
+
+  const setSelectedTeam = value => {
+    const normalized = String(value || "");
+    selectedTeamIdRef.current = normalized;
+    setSelectedTeamId(normalized);
+  };
+
+  const setSelectedPlayer = value => {
+    const normalized = String(value || "");
+    selectedPlayerIdRef.current = normalized;
+    setSelectedPlayerId(normalized);
+  };
+
   // Configuration synchronization is only performed when configuration changes
   // or when no runtime teams exist. A score event must NEVER recreate the team
   // list, because doing so can overwrite a just-applied manual score.
   const refreshData = (forceTeamSync = false) => {
     const mode = dashboardAPI.getGameMode();
     setGameMode(mode);
-    setPlayers(buildCanonicalPlayers());
+
+    const nextPlayers = buildCanonicalPlayers();
+    setPlayers(nextPlayers);
 
     const configTeams = commandConfigManager.getConfig().teams || [];
     const runtimeTeams = getTeams();
@@ -87,9 +109,23 @@ export function ManualScoreControl() {
       : runtimeTeams;
     setTeams(nextTeams);
 
-    if (selectedPlayerId && !players.some(p => String(p.id || p.playerId) === String(selectedPlayerId))) setSelectedPlayerId("");
-    if (nextTeams.length && (!selectedTeamId || !nextTeams.some(t => String(t.id) === String(selectedTeamId)))) {
-      setSelectedTeamId(String(nextTeams[0].id));
+    const currentPlayerId = selectedPlayerIdRef.current;
+    if (currentPlayerId && !nextPlayers.some(p => String(p.id || p.playerId) === currentPlayerId)) {
+      selectedPlayerIdRef.current = "";
+      setSelectedPlayerId("");
+    }
+
+    const currentTeamId = selectedTeamIdRef.current;
+    if (nextTeams.length) {
+      const selectedStillExists = currentTeamId && nextTeams.some(t => String(t.id) === currentTeamId);
+      if (!selectedStillExists) {
+        const fallback = String(nextTeams[0].id);
+        selectedTeamIdRef.current = fallback;
+        setSelectedTeamId(fallback);
+      }
+    } else if (currentTeamId) {
+      selectedTeamIdRef.current = "";
+      setSelectedTeamId("");
     }
   };
 
@@ -116,7 +152,8 @@ export function ManualScoreControl() {
   };
 
   const targetPlayer = () => {
-    if (selectedPlayerId) return players.find(p => String(p.id || p.playerId) === String(selectedPlayerId)) || null;
+    const currentPlayerId = selectedPlayerIdRef.current;
+    if (currentPlayerId) return players.find(p => String(p.id || p.playerId) === currentPlayerId) || null;
     if (customPlayerName.trim()) return addPlayer({ name: customPlayerName.trim() });
     return null;
   };
@@ -156,9 +193,11 @@ export function ManualScoreControl() {
   };
 
   const handleTeamAction = (type, delta) => {
-    const team = teams.find(t => String(t.id) === String(selectedTeamId));
+    const currentTeamId = selectedTeamIdRef.current;
+    const team = teams.find(t => String(t.id) === currentTeamId);
     if (!team) {
       showFeedback("⚠️ Selecciona un equipo válido.", true);
+      refreshData(false);
       return;
     }
 
@@ -174,8 +213,8 @@ export function ManualScoreControl() {
     }
 
     const updated = type === "point"
-      ? addTeamPoints(team.id, actualDelta)
-      : adjustTeamWins(team.id, actualDelta);
+      ? addTeamPoints(currentTeamId, actualDelta)
+      : adjustTeamWins(currentTeamId, actualDelta);
 
     if (!updated) {
       showFeedback(`❌ No se pudo actualizar ${team.name}. El equipo ya no existe en el registro canónico.`, true);
@@ -183,17 +222,21 @@ export function ManualScoreControl() {
       return;
     }
 
-    // Use the returned canonical TeamManager snapshot, not the stale React
-    // object, so the exact value broadcast to Dashboard/Overlay is authoritative.
-    team.points = Number(updated.points) || 0;
-    team.wins = Number(updated.wins) || 0;
+    // Keep the selector locked to the exact team the user chose. The score event
+    // can trigger refreshData immediately, but refreshData now reads the ref and
+    // therefore cannot silently switch the selection to team1/teamA.
+    selectedTeamIdRef.current = currentTeamId;
+    setSelectedTeamId(currentTeamId);
 
-    showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${team.name} (${type === "point" ? team.points : team.wins}).`);
+    const updatedPoints = Number(updated.points) || 0;
+    const updatedWins = Number(updated.wins) || 0;
+
+    showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${team.name} (${type === "point" ? updatedPoints : updatedWins}).`);
     eventBus.emit("game:score_updated", {
-      teamId: team.id,
+      teamId: currentTeamId,
       teamName: team.name,
-      points: team.points,
-      wins: team.wins,
+      points: updatedPoints,
+      wins: updatedWins,
       manual: true,
       targetType: type,
       delta: actualDelta,
@@ -230,14 +273,14 @@ export function ManualScoreControl() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>Seleccionar Jugador:</label>
-              <select value={selectedPlayerId} onChange={e => { setSelectedPlayerId(e.target.value); setCustomPlayerName(""); }} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "12px", fontWeight: 700 }}>
+              <select value={selectedPlayerId} onChange={e => { setSelectedPlayer(e.target.value); setCustomPlayerName(""); }} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "12px", fontWeight: 700 }}>
                 <option value="">-- Seleccionar de lista --</option>
                 {players.map(p => { const id = p.id || p.playerId; return <option key={String(id)} value={String(id)}>{p.name || p.displayName} ({Number(p.points) || 0} pts)</option>; })}
               </select>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>O crear/usar nombre manual:</label>
-              <input type="text" placeholder="Ej. Fernando" value={customPlayerName} onChange={e => { setCustomPlayerName(e.target.value); setSelectedPlayerId(""); }} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "12px", fontWeight: 700 }} />
+              <input type="text" placeholder="Ej. Fernando" value={customPlayerName} onChange={e => { setCustomPlayerName(e.target.value); setSelectedPlayer(""); }} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "12px", fontWeight: 700 }} />
             </div>
           </div>
           <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>{modeHelp}</div>
@@ -250,7 +293,7 @@ export function ManualScoreControl() {
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>Seleccionar Equipo:</label>
-            <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "13px", fontWeight: 900 }}>
+            <select value={selectedTeamId} onChange={e => setSelectedTeam(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "13px", fontWeight: 900 }}>
               {teams.length === 0 ? <option value="">-- No hay equipos configurados --</option> : teams.map(t => <option key={t.id} value={String(t.id)}>{t.name} ({Number(t.points) || 0} pts)</option>)}
             </select>
           </div>
