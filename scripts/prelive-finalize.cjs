@@ -65,6 +65,9 @@ const checks = [
   ['Manual team selector uses canonical configured teams', manualScore.includes('commandConfigManager.getConfig().teams') && manualScore.includes('syncConfiguredTeams')],
   ['Manual team points persist', manualScore.includes('addTeamPoints(team.id, actualDelta)')],
   ['Manual team wins persist', manualScore.includes('adjustTeamWins(team.id, actualDelta)')],
+  ['Manual team refresh does not resync on score event', manualScore.includes('eventBus.subscribe("game:score_updated", () => refreshData(false))') && manualScore.includes('const runtimeTeams = getTeams()')],
+  ['TeamManager preserves scores by ID or name during sync', teamManager.includes('String(team.id) === String(id) ||') && teamManager.includes('normalizedName')],
+  ['TeamManager returns updated canonical team snapshot', teamManager.includes('return { ...team };')],
   ['TeamManager supports configured-team synchronization', teamManager.includes('function syncConfiguredTeams')],
   ['TeamManager supports persisted win adjustments', teamManager.includes('function adjustTeamWins')],
   ['Unregistered gift path has no registration gate', giftBridge.includes('eventBus.publish("normalized:gift", normalized)') && !giftBridge.includes('registrationManager.registerPlayer')],
@@ -104,7 +107,7 @@ try {
 console.log('=== FINAL PRE-LIVE AUDIT: PASS ===');
 console.log('Individual: all registered players visible.');
 console.log('Teams: up to 10 MVPs per team.');
-console.log('Manual team points and round wins: routed through canonical TeamManager.');
+console.log('Manual team points and round wins: canonical TeamManager + protected refresh path.');
 console.log('Each finished round archives first, then clears old registrations and opens a fresh registration window.');
 console.log('Unregistered viewers can still trigger configured gift/ability processing.');
 console.log('Production build: PASS.');
