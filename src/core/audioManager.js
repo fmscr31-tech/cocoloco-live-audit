@@ -4,10 +4,10 @@ import { ABILITY_REGISTRY } from "../config/abilityRegistry";
 import { configManager } from "./configManager";
 
 /**
- * Audio Manager v5 (Production Ready with Preview & Independent Gift Sound Support)
- * Manages native local audio playback as an isolated, complementary layer
- * for gifts and abilities, supporting preloading, audio pooling, unlock handling,
- * independent gift sounds, priority resolution (no double play), and context isolation.
+ * Audio Manager v5.1
+ * Single authoritative audio routing layer for abilities and independent gifts.
+ * Ability Manager configuration is persisted through configManager and is used
+ * at runtime; legacy static mappings are used only as fallback/default data.
  */
 class AudioManager {
   constructor() {
@@ -27,6 +27,18 @@ class AudioManager {
     this.initUnlockListener();
   }
 
+  getAbilityMap() {
+    return configManager.get("abilityGiftMap") || GIFT_ABILITY_MAP;
+  }
+
+  getAbilities() {
+    return configManager.get("abilities") || ABILITY_REGISTRY;
+  }
+
+  getFreezeConfig() {
+    return configManager.get("battleEffects.freeze") || {};
+  }
+
   setEnabled(status) {
     this.enabled = !!status;
     eventBus.emit("audio:settings_changed", { enabled: this.enabled, volume: this.volume });
@@ -40,17 +52,19 @@ class AudioManager {
   initPreload() {
     if (typeof window === "undefined") return;
     const paths = new Set();
-    const currentAbilities = (typeof configManager !== "undefined" && configManager.get("abilities")) || ABILITY_REGISTRY;
+    const currentAbilities = this.getAbilities();
     Object.values(currentAbilities).forEach(ability => {
       if (ability.sound) paths.add(ability.sound);
     });
-    GIFT_ABILITY_MAP.forEach(m => {
+    this.getAbilityMap().forEach(m => {
       if (m.sound) paths.add(m.sound);
     });
-    const giftSoundsConfig = (typeof configManager !== "undefined" && configManager.get("giftSounds")) || [];
+    const giftSoundsConfig = configManager.get("giftSounds") || [];
     giftSoundsConfig.forEach(gs => {
       if (gs.sound) paths.add(gs.sound);
     });
+    const freezeSound = this.getFreezeConfig().sound;
+    if (freezeSound) paths.add(freezeSound);
 
     paths.forEach(soundPath => {
       try {
@@ -68,7 +82,6 @@ class AudioManager {
 
     const unlockHandler = () => {
       if (this.unlocked) return;
-      console.log("[AUDIO] Audio unlock attempt via user interaction");
       try {
         const silentAudio = new Audio();
         silentAudio.volume = 0;
@@ -80,9 +93,7 @@ class AudioManager {
               console.log("[AUDIO] Audio unlocked successfully");
               cleanup();
             })
-            .catch((err) => {
-              console.warn("[AUDIO] Unlock deferred:", err?.message || err);
-            });
+            .catch((err) => console.warn("[AUDIO] Unlock deferred:", err?.message || err));
         } else {
           this.unlocked = true;
           cleanup();
@@ -106,8 +117,7 @@ class AudioManager {
   }
 
   previewSound(soundPath) {
-    if (!soundPath) return;
-    if (!this.enabled) return;
+    if (!soundPath || !this.enabled) return;
 
     try {
       let audio = this.audioCache.get(soundPath);
@@ -119,28 +129,14 @@ class AudioManager {
       audio.currentTime = 0;
       audio.volume = this.volume;
       audio.muted = false;
-
       const promise = audio.play();
       if (promise !== undefined) {
-        promise
-          .then(() => {
-            console.log("[AUDIO PREVIEW] PLAY SUCCESS");
-          })
-          .catch((err) => {
-            console.warn("[AUDIO PREVIEW] Playback failed:", soundPath, err?.message || err);
-            const freshAudio = new Audio(soundPath);
-            freshAudio.volume = this.volume;
-            freshAudio.muted = false;
-            freshAudio.play()
-              .then(() => {
-                console.log("[AUDIO PREVIEW] PLAY SUCCESS");
-              })
-              .catch(e => {
-                console.warn("[AUDIO PREVIEW] Fresh playback failed:", e);
-              });
-          });
-      } else {
-        console.log("[AUDIO PREVIEW] PLAY SUCCESS");
+        promise.catch(() => {
+          const freshAudio = new Audio(soundPath);
+          freshAudio.volume = this.volume;
+          freshAudio.muted = false;
+          freshAudio.play().catch(() => {});
+        });
       }
     } catch (e) {
       console.warn("[AUDIO PREVIEW] Exception:", e);
@@ -148,129 +144,99 @@ class AudioManager {
   }
 
   playSound(soundPath, item) {
-    console.log("[AUDIO DEBUG] ACTION RECEIVED", item);
-    console.log("[AUDIO DEBUG] SOUND PATH", soundPath);
-
     if (!this.enabled || !soundPath) return;
 
     const isAdminPreview = item?.source === "ADMIN_PREVIEW" || item?.sender === "ADMIN_PREVIEW";
-
     if (isAdminPreview) {
-      if (this.isOverlayContext) {
-        return;
-      }
-    } else {
-      if (!this.isOverlayContext) {
-        return;
-      }
+      if (this.isOverlayContext) return;
+    } else if (!this.isOverlayContext) {
+      return;
     }
 
     try {
-      console.log("[AUDIO DEBUG] AUDIO OBJECT CREATED", soundPath);
       let audio = this.audioCache.get(soundPath);
       if (audio) {
         audio.currentTime = 0;
         audio.volume = this.volume;
         audio.muted = false;
-        console.log("[AUDIO DEBUG] PLAY REQUESTED", soundPath);
         const promise = audio.play();
-        if (promise !== undefined) {
-          promise
-            .then(() => {
-              console.log("[AUDIO DEBUG] PLAY RESOLVED", soundPath);
-            })
-            .catch(err => {
-              console.warn("[AUDIO DEBUG] PLAY FAILED", soundPath, err?.name, err?.message || err);
-              this.playFresh(soundPath);
-            });
-        } else {
-          console.log("[AUDIO DEBUG] PLAY RESOLVED (sync)", soundPath);
-        }
+        if (promise !== undefined) promise.catch(() => this.playFresh(soundPath));
       } else {
         this.playFresh(soundPath);
       }
     } catch (e) {
-      console.warn("[AUDIO DEBUG] PLAY FAILED (exception)", soundPath, e?.name, e?.message || e);
+      console.warn("[AUDIO] Playback exception:", soundPath, e);
     }
   }
 
   playFresh(soundPath) {
     try {
-      console.log("[AUDIO DEBUG] AUDIO OBJECT CREATED (fresh)", soundPath);
       const audio = new Audio(soundPath);
       audio.volume = this.volume;
       audio.muted = false;
-      console.log("[AUDIO DEBUG] PLAY REQUESTED (fresh)", soundPath);
       const promise = audio.play();
-      if (promise !== undefined) {
-        promise
-          .then(() => {
-            console.log("[AUDIO DEBUG] PLAY RESOLVED (fresh)", soundPath);
-          })
-          .catch(err => {
-            console.warn("[AUDIO DEBUG] PLAY FAILED (fresh)", soundPath, err?.name, err?.message || err);
-          });
-      } else {
-        console.log("[AUDIO DEBUG] PLAY RESOLVED (fresh sync)", soundPath);
-      }
+      if (promise !== undefined) promise.catch(err => console.warn("[AUDIO] Fresh playback failed:", err));
     } catch (e) {
-      console.warn("[AUDIO DEBUG] PLAY FAILED (fresh exception)", soundPath, e?.name, e?.message || e);
+      console.warn("[AUDIO] Fresh playback exception:", e);
     }
   }
 
+  findAbilityMapping(rawGiftName) {
+    const q = String(rawGiftName || "").trim().toLowerCase();
+    if (!q) return null;
+    return this.getAbilityMap().find(m => {
+      const mId = String(m.giftId ?? "").trim().toLowerCase();
+      const mName = String(m.giftName ?? "").trim().toLowerCase();
+      return mId === q || mName === q || (m.aliases || []).some(a => String(a ?? "").trim().toLowerCase() === q);
+    }) || null;
+  }
+
   initListeners() {
-    // 1. Listen to normalized:gift for independent gift sound configuration (Sound-only or overriding sound priority)
     eventBus.subscribe("normalized:gift", (giftEvent) => {
       if (!this.enabled || !giftEvent) return;
       const giftName = String(giftEvent.giftId || giftEvent.giftName || giftEvent.canonicalGiftId || "").trim();
-      
-      // If gift maps to an ability in GIFT_ABILITY_MAP, let ability:started handle the authoritative sound exclusively
-      const hasAbility = GIFT_ABILITY_MAP.some(m => {
-        const mId = String(m.giftId ?? "").trim().toLowerCase();
-        const mName = String(m.giftName ?? "").trim().toLowerCase();
-        const q = giftName.toLowerCase();
-        return mId === q || mName === q || (m.aliases && m.aliases.some(a => String(a ?? "").trim().toLowerCase() === q));
-      });
-      if (hasAbility) {
-        return; // Skip independent gift sound so authoritative Ability Manager sound plays cleanly
-      }
+      const mapping = this.findAbilityMapping(giftName);
+
+      // Ability gifts are handled exclusively by ability:started so their sound
+      // comes from the persisted Ability Manager configuration.
+      if (mapping) return;
 
       const giftSoundsConfig = configManager.get("giftSounds") || [];
       const match = giftSoundsConfig.find(gs =>
         gs.enabled !== false &&
-        (String(gs.giftName ?? "").trim().toLowerCase() === giftName.toLowerCase() || String(gs.giftId ?? "").trim().toLowerCase() === giftName.toLowerCase())
+        (String(gs.giftName ?? "").trim().toLowerCase() === giftName.toLowerCase() ||
+         String(gs.giftId ?? "").trim().toLowerCase() === giftName.toLowerCase())
       );
 
-      if (match && match.sound) {
-        console.log("[AUDIO] Playing independent gift sound for:", giftName, match.sound);
+      if (match?.sound) {
         this.playSound(match.sound, { source: "GIFT_SOUND", giftName });
-        // Track last played gift sound to prevent duplicate ability sound playback if gift also has an ability
         this._lastPlayedGiftSound = { giftName: giftName.toLowerCase(), time: Date.now() };
       }
     });
 
-    // 2. Listen to ability:started (with priority / deduplication against independent gift sound)
     eventBus.subscribe("ability:started", (item) => {
       if (!this.enabled) return;
       const rawGiftName = String(item.sourceGift || item.giftName || item.canonicalGiftId || "").trim();
-
-      const mapping = GIFT_ABILITY_MAP.find(m => {
-        const mId = String(m.giftId ?? "").trim().toLowerCase();
-        const mName = String(m.giftName ?? "").trim().toLowerCase();
-        const q = rawGiftName.toLowerCase();
-        return mId === q || mName === q || (m.aliases && m.aliases.some(a => String(a ?? "").trim().toLowerCase() === q));
-      });
-
-      const abilityId = mapping ? mapping.abilityId : (item.abilityId || "silent_challenge");
-      const currentAbilities = configManager.get("abilities") || ABILITY_REGISTRY;
-      const abilityEntry = currentAbilities[abilityId];
+      const mapping = this.findAbilityMapping(rawGiftName);
+      const abilityId = mapping ? mapping.abilityId : item.abilityId;
+      const abilityEntry = this.getAbilities()[abilityId];
       const registryEntry = ABILITY_REGISTRY[abilityId];
+      const soundPath = abilityEntry?.sound || registryEntry?.sound || mapping?.sound;
 
-      const soundPath = (abilityEntry && abilityEntry.sound) || (registryEntry && registryEntry.sound) || (mapping && mapping.sound);
       if (soundPath) {
-        console.log("[AUDIO] Playing sound for ability:", abilityId, soundPath, "Item:", item);
+        console.log("[AUDIO] Playing authoritative Ability Manager sound:", abilityId, soundPath);
         this.playSound(soundPath, item);
       }
+    });
+
+    // Freeze is intentionally separate from the Ability sound path. Its sound
+    // is read only from battleEffects.freeze, so changing an Ability sound can
+    // never silently replace the Freeze sound.
+    eventBus.subscribe("freeze:activated", (payload) => {
+      if (!this.enabled) return;
+      const freezeConfig = this.getFreezeConfig();
+      const soundPath = payload?.sound !== undefined ? payload.sound : freezeConfig.sound;
+      if (soundPath) this.playSound(soundPath, { ...payload, source: "FREEZE" });
     });
   }
 }
