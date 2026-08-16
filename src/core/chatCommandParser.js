@@ -77,15 +77,18 @@ class ChatCommandParser {
         ""
       );
 
-      // LIVE operator configuration is authoritative. The previous fix made
-      // the immutable round snapshot win over the live configuration, which
-      // caused a real winning word (for example "paradoja") to be rejected
-      // because an older round snapshot still contained "clase".
-      //
-      // roundAnswer remains the fallback for legacy rounds where no current
-      // Win Limpia answer is persisted in command configuration.
-      const targetAnswer = configuredAnswer || roundAnswer;
-      const answerSource = configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND_FALLBACK";
+      // CRITICAL WIN LIMPIA RULE:
+      // During an active round, the answer selected for THIS round is the
+      // scoring authority. The command configuration can be stale (for
+      // example "clase") while the active round is actually "paradoja" or
+      // "poeta". Never let persisted config override an active round answer.
+      // Config is only the fallback for legacy rounds with no round answer.
+      const targetAnswer = activeRound
+        ? (roundAnswer || configuredAnswer)
+        : (configuredAnswer || roundAnswer);
+      const answerSource = activeRound
+        ? (roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG_FALLBACK")
+        : (configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND_FALLBACK");
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
