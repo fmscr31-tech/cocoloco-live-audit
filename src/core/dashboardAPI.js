@@ -5,7 +5,7 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./engines/powerUpEngine";
+import { powerUpEngine } from "./powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -207,6 +207,62 @@ class DashboardAPI {
 
     let game = {};
     try { game = getState() || {}; } catch(e) {}
+
+    // Registration is authoritative for who is currently enrolled. The game
+    // state is authoritative for live scores. Merge them so newly registered
+    // team members cannot disappear merely because the game state snapshot is
+    // still carrying an older player list.
+    const registeredPlayers = Array.isArray(registration?.players) ? registration.players : [];
+    const gamePlayers = Array.isArray(game?.players) ? game.players : [];
+    if (registeredPlayers.length > 0) {
+      const mergedPlayers = gamePlayers.map(player => ({ ...player }));
+
+      registeredPlayers.forEach(registered => {
+        const registeredId = registered?.playerId || registered?.id || registered?.tiktokId || registered?.username;
+        const registeredUsername = String(registered?.username || "").trim().toLowerCase();
+        const registeredDisplayName = String(registered?.displayName || registered?.name || "").trim().toLowerCase();
+
+        const existingIndex = mergedPlayers.findIndex(player => {
+          const playerId = player?.id || player?.playerId || player?.tiktokId;
+          const playerUsername = String(player?.username || "").trim().toLowerCase();
+          const playerName = String(player?.displayName || player?.name || "").trim().toLowerCase();
+          return (
+            (registeredId && playerId && String(playerId) === String(registeredId)) ||
+            (registeredUsername && playerUsername && registeredUsername === playerUsername) ||
+            (registeredDisplayName && playerName && registeredDisplayName === playerName)
+          );
+        });
+
+        if (existingIndex >= 0) {
+          mergedPlayers[existingIndex] = {
+            ...mergedPlayers[existingIndex],
+            teamId: registered.teamId || mergedPlayers[existingIndex].teamId || null,
+            teamName: registered.teamName || mergedPlayers[existingIndex].teamName || null,
+            displayName: registered.displayName || mergedPlayers[existingIndex].displayName,
+            username: registered.username || mergedPlayers[existingIndex].username,
+            avatar: registered.avatar || mergedPlayers[existingIndex].avatar || ""
+          };
+        } else {
+          mergedPlayers.push({
+            id: registeredId,
+            playerId: registered.playerId || registered.id || registeredId,
+            tiktokId: registered.playerId || registered.id || registered.tiktokId || "",
+            name: registered.displayName || registered.name || registered.username || registeredId,
+            displayName: registered.displayName || registered.name || registered.username || registeredId,
+            username: registered.username || registered.displayName || registeredId,
+            avatar: registered.avatar || "",
+            teamId: registered.teamId || null,
+            teamName: registered.teamName || null,
+            points: Number(registered.points) || 0,
+            wins: Number(registered.wins) || 0,
+            wordsFound: Number(registered.wordsFound) || 0,
+            messages: Number(registered.messages) || 0
+          });
+        }
+      });
+
+      game = { ...game, players: mergedPlayers };
+    }
 
     this.cachedDashboard = {
       session,
