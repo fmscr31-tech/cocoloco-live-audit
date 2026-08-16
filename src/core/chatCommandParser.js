@@ -3,6 +3,7 @@ import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
 import { getState, playerWin } from "./gameEngine";
 import { getCurrentRound } from "./roundManager";
+import { addPlayer } from "./playerManager";
 
 class ChatCommandParser {
   constructor() { this.initListener(); }
@@ -75,12 +76,6 @@ class ChatCommandParser {
         ""
       );
 
-      // The operator's current Win Limpia configuration is the live source of
-      // truth. A stale explicit answer inside an already-created round must not
-      // block the configured word from being recognized. roundManager also
-      // snapshots the configured answer at round start, but this final guard
-      // makes LIVE chat resilient to old round-start payloads and guarantees
-      // that the word currently configured in the Admin UI is what chat tests.
       const targetAnswer = configuredAnswer || roundAnswer;
       const answerSource = configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND";
 
@@ -114,7 +109,31 @@ class ChatCommandParser {
 
         if (matchedRegPlayer) {
           const scoringId = matchedRegPlayer.playerId || matchedRegPlayer.id || matchedRegPlayer.tiktokId || matchedRegPlayer.username;
+
           console.log("[WIN LIMPIA MATCH]", { matchedRegPlayer, scoringId });
+
+          // CRITICAL LIVE FIX:
+          // RegistrationManager is the authoritative source for the participant
+          // identity, while playerManager owns the score. In separate LIVE
+          // browser contexts the score-side player can be missing even though
+          // registration is valid. Materialize that exact registered identity
+          // into playerManager BEFORE calling playerWin(). This makes the +1
+          // point path deterministic and keeps the normal playerWin event flow.
+          const scoringPlayer = addPlayer({
+            name: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
+            displayName: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
+            username: matchedRegPlayer.username || matchedRegPlayer.displayName || scoringId,
+            tiktokId: scoringId,
+            avatar: matchedRegPlayer.avatar || "",
+            teamId: matchedRegPlayer.teamId || null
+          });
+
+          console.log("[WIN LIMPIA SCORE IDENTITY READY]", {
+            scoringId,
+            localPlayerId: scoringPlayer?.id || null,
+            localTikTokId: scoringPlayer?.tiktokId || null,
+            beforePoints: scoringPlayer?.points ?? null
+          });
 
           const player = playerWin(scoringId);
           if (player) {
@@ -138,7 +157,10 @@ class ChatCommandParser {
             return { accepted: true, win: true, player };
           }
 
-          console.warn("[WIN LIMPIA] Identity matched but playerWin could not resolve player", matchedRegPlayer);
+          console.error("[WIN LIMPIA FATAL] Identity was materialized but playerWin returned null", {
+            scoringId,
+            scoringPlayer
+          });
         } else {
           console.log("[WIN LIMPIA] Correct answer from unregistered viewer; ignored.");
         }
