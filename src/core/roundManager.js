@@ -17,31 +17,22 @@ function normalizeAnswer(value) {
     .toLowerCase();
 }
 
-// Keep the active round synchronized when the operator changes Win Limpia.
+// The answer belongs to the ACTIVE ROUND. Once a round starts, a stale
+// Win-Limpia configuration from localStorage must never replace that answer.
+// Configuration is only a fallback when the round start did not provide one.
+//
+// IMPORTANT: Do NOT mutate currentRound.correctAnswer when the operator edits
+// the next/default Win Limpia configuration during an active round. Otherwise
+// an old value in one tab can silently replace the word actually selected for
+// the current round.
 eventBus.subscribe("config:command_updated", ({ config } = {}) => {
   if (!currentRound || currentRound.status !== "active") return;
 
-  const configuredAnswer = config?.winLimpia?.correctAnswer;
-  if (configuredAnswer === undefined || configuredAnswer === null) return;
-
-  const nextAnswer = normalizeAnswer(configuredAnswer);
-  if (!nextAnswer || currentRound.correctAnswer === nextAnswer) return;
-
-  const previousAnswer = currentRound.correctAnswer;
-  currentRound.correctAnswer = nextAnswer;
-
-  console.log("[ROUND ANSWER LIVE SYNC]", {
+  console.log("[ROUND ANSWER CONFIG UPDATE IGNORED FOR ACTIVE ROUND]", {
     roundId: currentRound.id,
-    previousAnswer,
-    correctAnswer: nextAnswer,
-    source: "COMMAND_CONFIG_UPDATED_DURING_ACTIVE_ROUND"
-  });
-
-  eventBus.publish("round:answer_updated", {
-    roundId: currentRound.id,
-    correctAnswer: nextAnswer,
-    previousAnswer,
-    source: "WIN_LIMPIA_CONFIG"
+    activeRoundAnswer: currentRound.correctAnswer || null,
+    configuredAnswer: normalizeAnswer(config?.winLimpia?.correctAnswer || ""),
+    source: "ACTIVE_ROUND_IS_AUTHORITATIVE"
   });
 });
 
@@ -50,21 +41,17 @@ export function startRound(data = {}) {
   const configuredAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
   const explicitAnswer = normalizeAnswer(data.correctAnswer ?? data.answer ?? data.word ?? "");
 
-  // WIN LIMPIA configuration is the canonical operator-controlled answer.
-  // The previous implementation gave explicit round-start data priority, which
-  // allowed a stale value from the round-start UI/state (for example "clase")
-  // to override the word currently configured for LIVE (for example
-  // "papeleria"). That made a real correct chat answer fail the Win Limpia
-  // comparison before scoring was ever reached.
-  //
-  // Priority is therefore:
-  //   1. current Win Limpia configuration
-  //   2. explicit round data only when no Win Limpia answer exists
-  const roundAnswer = configuredAnswer || explicitAnswer;
-  const answerSource = configuredAnswer
-    ? "COMMAND_CONFIG_WIN_LIMPIA"
-    : explicitAnswer
-      ? "ROUND_START_DATA_FALLBACK"
+  // CRITICAL WIN LIMPIA RULE:
+  // The word explicitly selected for THIS round is authoritative.
+  // Only fall back to the persisted Win Limpia configuration when the round
+  // start payload contains no answer at all. This prevents a stale value such
+  // as "clase" in localStorage from overriding a newly selected word such as
+  // "nomada".
+  const roundAnswer = explicitAnswer || configuredAnswer;
+  const answerSource = explicitAnswer
+    ? "ROUND_START_DATA"
+    : configuredAnswer
+      ? "COMMAND_CONFIG_WIN_LIMPIA_FALLBACK"
       : "EMPTY";
 
   currentRound = {
@@ -90,6 +77,13 @@ export function startRound(data = {}) {
     explicitAnswer,
     configuredAnswer,
     source: answerSource
+  });
+
+  eventBus.publish("round:answer_snapshot", {
+    roundId: currentRound.id,
+    correctAnswer: currentRound.correctAnswer,
+    source: answerSource,
+    timestamp: Date.now()
   });
 
   return currentRound;
