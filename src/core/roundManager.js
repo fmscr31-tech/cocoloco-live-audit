@@ -17,19 +17,35 @@ function normalizeAnswer(value) {
     .toLowerCase();
 }
 
-// CRITICAL WIN LIMPIA RULE:
-// Once a round is active, its answer belongs to THAT ROUND.
-// The persisted command configuration may contain the next/default answer or
-// a stale value from another tab. It must NEVER overwrite the active round.
-// The round-start payload is the authoritative source for the current word.
+// WIN LIMPIA AUTHORITY:
+// The operator controls the live answer from the Win Limpia configuration.
+// When that value changes during an active round, the canonical round answer
+// must change with it. Otherwise chatCommandParser keeps comparing against a
+// stale word and rejects the actual answer received from TikTok.
 eventBus.subscribe("config:command_updated", ({ config } = {}) => {
   if (!currentRound || currentRound.status !== "active") return;
 
-  console.log("[ROUND ANSWER CONFIG UPDATE IGNORED FOR ACTIVE ROUND]", {
+  const nextAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
+  if (!nextAnswer) return;
+
+  const previousAnswer = normalizeAnswer(currentRound.correctAnswer || "");
+  if (previousAnswer === nextAnswer) return;
+
+  currentRound.correctAnswer = nextAnswer;
+
+  console.log("[ROUND ANSWER UPDATED LIVE]", {
     roundId: currentRound.id,
-    activeRoundAnswer: normalizeAnswer(currentRound.correctAnswer || "") || null,
-    configuredAnswer: normalizeAnswer(config?.winLimpia?.correctAnswer || "") || null,
-    source: "ACTIVE_ROUND_IS_AUTHORITATIVE"
+    previousAnswer: previousAnswer || null,
+    activeRoundAnswer: nextAnswer,
+    source: "LIVE_WIN_LIMPIA_CONFIG"
+  });
+
+  eventBus.publish("round:answer_snapshot", {
+    roundId: currentRound.id,
+    correctAnswer: nextAnswer,
+    previousAnswer: previousAnswer || null,
+    source: "LIVE_WIN_LIMPIA_CONFIG",
+    timestamp: Date.now()
   });
 });
 
@@ -38,14 +54,13 @@ export function startRound(data = {}) {
   const configuredAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
   const explicitAnswer = normalizeAnswer(data.correctAnswer ?? data.answer ?? data.word ?? "");
 
-  // The word explicitly selected for THIS round is authoritative.
-  // Only fall back to persisted Win Limpia configuration when the round-start
-  // payload contains no answer at all.
+  // An explicitly supplied round answer wins. Otherwise the current LIVE
+  // Win Limpia configuration becomes the answer for this round.
   const roundAnswer = explicitAnswer || configuredAnswer;
   const answerSource = explicitAnswer
     ? "ROUND_START_DATA"
     : configuredAnswer
-      ? "COMMAND_CONFIG_WIN_LIMPIA_FALLBACK"
+      ? "COMMAND_CONFIG_WIN_LIMPIA"
       : "EMPTY";
 
   currentRound = {
