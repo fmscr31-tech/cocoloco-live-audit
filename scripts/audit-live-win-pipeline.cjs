@@ -6,6 +6,7 @@ const overlay = fs.readFileSync(path.join(root, 'src/components/overlay.jsx'), '
 const audio = fs.readFileSync(path.join(root, 'src/core/audioManager.js'), 'utf8');
 const game = fs.readFileSync(path.join(root, 'src/core/gameEngine.js'), 'utf8');
 const main = fs.readFileSync(path.join(root, 'src/main.jsx'), 'utf8');
+const app = fs.readFileSync(path.join(root, 'src/App.jsx'), 'utf8');
 const giftFeed = fs.readFileSync(path.join(root, 'src/components/overlay/GiftFeed.jsx'), 'utf8');
 
 const checks = [
@@ -17,6 +18,10 @@ const checks = [
   ['Overlay activates win animation state', overlay.includes('setShowWin(true)')],
   ['Overlay cleanup unsubscribes win listener', overlay.includes('unsubWinCorrect()')],
   ['Overlay logs score events', overlay.includes('[LIVE SCORE EVENT]')],
+  ['Admin Panel imports EventBus diagnostics', app.includes('import { eventBus } from "./core/eventBus"')],
+  ['Admin Panel logs Win Limpia to F12', app.includes('[ADMIN F12] WIN LIMPIA')],
+  ['Admin Panel logs score updates to F12', app.includes('[ADMIN F12] SCORE UPDATE')],
+  ['Admin Panel cleans diagnostics subscriptions', app.includes('unsubLiveWinDiagnostics && unsubLiveWinDiagnostics()')],
   ['AudioManager subscribes to win:correct', audio.includes('eventBus.subscribe("win:correct"')],
   ['AudioManager uses NBA point sound', audio.includes('/Sounds/NBA punto.mp3')],
   ['AudioManager preloads NBA point sound', audio.includes('paths.add("/Sounds/NBA punto.mp3");')],
@@ -42,5 +47,5 @@ if (failed) {
 
 console.log('=== LIVE WIN PIPELINE AUDIT: PASS (3/3) ===');
 console.log('Win Limpia: chat parser -> playerWin -> win:correct -> overlay animation + audio.');
-console.log('F12 diagnostics: Win and score events are explicitly logged in Overlay.');
+console.log('F12 diagnostics: Win and score events are explicitly logged in Overlay and Admin.');
 console.log('Gift/ability rendering path remains present.');
