@@ -32,7 +32,11 @@ class ChatCommandParser {
     const eventDisplayName = this.normalize(event.displayName || event.nickname);
 
     const regState = registrationManager.getRegistrationState();
-    const config = commandConfigManager.getConfig();
+
+    // Always refresh the persisted command configuration for LIVE chat.
+    // This prevents an old in-memory answer (for example "clase") from
+    // surviving after the operator changed the active Win Limpia word.
+    const config = commandConfigManager.refreshFromStorage();
 
     let gameState = null;
     try { gameState = getState(); } catch (error) { console.warn("[CHAT LIVE] Could not read game state:", error); }
@@ -75,10 +79,13 @@ class ChatCommandParser {
         ""
       );
 
-      // Win Limpia must use the current configured answer. A stale answer
-      // snapshot from an older round must never override the live command
-      // configuration while the round is running.
-      const targetAnswer = configuredAnswer || roundAnswer;
+      // The canonical ACTIVE ROUND answer has priority. The round is the
+      // immutable source of truth for what players must guess during this
+      // round. The command configuration is only the fallback when the round
+      // does not carry an answer. This fixes stale-config answers overriding a
+      // newly started round (e.g. active word "programa" while config still
+      // contains the previous word "clase").
+      const targetAnswer = roundAnswer || configuredAnswer;
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
@@ -90,7 +97,8 @@ class ChatCommandParser {
         eventUsername,
         eventDisplayName,
         roundAnswer: roundAnswer || null,
-        configuredAnswer: configuredAnswer || null
+        configuredAnswer: configuredAnswer || null,
+        answerSource: roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG"
       });
 
       if (winConfig.enabled !== false && targetAnswer && cleanMessage === targetAnswer) {
