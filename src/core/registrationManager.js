@@ -226,20 +226,30 @@ class RegistrationManager {
 
   /**
    * Clean-slate transition used after a round has definitively finished.
-   * Unlike clearRegistration(), this method is allowed to run from LOCKED
-   * because the lock belongs to the round that just ended. It removes the
-   * previous round's registered identities and immediately opens a fresh
-   * registration window. Gift/ability configuration is untouched.
+   * This reset is broadcast separately because Admin and Overlay have their
+   * own playerManager instances. Historical round data remains archived in
+   * sessionManager; only the live participant list is cleared.
    */
   prepareNextRoundRegistration() {
     const previousPlayers = Array.from(this.registeredPlayers.values());
 
+    // Clear the local playerManager identities first.
     previousPlayers.forEach(player => {
       removePlayer(player.playerId);
     });
 
     this.registeredPlayers.clear();
     this.status = "OPEN";
+
+    // IMPORTANT: Broadcast a canonical live-player reset to every browser
+    // context. Without this, the overlay keeps its own stale playerManager
+    // array even though registrationManager is already empty.
+    eventBus.emit("players:reset", {
+      removedCount: previousPlayers.length,
+      reason: "ROUND_FINISHED",
+      timestamp: Date.now()
+    });
+
     this.broadcastSync();
 
     eventBus.publish("registration:cleared", {
@@ -256,12 +266,6 @@ class RegistrationManager {
     return { success: true, removedCount: previousPlayers.length };
   }
 
-  /**
-   * Clears the current registration AND removes those identities from the
-   * canonical playerManager. This is the clean-slate operation for a new round.
-   * It is intentionally allowed when CLOSED (after a round has ended), but not
-   * while LOCKED because LOCKED means the current round is still protected.
-   */
   clearRegistration() {
     if (this.status === "LOCKED") return { success: false, reason: "REGISTRATION_LOCKED" };
 
@@ -270,8 +274,14 @@ class RegistrationManager {
 
     this.registeredPlayers.clear();
     this.status = "OPEN";
-    this.broadcastSync();
 
+    eventBus.emit("players:reset", {
+      removedCount: previousPlayers.length,
+      reason: "MANUAL_CLEAR",
+      timestamp: Date.now()
+    });
+
+    this.broadcastSync();
     eventBus.publish("registration:cleared", { timestamp: Date.now(), removedCount: previousPlayers.length });
     return { success: true, removedCount: previousPlayers.length };
   }
