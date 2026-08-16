@@ -1,3 +1,5 @@
+import "../components/overlay/cocazo.css";
+
 /**
  * Ability Registry v2
  * Centralized configuration defining game abilities independently from gifts.
