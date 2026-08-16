@@ -4,13 +4,20 @@ import { addPointsToTeam, getTeam } from "./TeamManager";
 
 /**
  * Ability Action Dispatcher v1.2
- * Executes scoreAction exactly once when an Ability reaches ability:started.
- * Gift identity is resolved by TikTok/player ID first, then username/display name.
+ * Executes scoreAction exactly once in the authoritative/admin context.
+ * Remote ability:started events are visual-only in the overlay and must never
+ * execute the score action a second time.
  */
 class AbilityActionDispatcher {
   constructor() {
     this.processed = new Set();
-    eventBus.subscribe("ability:started", (ability) => this.dispatch(ability));
+    eventBus.subscribe("ability:started", (ability, isRemote) => {
+      if (isRemote) {
+        console.log("[AbilityActionDispatcher] Remote ability is visual-only; score execution skipped:", ability?.abilityId);
+        return;
+      }
+      this.dispatch(ability);
+    });
   }
 
   dispatch(ability) {
@@ -32,7 +39,6 @@ class AbilityActionDispatcher {
     const type = String(action.type || "NONE").trim().toUpperCase();
     const baseValue = Number(action.value ?? 0);
     const quantity = Math.max(1, Number(ability.quantity || ability.repeatCount || 1));
-    const username = ability.username || ability.sender || "";
 
     switch (type) {
       case "ADD_POINTS": {
@@ -41,10 +47,10 @@ class AbilityActionDispatcher {
           console.warn("[AbilityActionDispatcher] ADD_POINTS target not found:", {
             playerId: ability.playerId,
             userId: ability.userId,
-            username,
+            username: ability.username || ability.sender,
             displayName: ability.displayName
           });
-          return { success: false, reason: "PLAYER_NOT_FOUND", username, playerId: ability.playerId || null };
+          return { success: false, reason: "PLAYER_NOT_FOUND", username: ability.username || ability.sender || "" };
         }
 
         const points = baseValue * quantity;
@@ -145,7 +151,6 @@ class AbilityActionDispatcher {
 
   _resolvePlayer(ability) {
     const identityCandidates = [ability.playerId, ability.userId].filter(Boolean).map(String);
-
     for (const candidate of identityCandidates) {
       const player = getPlayer(candidate);
       if (player) return player;
