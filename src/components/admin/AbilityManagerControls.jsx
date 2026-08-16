@@ -16,17 +16,30 @@ const DEFAULT_FREEZE = {
   rescueCount: 2
 };
 
+// Sound catalog entries can be strings or objects depending on how the
+// catalog/runtime supplied them. The UI and audio manager both require the
+// actual playable path, never the catalog object itself.
+function normalizeSound(sound) {
+  if (!sound) return "";
+  if (typeof sound === "string") return sound;
+  if (typeof sound === "object") {
+    return sound.path || sound.url || sound.src || sound.file || sound.value || sound.name || "";
+  }
+  return String(sound);
+}
+
 function loadAbilities() {
   const saved = configManager.get("abilities") || {};
   return Object.fromEntries(Object.entries(ABILITY_REGISTRY).map(([id, base]) => {
     const current = saved[id];
-    return [id, current ? {
+    const merged = current ? {
       ...base,
       ...current,
       display: { ...base.display, ...current.display },
       gameAction: { ...base.gameAction, ...current.gameAction },
       scoreAction: { ...base.scoreAction, ...current.scoreAction }
-    } : { ...base }];
+    } : { ...base };
+    return [id, { ...merged, sound: normalizeSound(merged.sound) || null }];
   }));
 }
 
@@ -42,12 +55,13 @@ function loadGiftSounds() {
 
 function loadFreeze() {
   const saved = configManager.get("battleEffects.freeze") || {};
-  return {
+  const merged = {
     ...DEFAULT_FREEZE,
     ...saved,
     activationGift: saved.activationGift === "STAR" ? "Twinkling Star" : (saved.activationGift || DEFAULT_FREEZE.activationGift),
     activationGiftId: saved.activationGiftId === "star" ? "twinkling_star" : (saved.activationGiftId || DEFAULT_FREEZE.activationGiftId)
   };
+  return { ...merged, sound: normalizeSound(merged.sound) };
 }
 
 const inputStyle = { background: "#120f1d", color: "#fff", border: "1px solid rgba(255,255,255,.2)", borderRadius: "4px", padding: "4px 7px", fontSize: "11px" };
@@ -61,9 +75,9 @@ export function AbilityManagerControls() {
 
   const soundOptions = useMemo(() => {
     const values = [
-      ...Object.values(abilities).map(a => a.sound).filter(Boolean),
-      freezeConfig.sound,
-      ...(AVAILABLE_SOUNDS || [])
+      ...Object.values(abilities).map(a => normalizeSound(a.sound)).filter(Boolean),
+      normalizeSound(freezeConfig.sound),
+      ...(AVAILABLE_SOUNDS || []).map(normalizeSound).filter(Boolean)
     ];
     return [...new Set(values.filter(Boolean))];
   }, [abilities, freezeConfig.sound]);
@@ -76,6 +90,7 @@ export function AbilityManagerControls() {
     const nextAbility = {
       ...current,
       ...patch,
+      sound: patch.sound !== undefined ? normalizeSound(patch.sound) || null : normalizeSound(current.sound) || null,
       display: patch.display ? { ...(current.display || {}), ...patch.display } : current.display,
       gameAction: patch.gameAction ? { ...(current.gameAction || {}), ...patch.gameAction } : current.gameAction,
       scoreAction: patch.scoreAction ? { ...(current.scoreAction || {}), ...patch.scoreAction } : current.scoreAction
@@ -83,19 +98,22 @@ export function AbilityManagerControls() {
 
     configManager.set(`abilities.${id}`, nextAbility);
     setAbilities({
-      ...latestAbilities,
-      [id]: nextAbility
+      ...abilities,
+      [id]: { ...abilities[id], ...nextAbility }
     });
   };
 
   const saveFreeze = patch => {
     const latest = configManager.get("battleEffects.freeze") || {};
-    const next = { ...DEFAULT_FREEZE, ...latest, ...patch };
+    const next = { ...DEFAULT_FREEZE, ...latest, ...patch, sound: normalizeSound(patch.sound !== undefined ? patch.sound : (latest.sound ?? freezeConfig.sound)) };
     setFreezeConfig(next);
     configManager.set("battleEffects.freeze", next);
   };
 
-  const preview = sound => sound && audioManager.previewSound(sound);
+  const preview = sound => {
+    const playableSound = normalizeSound(sound);
+    if (playableSound) audioManager.previewSound(playableSound);
+  };
 
   const changeGift = (abilityId, giftName) => {
     const latest = loadGiftMap();
@@ -136,7 +154,8 @@ export function AbilityManagerControls() {
   };
 
   const runPreview = ability => {
-    preview(ability.sound);
+    const playableSound = normalizeSound(ability.sound);
+    preview(playableSound);
     const latestMap = loadGiftMap();
     const mapping = latestMap.find(item => item.abilityId === ability.abilityId);
     abilityEventQueue.enqueue({
@@ -149,7 +168,7 @@ export function AbilityManagerControls() {
       gameAction: ability.gameAction,
       scoreAction: ability.scoreAction,
       duration: ability.duration || 10000,
-      sound: ability.sound
+      sound: playableSound
     });
   };
 
@@ -171,7 +190,7 @@ export function AbilityManagerControls() {
               <td><input value={ability.gameAction?.type || ""} onChange={e => saveAbility(ability.abilityId, { gameAction: { ...ability.gameAction, type: e.target.value } })} style={{ ...inputStyle, width: "95px", display: "block", marginBottom: "3px" }} /><input value={ability.gameAction?.value || ""} onChange={e => saveAbility(ability.abilityId, { gameAction: { ...ability.gameAction, value: e.target.value } })} style={{ ...inputStyle, width: "95px" }} /></td>
               <td><input type="number" min="1000" step="500" value={ability.duration || 10000} onChange={e => saveAbility(ability.abilityId, { duration: Math.max(1000, Number(e.target.value) || 10000) })} style={{ ...inputStyle, width: "70px", display: "block", marginBottom: "3px" }} /><input type="number" value={ability.scoreAction?.value ?? 0} onChange={e => saveAbility(ability.abilityId, { scoreAction: { ...ability.scoreAction, value: Number(e.target.value) || 0 } })} style={{ ...inputStyle, width: "70px" }} /></td>
               <td><select value={mapping.giftName} onChange={e => changeGift(ability.abilityId, e.target.value)} style={selectStyle}><option>Doughnut</option><option>Hat and Mustache</option><option>Galaxy</option><option>Money Gun</option><option>Amped Up</option><option>Twinkling Star</option><option>Coconut</option></select><input value={(mapping.aliases || []).join(", ")} onChange={e => changeAliases(ability.abilityId, e.target.value)} style={{ ...inputStyle, width: "145px", marginTop: "3px" }} /></td>
-              <td><select value={ability.sound || ""} onChange={e => saveAbility(ability.abilityId, { sound: e.target.value || null })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{sound.split("/").pop()}</option>)}</select><button onClick={() => preview(ability.sound)} style={{ display: "block", marginTop: "3px" }}>🔊 Test Sound</button></td>
+              <td><select value={normalizeSound(ability.sound)} onChange={e => saveAbility(ability.abilityId, { sound: e.target.value || null })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{sound.split("/").pop()}</option>)}</select><button onClick={() => preview(ability.sound)} style={{ display: "block", marginTop: "3px" }}>🔊 Test Sound</button></td>
               <td>{ability.enabled === false ? "Disabled" : "Active"}</td>
               <td><button onClick={() => saveAbility(ability.abilityId, { enabled: ability.enabled === false })}>{ability.enabled === false ? "Enable" : "Disable"}</button><button onClick={() => runPreview(ability)} style={{ marginLeft: "4px" }}>▶ Preview</button></td>
             </tr>;
@@ -183,7 +202,7 @@ export function AbilityManagerControls() {
         <div style={{ fontSize: "12px", fontWeight: 900, color: "#00f5ff", textTransform: "uppercase", marginBottom: "10px" }}>❄️ Freeze Effect Parameters</div>
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center", fontSize: "11px" }}>
           <label>🎁 TikTok Gift <select value={freezeConfig.activationGiftId} onChange={e => { const gift = FREEZE_GIFTS.find(g => g.id === e.target.value); if (gift) saveFreeze({ activationGiftId: gift.id, activationGift: gift.name }); }} style={selectStyle}>{FREEZE_GIFTS.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
-          <label>🔊 Sound <select value={freezeConfig.sound || ""} onChange={e => saveFreeze({ sound: e.target.value })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{sound.split("/").pop()}</option>)}</select></label>
+          <label>🔊 Sound <select value={normalizeSound(freezeConfig.sound)} onChange={e => saveFreeze({ sound: e.target.value })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{sound.split("/").pop()}</option>)}</select></label>
           <button onClick={() => preview(freezeConfig.sound)}>🔊 Test Sound</button>
           <label>Duration (Seconds) <input type="number" min="5" max="600" value={freezeConfig.duration} onChange={e => saveFreeze({ duration: Math.max(5, Number(e.target.value) || 300) })} style={{ ...inputStyle, width: "65px" }} /></label>
           <label>Scope / Target <select value={freezeConfig.scope} onChange={e => saveFreeze({ scope: e.target.value })} style={selectStyle}><option value="TEAM">TEAM (Opposing Team)</option><option value="GLOBAL">GLOBAL (Everyone)</option></select></label>
