@@ -72,13 +72,19 @@ export function ManualScoreControl() {
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [feedback, setFeedback] = useState(null);
 
-  const refreshData = () => {
+  // Configuration synchronization is only performed when configuration changes
+  // or when no runtime teams exist. A score event must NEVER recreate the team
+  // list, because doing so can overwrite a just-applied manual score.
+  const refreshData = (forceTeamSync = false) => {
     const mode = dashboardAPI.getGameMode();
     setGameMode(mode);
     setPlayers(buildCanonicalPlayers());
 
     const configTeams = commandConfigManager.getConfig().teams || [];
-    const nextTeams = syncConfiguredTeams(configTeams);
+    const runtimeTeams = getTeams();
+    const nextTeams = forceTeamSync || runtimeTeams.length === 0
+      ? syncConfiguredTeams(configTeams)
+      : runtimeTeams;
     setTeams(nextTeams);
 
     if (selectedPlayerId && !players.some(p => String(p.id || p.playerId) === String(selectedPlayerId))) setSelectedPlayerId("");
@@ -88,18 +94,18 @@ export function ManualScoreControl() {
   };
 
   useEffect(() => {
-    refreshData();
+    refreshData(true);
     const subscriptions = [
       dashboardAPI.subscribeToModeChange(({ mode }) => {
         setGameMode(mode);
-        refreshData();
+        refreshData(false);
       }),
-      eventBus.subscribe("registration:updated", refreshData),
-      eventBus.subscribe("config:command_updated", refreshData),
-      eventBus.subscribe("game:score_updated", refreshData),
-      eventBus.subscribe("player:updated", refreshData),
-      eventBus.subscribe("player:created", refreshData),
-      eventBus.subscribe("registration:player_removed", refreshData)
+      eventBus.subscribe("registration:updated", () => refreshData(false)),
+      eventBus.subscribe("config:command_updated", () => refreshData(true)),
+      eventBus.subscribe("game:score_updated", () => refreshData(false)),
+      eventBus.subscribe("player:updated", () => refreshData(false)),
+      eventBus.subscribe("player:created", () => refreshData(false)),
+      eventBus.subscribe("registration:player_removed", () => refreshData(false))
     ];
     return () => subscriptions.forEach(unsub => unsub && unsub());
   }, []);
@@ -146,7 +152,7 @@ export function ManualScoreControl() {
 
     showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${player.name || player.displayName} (${next}).`);
     eventBus.publish("player:updated", { player: { ...player } });
-    refreshData();
+    refreshData(false);
   };
 
   const handleTeamAction = (type, delta) => {
@@ -162,25 +168,39 @@ export function ManualScoreControl() {
     const next = Math.max(0, current + signedDelta);
     const actualDelta = next - current;
 
-    if (actualDelta !== 0) {
-      if (type === "point") {
-        const updated = addTeamPoints(team.id, actualDelta);
-        if (updated) team.points = updated.points;
-      } else {
-        const updated = adjustTeamWins(team.id, actualDelta);
-        if (updated) team.wins = updated.wins;
-      }
+    if (actualDelta === 0) {
+      showFeedback(`ℹ️ El ajuste dejaría ${type === "point" ? "los puntos" : "las rondas"} de ${team.name} en 0.`, false);
+      return;
     }
 
-    showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${team.name} (${next}).`);
+    const updated = type === "point"
+      ? addTeamPoints(team.id, actualDelta)
+      : adjustTeamWins(team.id, actualDelta);
+
+    if (!updated) {
+      showFeedback(`❌ No se pudo actualizar ${team.name}. El equipo ya no existe en el registro canónico.`, true);
+      refreshData(true);
+      return;
+    }
+
+    // Use the returned canonical TeamManager snapshot, not the stale React
+    // object, so the exact value broadcast to Dashboard/Overlay is authoritative.
+    team.points = Number(updated.points) || 0;
+    team.wins = Number(updated.wins) || 0;
+
+    showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${team.name} (${type === "point" ? team.points : team.wins}).`);
     eventBus.emit("game:score_updated", {
       teamId: team.id,
-      points: Number(team.points) || 0,
-      wins: Number(team.wins) || 0,
+      teamName: team.name,
+      points: team.points,
+      wins: team.wins,
       manual: true,
-      targetType: type
+      targetType: type,
+      delta: actualDelta,
+      timestamp: Date.now()
     });
-    refreshData();
+
+    refreshData(false);
   };
 
   const isTeamMode = String(gameMode || "").toUpperCase().includes("TEAM");
