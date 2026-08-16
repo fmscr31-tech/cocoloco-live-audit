@@ -26,7 +26,11 @@ class AbilityActionDispatcher {
 
     const action = ability.scoreAction || {};
     const type = String(action.type || "NONE").trim().toUpperCase();
-    const baseValue = Number(action.value ?? 0);
+    const canonicalUnitValues = { doughnut: 1, hat_and_mustache: 5 };
+    const configuredValue = Number(action.value ?? 0);
+    const baseValue = Object.prototype.hasOwnProperty.call(canonicalUnitValues, ability.canonicalGiftId)
+      ? canonicalUnitValues[ability.canonicalGiftId]
+      : configuredValue;
     const quantity = Math.max(1, Number(ability.quantity || ability.repeatCount || 1));
 
     switch (type) {
@@ -34,7 +38,8 @@ class AbilityActionDispatcher {
         const player = this._resolvePlayer(ability);
         if (!player || !Number.isFinite(baseValue) || baseValue === 0) {
           console.warn("[AbilityActionDispatcher] ADD_POINTS target not found:", {
-            playerId: ability.playerId, userId: ability.userId, displayName: ability.displayName, username: ability.username || ability.sender
+            playerId: ability.playerId, userId: ability.userId, displayName: ability.displayName, username: ability.username || ability.sender,
+            canonicalGiftId: ability.canonicalGiftId, quantity
           });
           return { success: false, reason: "PLAYER_NOT_FOUND", displayName: ability.displayName || "" };
         }
@@ -43,11 +48,12 @@ class AbilityActionDispatcher {
         if (!updated) return { success: false, reason: "SCORE_UPDATE_FAILED" };
         if (updated.teamId) addPointsToTeam(updated.teamId, points);
         const result = {
-          success: true, type, points, quantity, playerId: updated.id, tiktokId: updated.tiktokId || null,
-          displayName: updated.displayName || updated.name, username: updated.username || updated.name,
-          teamId: updated.teamId || null, newTotal: updated.points, abilityId: ability.abilityId,
-          giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY"
+          success: true, type, points, unitPoints: baseValue, quantity, playerId: updated.id,
+          tiktokId: updated.tiktokId || null, displayName: updated.displayName || updated.name,
+          username: updated.username || updated.name, teamId: updated.teamId || null, newTotal: updated.points,
+          abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY"
         };
+        console.log("[GIFT SCORE EXECUTED]", result);
         eventBus.publish("ability:score_executed", result);
         eventBus.publish("gift:points_awarded", result);
         return result;
@@ -81,8 +87,6 @@ class AbilityActionDispatcher {
   }
 
   _resolvePlayer(ability) {
-    // Display Name is the first operator-facing match. Technical IDs are only
-    // deterministic fallbacks when display names are unavailable or ambiguous.
     const displayName = String(ability.displayName || ability.sender || "").trim().toLowerCase();
     if (displayName) {
       const byDisplay = getPlayers().find(player => {
@@ -101,10 +105,7 @@ class AbilityActionDispatcher {
 
     const username = String(ability.username || "").trim().toLowerCase();
     if (!username) return null;
-    return getPlayers().find(player => {
-      const playerUsername = String(player.username || "").trim().toLowerCase();
-      return playerUsername === username;
-    }) || null;
+    return getPlayers().find(player => String(player.username || "").trim().toLowerCase() === username) || null;
   }
 }
 
