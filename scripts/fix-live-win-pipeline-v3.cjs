@@ -12,13 +12,6 @@ function write(file, content) {
   console.log(`[FIX] ${file}`);
 }
 
-function insertOnce(src, needle, insertion, label) {
-  if (src.includes(label)) return src;
-  const index = src.indexOf(needle);
-  if (index < 0) throw new Error(`${label}: insertion marker not found: ${needle}`);
-  return src.slice(0, index) + insertion + src.slice(index);
-}
-
 function findEffectContaining(src, token) {
   const startToken = 'useEffect(() => {';
   let search = 0;
@@ -57,9 +50,10 @@ function findEffectContaining(src, token) {
 function addOverlayWinListener() {
   const file = 'src/components/overlay.jsx';
   let src = read(file);
+
   if (!src.includes('eventBus.subscribe("win:correct"')) {
     const effect = findEffectContaining(src, 'eventBus.subscribe("ability:started"');
-    if (!effect) throw new Error('Overlay: could not locate the effect containing ability:started');
+    if (!effect) throw new Error('Overlay: could not locate effect containing ability:started');
 
     const listener = `\n    const unsubWinCorrect = eventBus.subscribe("win:correct", (payload) => {\n      console.log("[WIN LIMPIA RECEIVED]", payload);\n      const winnerPayload = {\n        id: payload?.playerId || payload?.id || payload?.player?.id,\n        name: payload?.name || payload?.username || payload?.player?.name || "GANADOR",\n        points: Number(payload?.points ?? payload?.player?.points) || 0,\n        wins: Number(payload?.wins ?? payload?.player?.wins) || 0\n      };\n      setWinner(winnerPayload);\n      setShowWin(true);\n      setAlert(\`👑 ¡WIN LIMPIA: \${winnerPayload.name}!\`);\n      window.setTimeout(() => {\n        setShowWin(false);\n        setAlert(null);\n      }, 4000);\n    });\n\n`;
 
@@ -69,21 +63,28 @@ function addOverlayWinListener() {
     src = src.slice(0, absoluteMarker) + listener + src.slice(absoluteMarker);
   }
 
+  const effect = findEffectContaining(src, 'eventBus.subscribe("win:correct"');
+  if (!effect) throw new Error('Overlay: win listener effect not found');
+
   if (!src.includes('unsubWinCorrect();')) {
-    const effect = findEffectContaining(src, 'eventBus.subscribe("win:correct"');
-    if (!effect) throw new Error('Overlay: win listener effect not found after insertion');
     const cleanup = effect.block.indexOf('return () => {');
-    if (cleanup < 0) throw new Error('Overlay: cleanup return not found in win listener effect');
+    if (cleanup < 0) throw new Error('Overlay: cleanup return not found in win effect');
     const absoluteCleanup = effect.start + cleanup;
-    src = src.slice(0, absoluteCleanup) + 'unsubWinCorrect();\n    ' + src.slice(absoluteCleanup);
+    src = src.slice(0, absoluteCleanup) + 'return () => {\n      unsubWinCorrect();\n      ' + src.slice(absoluteCleanup + 'return () => {'.length);
   }
 
   if (!src.includes('[LIVE SCORE EVENT]')) {
-    const effect = findEffectContaining(src, 'eventBus.subscribe("win:correct"');
-    if (!effect) throw new Error('Overlay: diagnostics effect not found');
-    const marker = 'eventBus.subscribe("win:correct"';
-    const absolute = src.indexOf(marker, effect.start);
-    src = src.slice(0, absolute) + 'console.log("[LIVE SCORE EVENT]", payload);\n    ' + src.slice(absolute);
+    const refreshed = findEffectContaining(src, 'eventBus.subscribe("win:correct"');
+    if (!refreshed) throw new Error('Overlay: refreshed win effect not found');
+    const cleanup = refreshed.block.indexOf('return () => {');
+    if (cleanup < 0) throw new Error('Overlay: cleanup marker not found for score diagnostics');
+    const absoluteCleanup = refreshed.start + cleanup;
+    const scoreListener = 'const unsubLiveScore = eventBus.subscribe("game:score_updated", (payload) => {\n      console.log("[LIVE SCORE EVENT]", payload);\n    });\n    ';
+    src = src.slice(0, absoluteCleanup) + scoreListener + src.slice(absoluteCleanup);
+    const second = findEffectContaining(src, 'eventBus.subscribe("game:score_updated"');
+    const secondCleanup = second.block.indexOf('return () => {');
+    const absoluteSecondCleanup = second.start + secondCleanup;
+    src = src.slice(0, absoluteSecondCleanup) + 'return () => {\n      unsubLiveScore();\n      ' + src.slice(absoluteSecondCleanup + 'return () => {'.length);
   }
 
   write(file, src);
@@ -107,7 +108,7 @@ function addAudioWinListener() {
 
   if (!src.includes('eventBus.subscribe("win:correct"')) {
     const marker = 'eventBus.subscribe("normalized:gift"';
-    const alt = 'eventBus.subscribe(\'normalized:gift\'';
+    const alt = "eventBus.subscribe('normalized:gift'";
     const chosen = src.includes(marker) ? marker : (src.includes(alt) ? alt : null);
     if (!chosen) throw new Error('AudioManager: normalized:gift listener marker not found');
     const listener = `eventBus.subscribe("win:correct", (payload) => {\n      if (!this.enabled || this.isOverlayContext === false) return;\n      console.log("[AUDIO] WIN LIMPIA -> NBA punto", payload);\n      this.playSound("/Sounds/NBA punto.mp3", { source: "WIN_LIMPIA", payload });\n    });\n\n    `;
@@ -128,6 +129,14 @@ function addAdminDiagnostics() {
   }
 
   if (!src.includes('[ADMIN F12] WIN LIMPIA')) {
+    if (!src.match(/import\s+\{[^}]*useEffect[^}]*\}\s+from\s+["']react["']/)) {
+      const reactImport = src.match(/^import React.*?;\n/m);
+      if (reactImport && !reactImport[0].includes('useEffect')) {
+        const replacement = reactImport[0].replace(/\{([^}]*)\}/, (m, inside) => `{${inside.trim()}, useEffect}`);
+        src = src.slice(0, reactImport.index) + replacement + src.slice(reactImport.index + reactImport[0].length);
+      }
+    }
+
     const componentMarker = src.indexOf('function App(');
     if (componentMarker < 0) throw new Error('App: function App marker not found');
     const bodyStart = src.indexOf('{', componentMarker);
@@ -144,7 +153,7 @@ try {
   addAudioWinListener();
   addAdminDiagnostics();
   console.log('=== LIVE WIN PIPELINE V3 REPAIR COMPLETE ===');
-  console.log('Overlay: win:correct listener + winner state + animation + diagnostics.');
+  console.log('Overlay: win:correct -> winner state + animation + score diagnostics.');
   console.log('AudioManager: NBA point preload + Win Limpia sound routing.');
   console.log('Admin: F12 Win Limpia + score diagnostics.');
 } catch (error) {
