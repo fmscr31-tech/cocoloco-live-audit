@@ -45,6 +45,8 @@ function syncConfiguredTeams(configTeams = []) {
     };
   });
 
+  // IMPORTANT: configured order is canonical visual order.
+  // Never reorder teams by score, wins, MVPs, or any ranking value.
   teams = next;
   saveTeams();
   return getTeams();
@@ -112,7 +114,10 @@ function getTeam(teamId) {
 
 function getTeams() {
   loadTeams();
-  return [...teams].sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
+  // DO NOT SORT HERE.
+  // The configured TeamManager order is the canonical left-to-right overlay order.
+  // Team 1 stays left and Team 2 stays right regardless of score/wins.
+  return [...teams];
 }
 
 function resetTeams() {
