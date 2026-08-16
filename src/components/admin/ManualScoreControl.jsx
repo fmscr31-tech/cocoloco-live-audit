@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { getPlayers, addPlayer, addPoints } from "../../core/playerManager";
-import { getTeams, addTeamPoints } from "../../core/TeamManager";
+import { getTeams, addTeamPoints, adjustTeamWins, syncConfiguredTeams } from "../../core/TeamManager";
 import { dashboardAPI } from "../../core/dashboardAPI";
 import { registrationManager } from "../../core/registrationManager";
+import { commandConfigManager } from "../../core/commandConfigManager";
 import { eventBus } from "../../core/eventBus";
 
 const getAmount = value => Math.min(99, Math.max(1, Math.abs(Number(value)) || 1));
@@ -72,21 +73,29 @@ export function ManualScoreControl() {
   const [feedback, setFeedback] = useState(null);
 
   const refreshData = () => {
-    setGameMode(dashboardAPI.getGameMode());
-    const nextPlayers = buildCanonicalPlayers();
-    const nextTeams = getTeams() || [];
-    setPlayers(nextPlayers);
+    const mode = dashboardAPI.getGameMode();
+    setGameMode(mode);
+    setPlayers(buildCanonicalPlayers());
+
+    const configTeams = commandConfigManager.getConfig().teams || [];
+    const nextTeams = syncConfiguredTeams(configTeams);
     setTeams(nextTeams);
 
-    if (selectedPlayerId && !nextPlayers.some(p => String(p.id || p.playerId) === String(selectedPlayerId))) setSelectedPlayerId("");
-    if (nextTeams.length && (!selectedTeamId || !nextTeams.some(t => String(t.id) === String(selectedTeamId)))) setSelectedTeamId(nextTeams[0].id);
+    if (selectedPlayerId && !players.some(p => String(p.id || p.playerId) === String(selectedPlayerId))) setSelectedPlayerId("");
+    if (nextTeams.length && (!selectedTeamId || !nextTeams.some(t => String(t.id) === String(selectedTeamId)))) {
+      setSelectedTeamId(String(nextTeams[0].id));
+    }
   };
 
   useEffect(() => {
     refreshData();
     const subscriptions = [
-      dashboardAPI.subscribeToModeChange(({ mode }) => setGameMode(mode)),
+      dashboardAPI.subscribeToModeChange(({ mode }) => {
+        setGameMode(mode);
+        refreshData();
+      }),
       eventBus.subscribe("registration:updated", refreshData),
+      eventBus.subscribe("config:command_updated", refreshData),
       eventBus.subscribe("game:score_updated", refreshData),
       eventBus.subscribe("player:updated", refreshData),
       eventBus.subscribe("player:created", refreshData),
@@ -153,15 +162,24 @@ export function ManualScoreControl() {
     const next = Math.max(0, current + signedDelta);
     const actualDelta = next - current;
 
-    if (type === "point" && actualDelta !== 0) {
-      addTeamPoints(team.id, actualDelta);
-      team.points = next;
-    } else if (type === "round") {
-      team.wins = next;
+    if (actualDelta !== 0) {
+      if (type === "point") {
+        const updated = addTeamPoints(team.id, actualDelta);
+        if (updated) team.points = updated.points;
+      } else {
+        const updated = adjustTeamWins(team.id, actualDelta);
+        if (updated) team.wins = updated.wins;
+      }
     }
 
     showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${team.name} (${next}).`);
-    eventBus.emit("game:score_updated", { teamId: team.id, points: team.points || 0, wins: team.wins || 0, manual: true });
+    eventBus.emit("game:score_updated", {
+      teamId: team.id,
+      points: Number(team.points) || 0,
+      wins: Number(team.wins) || 0,
+      manual: true,
+      targetType: type
+    });
     refreshData();
   };
 
@@ -212,7 +230,9 @@ export function ManualScoreControl() {
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>Seleccionar Equipo:</label>
-            <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "13px", fontWeight: 900 }}>{teams.map(t => <option key={t.id} value={t.id}>{t.name} ({Number(t.points) || 0} pts)</option>)}</select>
+            <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "13px", fontWeight: 900 }}>
+              {teams.length === 0 ? <option value="">-- No hay equipos configurados --</option> : teams.map(t => <option key={t.id} value={String(t.id)}>{t.name} ({Number(t.points) || 0} pts)</option>)}
+            </select>
           </div>
           <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>{modeHelp}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
