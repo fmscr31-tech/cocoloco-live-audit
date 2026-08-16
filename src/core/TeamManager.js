@@ -21,14 +21,6 @@ function createTeam({ id = crypto.randomUUID(), name, color = "#ffffff", icon = 
   return team;
 }
 
-/**
- * Keeps the runtime TeamManager aligned with commandConfigManager.
- *
- * IMPORTANT: configuration IDs are not always stable across older versions
- * of the app. Therefore an existing team is matched by ID first and by name
- * second. This prevents a manual +1/+5/+10 adjustment from being immediately
- * replaced with a freshly-created zero-score team during the panel refresh.
- */
 function syncConfiguredTeams(configTeams = []) {
   if (!Array.isArray(configTeams) || configTeams.length === 0) return getTeams();
 
@@ -47,8 +39,6 @@ function syncConfiguredTeams(configTeams = []) {
       name: configTeam.name || existing?.name || `Equipo ${index + 1}`,
       color: configTeam.color || existing?.color || "#ffffff",
       icon: configTeam.icon || existing?.icon || "🏳️",
-      // Preserve the canonical runtime score/wins. Never reset them merely
-      // because the admin panel refreshed or configuration was synchronized.
       points: Number(existing?.points) || 0,
       wins: Number(existing?.wins) || 0,
       players: Array.isArray(existing?.players) ? existing.players : []
@@ -116,19 +106,11 @@ function adjustTeamWins(teamId, delta) {
 }
 
 function getTeam(teamId) {
-  // Cross-window manual score changes are persisted in localStorage. Refresh
-  // the in-memory registry before reading so the Overlay never renders a
-  // stale team score after a score event arrives through BroadcastChannel.
   loadTeams();
   return teams.find(team => String(team.id) === String(teamId));
 }
 
 function getTeams() {
-  // The Admin Panel and Overlay run in separate browser contexts. A manual
-  // score is saved by the Admin context, while the Overlay has its own
-  // in-memory TeamManager instance. Always reload the persisted team snapshot
-  // before returning it so cross-window score/win updates become visible
-  // immediately without requiring an Overlay refresh.
   loadTeams();
   return [...teams].sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
 }
@@ -138,11 +120,21 @@ function resetTeams() {
   saveTeams();
 }
 
+/**
+ * Resets only the round scoreboard. Team definitions remain intact.
+ * Historical/session data is archived by roundManager before this function runs.
+ * Points, round wins, and round player assignments all belong to the completed
+ * round and therefore return to their clean-round state.
+ */
 function resetRoundTeamScores() {
+  loadTeams();
   teams.forEach(team => {
     team.points = 0;
+    team.wins = 0;
+    team.players = [];
   });
   saveTeams();
+  return getTeams();
 }
 
 loadTeams();
