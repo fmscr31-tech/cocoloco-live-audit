@@ -1,14 +1,15 @@
 import { eventBus } from "./eventBus";
 import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
-import { playerWin } from "./gameEngine";
+import { getState, playerWin } from "./gameEngine";
 
 /**
- * Chat Command Parser v4
- * Processes normalized neutral chat events.
- * - When registration is OPEN: parses join/team commands.
- * - When registration is CLOSED: parses chat messages against the configured
- *   Win Limpia answer and awards exactly one point to the registered player.
+ * Chat Command Parser v5
+ *
+ * Registration remains unchanged when the registration window is OPEN.
+ * During an active round, the configured Win Limpia answer is evaluated first
+ * so a correct answer cannot accidentally fall through to registration logic.
+ * Identity matching accepts TikTok/player id, username, or display name.
  */
 class ChatCommandParser {
   constructor() {
@@ -25,6 +26,8 @@ class ChatCommandParser {
     return String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
   }
@@ -35,40 +38,58 @@ class ChatCommandParser {
       return { accepted: false, reason: "INVALID_EVENT" };
     }
 
-    const rawMessage = String(event.message || "").trim().toLowerCase();
-    const cleanMessage = rawMessage.replace(/[.,;!]+$/, "").trim();
-    const eventPlayerId = event.playerId || event.userId || event.username || event.displayName;
-    const eventUsername = this.normalize(event.username);
-    const eventDisplayName = this.normalize(event.displayName);
+    const rawMessage = String(event.message || event.comment || event.text || "").trim();
+    const cleanMessage = this.normalize(rawMessage);
+    const eventPlayerId = event.playerId || event.userId || event.uniqueId || event.username || event.displayName;
+    const eventUsername = this.normalize(event.username || event.uniqueId);
+    const eventDisplayName = this.normalize(event.displayName || event.nickname);
 
     console.log("[CHAT LIVE 02] EVENT NORMALIZED", {
       playerId: eventPlayerId,
       username: event.username,
       displayName: event.displayName,
-      message: event.message
+      message: rawMessage
     });
 
     const regState = registrationManager.getRegistrationState();
     const config = commandConfigManager.getConfig();
 
+    let gameState = null;
+    try {
+      gameState = getState();
+    } catch (error) {
+      console.warn("[CHAT LIVE] Could not read game state for Win Limpia:", error);
+    }
+
+    const activeRound = Boolean(gameState?.round?.active);
+
     console.log("[CHAT LIVE 03] REGISTRATION STATE", regState);
-    console.log("[CHAT LIVE 04] COMMAND CONFIG", config);
+    console.log("[CHAT LIVE 04] ACTIVE ROUND", activeRound);
+    console.log("[CHAT LIVE 05] COMMAND CONFIG", config);
 
     // ================================================================
-    // WIN LIMPIA — active round / registration closed
+    // WIN LIMPIA — ALWAYS FIRST DURING AN ACTIVE ROUND
     // ================================================================
-    if (regState.status !== "OPEN") {
+    // Do not depend solely on registration.status here. The round lifecycle
+    // is the authoritative signal that answers should be scored. This prevents
+    // a stale OPEN registration state from swallowing the correct-answer chat.
+    if (activeRound || regState.status !== "OPEN") {
       const winConfig = config.winLimpia || {};
-      const targetAnswer = this.normalize(winConfig.correctAnswer || "");
+      const targetAnswer = this.normalize(
+        winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
+      );
 
-      if (winConfig.enabled !== false && targetAnswer &&
-          (this.normalize(cleanMessage) === targetAnswer || this.normalize(rawMessage) === targetAnswer)) {
+      if (
+        winConfig.enabled !== false &&
+        targetAnswer &&
+        cleanMessage === targetAnswer
+      ) {
         const registeredPlayers = registrationManager.getRegisteredPlayers();
 
         const matchedRegPlayer = registeredPlayers.find((p) => {
           const registeredId = p?.playerId || p?.id || p?.tiktokId;
-          const registeredUsername = this.normalize(p?.username);
-          const registeredDisplayName = this.normalize(p?.displayName || p?.name);
+          const registeredUsername = this.normalize(p?.username || p?.uniqueId);
+          const registeredDisplayName = this.normalize(p?.displayName || p?.name || p?.nickname);
 
           return (
             (eventPlayerId && registeredId && String(registeredId) === String(eventPlayerId)) ||
@@ -106,6 +127,16 @@ class ChatCommandParser {
         }
       }
 
+      // During an active round, a non-winning message must continue through the
+      // normal chat rejection path and must never register a new player.
+      if (activeRound) {
+        eventBus.publish("chat:command_rejected", {
+          event,
+          reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER"
+        });
+        return { accepted: false, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" };
+      }
+
       eventBus.publish("chat:command_rejected", {
         event,
         reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER"
@@ -125,18 +156,18 @@ class ChatCommandParser {
     }
 
     const playerPayload = {
-      playerId: event.playerId || event.userId || event.username,
-      displayName: event.displayName || event.username || "Viewer",
-      username: event.username || event.displayName || "Viewer",
+      playerId: event.playerId || event.userId || event.uniqueId || event.username,
+      displayName: event.displayName || event.username || event.nickname || "Viewer",
+      username: event.username || event.uniqueId || event.displayName || "Viewer",
       avatar: event.profilePictureUrl || event.avatar || event.profilePicture || "",
       source: "CHAT"
     };
 
     if (config.gameRegistrationMode === "INDIVIDUAL") {
-      const targetCommand = (config.individualCommand || "entrar").trim().toLowerCase();
-      const validCommands = [targetCommand, "entrar", "a", "!join", "yo", "1"];
+      const targetCommand = this.normalize(config.individualCommand || "entrar");
+      const validCommands = new Set([targetCommand, "entrar", "a", "join", "yo", "1"]);
 
-      if (validCommands.includes(cleanMessage) || validCommands.includes(rawMessage)) {
+      if (validCommands.has(cleanMessage)) {
         const result = registrationManager.registerPlayer(playerPayload);
 
         if (result.success) {
@@ -151,10 +182,7 @@ class ChatCommandParser {
       let matchedTeam = null;
 
       for (const team of config.teams || []) {
-        if (team.commands && team.commands.some(cmd => {
-          const normalizedCommand = cmd.trim().toLowerCase();
-          return rawMessage === normalizedCommand || cleanMessage === normalizedCommand;
-        })) {
+        if (team.commands && team.commands.some(cmd => this.normalize(cmd) === cleanMessage)) {
           matchedTeam = team;
           break;
         }
