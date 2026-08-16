@@ -10,7 +10,7 @@ if (!fs.existsSync(file)) {
 
 const source = fs.readFileSync(file, 'utf8');
 const broken = '  }, [topPlayers]);';
-const fixed = `  }, [topPlayers.map(player => {\n    const id = player?.id ?? "";\n    const points = Number(player?.points) || 0;\n    const wins = Number(player?.wins) || 0;\n    const messages = Number(player?.messages) || 0;\n    return \`${id}:${points}:${wins}:${messages}\`;\n  }).join("|")]);`;
+const fixed = `  }, [topPlayers.map(player => {\n    const id = player?.id ?? "";\n    const points = Number(player?.points) || 0;\n    const wins = Number(player?.wins) || 0;\n    const messages = Number(player?.messages) || 0;\n    return \`\${id}:\${points}:\${wins}:\${messages}\`;\n  }).join("|")]);`;
 
 if (!source.includes(broken)) {
   const alreadyFixed = source.includes('topPlayers.map(player => {') && source.includes('.join("|")]);');
