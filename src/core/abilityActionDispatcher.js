@@ -3,11 +3,9 @@ import { addPoints, getPlayer, getPlayers } from "./playerManager";
 import { addPointsToTeam, getTeam } from "./TeamManager";
 
 /**
- * Ability Action Dispatcher v1
- *
+ * Ability Action Dispatcher v1.1
  * Executes scoreAction exactly once when an Ability reaches ability:started.
- * This is intentionally separate from the legacy giftActionDispatcher so
- * gifts resolved through the Ability system do not get processed twice.
+ * Gifts resolved through the Ability system do not enter the legacy score path.
  */
 class AbilityActionDispatcher {
   constructor() {
@@ -25,7 +23,6 @@ class AbilityActionDispatcher {
     }
     this.processed.add(executionId);
 
-    // Keep the deduplication set bounded during long LIVE sessions.
     if (this.processed.size > 2000) {
       const first = this.processed.values().next().value;
       if (first) this.processed.delete(first);
@@ -33,12 +30,13 @@ class AbilityActionDispatcher {
 
     const action = ability.scoreAction || {};
     const type = String(action.type || "NONE").trim().toUpperCase();
-    const value = Number(action.value ?? 0);
+    const baseValue = Number(action.value ?? 0);
+    const quantity = Math.max(1, Number(ability.quantity || ability.repeatCount || 1));
     const username = ability.username || ability.sender || "";
 
     switch (type) {
       case "ADD_POINTS": {
-        if (!username || !Number.isFinite(value) || value === 0) {
+        if (!username || !Number.isFinite(baseValue) || baseValue === 0) {
           return { success: false, reason: "INVALID_ADD_POINTS_TARGET" };
         }
 
@@ -48,15 +46,23 @@ class AbilityActionDispatcher {
           return { success: false, reason: "PLAYER_NOT_FOUND", username };
         }
 
-        const updated = addPoints(player.id, value);
+        const points = baseValue * quantity;
+        const updated = addPoints(player.id, points);
         if (!updated) return { success: false, reason: "SCORE_UPDATE_FAILED" };
+
+        // Team mode keeps a separate persisted team scoreboard.
+        if (updated.teamId) {
+          addPointsToTeam(updated.teamId, points);
+        }
 
         const result = {
           success: true,
           type,
-          points: value,
+          points,
+          quantity,
           playerId: updated.id,
           username: updated.name,
+          teamId: updated.teamId || null,
           newTotal: updated.points,
           abilityId: ability.abilityId,
           source: "ABILITY"
@@ -68,8 +74,7 @@ class AbilityActionDispatcher {
 
       case "RESET_SCORE": {
         // Money Gun targets the configured team (currently team2 from the
-        // Ability resolver). In Individual mode, no team target exists, so
-        // the action is intentionally rejected instead of resetting everyone.
+        // Ability resolver). Never reset the entire game when no team exists.
         const teamId = ability.teamId;
         if (!teamId) {
           return { success: false, reason: "TEAM_TARGET_REQUIRED" };
@@ -107,13 +112,12 @@ class AbilityActionDispatcher {
       }
 
       case "ADD_ROUND": {
-        // ADD_ROUND is a round-level ability, not a player-point mutation.
-        // Publish it for the round/game subsystem rather than silently
-        // converting it into points.
+        // This is deliberately not converted into player points. It is a
+        // round-level action and is exposed for the round/game subsystem.
         const result = {
           success: true,
           type,
-          value: Number.isFinite(value) ? value : 0,
+          value: Number.isFinite(baseValue) ? baseValue : 0,
           teamId: ability.teamId || null,
           abilityId: ability.abilityId,
           source: "ABILITY"
