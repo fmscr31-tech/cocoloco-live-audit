@@ -4,7 +4,8 @@ import {
   addWin,
   getLeaderboard,
   assignTeam,
-  removePlayer
+  removePlayer,
+  getPlayer
 } from "./playerManager";
 
 import { startRound, endRound } from "./roundManager";
@@ -116,17 +117,34 @@ export function removeGamePlayer(playerId) {
 }
 
 export function playerWin(id) {
-  if (roundWinners.has(id)) {
-    console.log("[GameEngine] Player already won this round, ignoring duplicate win:", id);
-    return players.find(p => p.id === id || p.tiktokId === id || p.playerId === id) || null;
+  // Resolve the identity FIRST. Win Limpia can arrive with a TikTok userId,
+  // username, registration id, or the local UUID. Scoring must always operate
+  // on the canonical local player identity so the overlay/state store receives
+  // the exact same player record that is displayed there.
+  const canonicalPlayer = getPlayer(id);
+  if (!canonicalPlayer) {
+    console.error("[WIN LIMPIA FATAL] Cannot resolve player before scoring", { id });
+    return null;
   }
 
-  // IMPORTANT: do not reserve the winner identity until addWin actually
-  // resolves the player. Previously the ID was inserted into roundWinners
-  // before addWin(), so one failed identity resolution permanently consumed
-  // the player's only win for the round.
-  const player = addWin(id);
-  if (!player) return null;
+  const canonicalId = canonicalPlayer.id;
+
+  if (roundWinners.has(canonicalId)) {
+    console.log("[GameEngine] Player already won this round, ignoring duplicate win:", canonicalId);
+    return canonicalPlayer;
+  }
+
+  // Reserve the canonical local identity only AFTER the player has been
+  // resolved. addWin() is the single scoring operation: +1 point +1 win.
+  const player = addWin(canonicalId);
+  if (!player) {
+    console.error("[WIN LIMPIA FATAL] addWin failed after identity resolution", {
+      id,
+      canonicalId,
+      canonicalPlayer
+    });
+    return null;
+  }
 
   roundWinners.add(player.id);
   if (getBattle()) battlePlayerWin(player.id);
@@ -139,11 +157,15 @@ export function playerWin(id) {
     wins: player.wins
   });
 
+  // Authoritative score event for admin + overlay contexts.
   eventBus.publish("game:score_updated", {
     playerId: player.id,
-    username: player.name,
+    tiktokId: player.tiktokId,
+    username: player.username || player.name,
     pointsAdded: 1,
     newTotal: player.points,
+    wins: player.wins,
+    wordsFound: player.wordsFound,
     source: "WIN_LIMPIA",
     timestamp: Date.now(),
     playerSnapshot: { ...player }
@@ -152,12 +174,25 @@ export function playerWin(id) {
   eventBus.emit("win:correct", {
     winId: `win_${Date.now()}_${player.id}`,
     playerId: player.id,
+    tiktokId: player.tiktokId,
     id: player.id,
     name: player.name,
-    username: player.name,
+    username: player.username || player.name,
     points: player.points,
     wins: player.wins,
+    wordsFound: player.wordsFound,
     timestamp: Date.now()
+  });
+
+  console.log("[WIN LIMPIA POINT APPLIED]", {
+    inputId: id,
+    canonicalId: player.id,
+    tiktokId: player.tiktokId,
+    player: player.name,
+    points: player.points,
+    wins: player.wins,
+    wordsFound: player.wordsFound,
+    pointsAdded: 1
   });
 
   saveState();
