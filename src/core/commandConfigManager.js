@@ -41,6 +41,26 @@ class CommandConfigManager {
         }
       ]
     };
+
+    // IMPORTANT: the Admin panel and the LIVE connector/overlay can run in
+    // different browser contexts. localStorage is persistent but does not
+    // update an already-instantiated module in another tab/window. The
+    // BroadcastChannel-backed EventBus therefore has to update this manager's
+    // in-memory config when the operator changes Win Limpia from another
+    // context. Without this listener, the LIVE parser can keep using an old
+    // answer such as "clase" even after the Admin panel saves "programa".
+    eventBus.subscribe("config:command_updated", (payload = {}) => {
+      const incoming = payload?.config;
+      if (!incoming || typeof incoming !== "object") return;
+
+      this.config = JSON.parse(JSON.stringify(incoming));
+      this.saveToStorage();
+
+      console.log("[CommandConfigManager] Remote configuration synchronized.", {
+        winLimpia: this.config.winLimpia,
+        source: "BROADCAST_CHANNEL"
+      });
+    });
   }
 
   loadFromStorage() {
