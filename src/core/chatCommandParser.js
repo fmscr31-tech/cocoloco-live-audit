@@ -49,8 +49,6 @@ class ChatCommandParser {
     try { currentRound = getCurrentRound(); }
     catch (error) { console.warn("[CHAT LIVE] Could not read canonical round:", error); }
 
-    // roundManager is authoritative: startRound() creates status="active".
-    // Keep the old gameState.round.active check as compatibility fallback.
     const activeRound = Boolean(
       currentRound?.status === "active" ||
       gameState?.round?.status === "active" ||
@@ -65,11 +63,24 @@ class ChatCommandParser {
     });
     console.log("[CHAT LIVE 05] COMMAND CONFIG", config);
 
-    // WIN LIMPIA: answer checking happens before registration/rejection.
     if (activeRound || regState.status !== "OPEN") {
       const winConfig = config.winLimpia || {};
+
+      // The active round is the runtime source of truth. The command config is
+      // only the fallback used when a round was started without an explicit
+      // answer snapshot. This prevents a stale answer in localStorage from
+      // blocking the answer actually assigned to the current round.
       const targetAnswer = this.normalize(
-        winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
+        currentRound?.correctAnswer ??
+        currentRound?.answer ??
+        currentRound?.word ??
+        gameState?.round?.correctAnswer ??
+        gameState?.round?.answer ??
+        gameState?.round?.word ??
+        winConfig.correctAnswer ??
+        winConfig.answer ??
+        winConfig.word ??
+        ""
       );
 
       console.log("[WIN LIMPIA CHECK]", {
@@ -80,7 +91,9 @@ class ChatCommandParser {
         matches: Boolean(targetAnswer && cleanMessage === targetAnswer),
         eventPlayerId,
         eventUsername,
-        eventDisplayName
+        eventDisplayName,
+        roundAnswer: currentRound?.correctAnswer || currentRound?.answer || currentRound?.word || null,
+        configuredAnswer: winConfig.correctAnswer || winConfig.answer || winConfig.word || null
       });
 
       if (winConfig.enabled !== false && targetAnswer && cleanMessage === targetAnswer) {
@@ -138,7 +151,6 @@ class ChatCommandParser {
       return { accepted: false, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" };
     }
 
-    // REGISTRATION: only OPEN registration reaches this path.
     if (config.registrationMode !== "CHAT" && config.registrationMode !== "MIXED") {
       eventBus.publish("chat:command_rejected", { event, reason: "CHAT_REGISTRATION_DISABLED" });
       return { accepted: false, reason: "CHAT_REGISTRATION_DISABLED" };
