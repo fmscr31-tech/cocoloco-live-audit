@@ -3,9 +3,10 @@ import { abilityManager } from "./abilityManager";
 import { configManager } from "./configManager";
 
 /**
- * Gift Ability Resolver v3 (Type-Safe & Robust)
- * Resolves normalized TikTok gift events into configured ability payloads.
- * Supports canonicalGiftId, giftId, giftName, and aliases safely.
+ * Gift Ability Resolver v4.
+ * Resolves the canonical gift notification directly into its configured ability.
+ * Sender identity is carried end-to-end so score actions target the actual
+ * registered TikTok player rather than a display nickname.
  */
 class GiftAbilityResolver {
   constructor() {
@@ -14,11 +15,6 @@ class GiftAbilityResolver {
 
   getMap() {
     const dynamic = configManager.get("abilityGiftMap");
-
-    // Runtime configuration is allowed to override a mapping, but it must not
-    // delete canonical/default mappings that were added to the application
-    // after an older localStorage config was created. This is especially
-    // important for LIVE gifts such as Go Popular -> Cocazo.
     if (!Array.isArray(dynamic)) return this.defaultMap;
 
     const merged = [...this.defaultMap];
@@ -33,7 +29,6 @@ class GiftAbilityResolver {
         const defaultId = String(defaultMapping?.giftId ?? "").trim().toLowerCase();
         const defaultName = String(defaultMapping?.giftName ?? "").trim().toLowerCase();
         const defaultAbility = String(defaultMapping?.abilityId ?? "").trim().toLowerCase();
-
         return (
           (runtimeId && defaultId === runtimeId) ||
           (runtimeName && defaultName === runtimeName) ||
@@ -60,14 +55,11 @@ class GiftAbilityResolver {
 
   resolveGiftToAbility(event) {
     try {
-      if (!event || (!event.giftId && !event.giftName && !event.canonicalGiftId)) {
-        return null;
-      }
+      if (!event || (!event.giftId && !event.giftName && !event.canonicalGiftId)) return null;
 
       const canonicalId = String(event.canonicalGiftId ?? "").trim().toLowerCase();
       const giftId = String(event.giftId ?? "").trim().toLowerCase();
       const giftName = String(event.giftName ?? "").trim().toLowerCase();
-
       const map = this.getMap();
 
       const mapping = map.find(m => {
@@ -97,34 +89,41 @@ class GiftAbilityResolver {
         return null;
       }
 
+      const sender = event.username || event.displayName || "Viewer";
+      const defaultTeam = mapping.abilityId === "epic_impact" ? "team2" : "team1";
+      const teamId = event.teamId || defaultTeam;
+      const quantity = Math.max(1, Number(event.quantity || event.repeatCount || 1));
+
       console.log("[ABILITY RESOLVED SUCCESS]", {
         canonicalGiftId: event.canonicalGiftId,
         giftId: event.giftId,
         giftName: event.giftName,
-        abilityId: mapping.abilityId
+        abilityId: mapping.abilityId,
+        playerId: event.playerId,
+        username: sender,
+        quantity
       });
-
-      const sender = event.username || event.displayName || "Viewer";
-      const defaultTeam = mapping.abilityId === "epic_impact" ? "team2" : "team1";
-      const teamId = event.teamId || defaultTeam;
-      const quantity = Number(event.quantity || event.repeatCount || 1);
 
       const ability = abilityManager.prepareAbilityPayload(mapping.abilityId, {
         abilityId: mapping.abilityId,
         sourceGift: mapping.giftName || mapping.giftId,
-        teamId: teamId,
-        sender: sender,
+        canonicalGiftId: event.canonicalGiftId,
+        giftId: event.giftId,
+        giftName: event.giftName || mapping.giftName || mapping.giftId,
+        playerId: event.playerId || event.userId || "",
+        userId: event.userId || event.playerId || "",
+        teamId,
+        sender,
+        displayName: event.displayName || sender,
+        avatar: event.avatar || "",
         triggeredByGift: mapping.giftName || mapping.giftId,
         username: sender,
-        quantity: quantity,
+        quantity,
         repeatCount: quantity,
         duration: abilityManager.getAbility(mapping.abilityId)?.duration || 10000
       });
 
-      if (ability && event.duration) {
-        ability.duration = event.duration;
-      }
-
+      if (ability && event.duration) ability.duration = event.duration;
       return ability;
     } catch (e) {
       console.error("[GiftAbilityResolver] Exception caught in resolveGiftToAbility:", e);
