@@ -61,7 +61,65 @@ class ChatCommandParser {
     });
     console.log("[CHAT LIVE 05] COMMAND CONFIG", config);
 
-    if (activeRound || regState.status !== "OPEN") {
+    // REGISTRATION HAS PRIORITY WHEN THE REGISTRATION MANAGER IS OPEN.
+    // Do not let a stale/legacy active-round flag steal registration messages.
+    // The registration lifecycle is authoritative: OPEN means chat commands
+    // are registration commands; CLOSED/LOCKED means Win Limpia may be tested.
+    if (regState.status === "OPEN") {
+      if (config.registrationMode !== "CHAT" && config.registrationMode !== "MIXED") {
+        eventBus.publish("chat:command_rejected", { event, reason: "CHAT_REGISTRATION_DISABLED" });
+        return { accepted: false, reason: "CHAT_REGISTRATION_DISABLED" };
+      }
+
+      const playerPayload = {
+        playerId: event.playerId || event.userId || event.uniqueId || event.username,
+        displayName: event.displayName || event.username || event.nickname || "Viewer",
+        username: event.username || event.uniqueId || event.displayName || "Viewer",
+        avatar: event.profilePictureUrl || event.avatar || event.profilePicture || "",
+        source: "CHAT"
+      };
+
+      if (config.gameRegistrationMode === "INDIVIDUAL") {
+        const targetCommand = this.normalize(config.individualCommand || "entrar");
+        const validCommands = new Set([targetCommand, "entrar", "a", "join", "yo", "1"]);
+
+        if (validCommands.has(cleanMessage)) {
+          const result = registrationManager.registerPlayer(playerPayload);
+          if (result.success) {
+            eventBus.publish("chat:command_accepted", { event, player: result.player });
+            return { accepted: true, player: result.player };
+          }
+          eventBus.publish("chat:command_rejected", { event, reason: result.reason });
+          return { accepted: false, reason: result.reason };
+        }
+      } else if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM") {
+        let matchedTeam = null;
+        for (const team of config.teams || []) {
+          if (team.commands && team.commands.some(cmd => this.normalize(cmd) === cleanMessage)) {
+            matchedTeam = team;
+            break;
+          }
+        }
+
+        if (matchedTeam) {
+          const result = registrationManager.registerPlayer({ ...playerPayload, teamId: matchedTeam.id });
+          if (result.success) {
+            eventBus.publish("chat:command_accepted", { event, player: result.player, teamId: matchedTeam.id });
+            return { accepted: true, player: result.player, teamId: matchedTeam.id };
+          }
+          eventBus.publish("chat:command_rejected", { event, reason: result.reason });
+          return { accepted: false, reason: result.reason };
+        }
+      }
+
+      eventBus.publish("chat:command_rejected", { event, reason: "INVALID_COMMAND" });
+      return { accepted: false, reason: "INVALID_COMMAND" };
+    }
+
+    // Win Limpia is evaluated only after registration is closed/locked and an
+    // actual active round exists. This prevents registration and answer
+    // matching from competing for the same TikTok chat message.
+    if (activeRound) {
       const winConfig = config.winLimpia || {};
       const configuredAnswer = this.normalize(
         winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
@@ -77,23 +135,13 @@ class ChatCommandParser {
         ""
       );
 
-      // WIN LIMPIA LIVE AUTHORITY:
-      // The answer currently configured by the operator in the LIVE control
-      // must be recognized immediately. An explicit answer stored in an older
-      // round-start payload can be stale (for example the round still carries
-      // "clase" while the LIVE control was changed to "guapo"). Therefore the
-      // persisted/current Win Limpia configuration has priority for chat.
-      // The round answer remains a fallback for legacy rounds with no configured
-      // answer. This prevents ACTIVE_ROUND_NOT_CORRECT_ANSWER when the operator
-      // has already changed the visible Win Limpia answer.
       const targetAnswer = configuredAnswer || roundAnswer;
-      const answerSource = configuredAnswer
-        ? "WIN_LIMPIA_CONFIG"
-        : "ACTIVE_ROUND";
+      const answerSource = configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND";
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
         activeRound,
+        registrationStatus: regState.status,
         targetAnswer,
         receivedAnswer: cleanMessage,
         matches: Boolean(targetAnswer && cleanMessage === targetAnswer),
@@ -174,63 +222,12 @@ class ChatCommandParser {
         }
       }
 
-      if (activeRound) {
-        eventBus.publish("chat:command_rejected", { event, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" });
-        return { accepted: false, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" };
-      }
-
-      eventBus.publish("chat:command_rejected", { event, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" });
-      return { accepted: false, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" };
+      eventBus.publish("chat:command_rejected", { event, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" });
+      return { accepted: false, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" };
     }
 
-    if (config.registrationMode !== "CHAT" && config.registrationMode !== "MIXED") {
-      eventBus.publish("chat:command_rejected", { event, reason: "CHAT_REGISTRATION_DISABLED" });
-      return { accepted: false, reason: "CHAT_REGISTRATION_DISABLED" };
-    }
-
-    const playerPayload = {
-      playerId: event.playerId || event.userId || event.uniqueId || event.username,
-      displayName: event.displayName || event.username || event.nickname || "Viewer",
-      username: event.username || event.uniqueId || event.displayName || "Viewer",
-      avatar: event.profilePictureUrl || event.avatar || event.profilePicture || "",
-      source: "CHAT"
-    };
-
-    if (config.gameRegistrationMode === "INDIVIDUAL") {
-      const targetCommand = this.normalize(config.individualCommand || "entrar");
-      const validCommands = new Set([targetCommand, "entrar", "a", "join", "yo", "1"]);
-
-      if (validCommands.has(cleanMessage)) {
-        const result = registrationManager.registerPlayer(playerPayload);
-        if (result.success) {
-          eventBus.publish("chat:command_accepted", { event, player: result.player });
-          return { accepted: true, player: result.player };
-        }
-        eventBus.publish("chat:command_rejected", { event, reason: result.reason });
-        return { accepted: false, reason: result.reason };
-      }
-    } else if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM") {
-      let matchedTeam = null;
-      for (const team of config.teams || []) {
-        if (team.commands && team.commands.some(cmd => this.normalize(cmd) === cleanMessage)) {
-          matchedTeam = team;
-          break;
-        }
-      }
-
-      if (matchedTeam) {
-        const result = registrationManager.registerPlayer({ ...playerPayload, teamId: matchedTeam.id });
-        if (result.success) {
-          eventBus.publish("chat:command_accepted", { event, player: result.player, teamId: matchedTeam.id });
-          return { accepted: true, player: result.player, teamId: matchedTeam.id };
-        }
-        eventBus.publish("chat:command_rejected", { event, reason: result.reason });
-        return { accepted: false, reason: result.reason };
-      }
-    }
-
-    eventBus.publish("chat:command_rejected", { event, reason: "INVALID_COMMAND" });
-    return { accepted: false, reason: "INVALID_COMMAND" };
+    eventBus.publish("chat:command_rejected", { event, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" });
+    return { accepted: false, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" };
   }
 }
 
