@@ -22,9 +22,6 @@ class EventBus {
         }
       }
 
-      // Browser-source overlays can run in a separate window/context where the
-      // BroadcastChannel path is unavailable or unreliable. The storage event
-      // is a second transport and fires only in OTHER same-origin windows.
       try {
         window.addEventListener("storage", (event) => {
           if (event.key !== this.storageKey || !event.newValue) return;
@@ -41,11 +38,10 @@ class EventBus {
   }
 
   isCrossWindowEvent(eventName) {
-    // These events are part of the live overlay's authoritative state path.
-    // Registration, round lifecycle and timer events MUST cross the browser
-    // boundary just like score/gift/effect events. Without this, the admin can
-    // update in real time while a separate OBS/browser-source overlay remains
-    // stale until F5.
+    // Authoritative live-overlay state/effect events. Raw normalized:gift is
+    // intentionally NOT transported because GiftEventBridge would execute the
+    // same gift again in the overlay context. Cocazo has its own visual-only
+    // trigger emitted after the ability has already been resolved/executed.
     return (
       eventName === "game:score_updated" ||
       eventName === "win:correct" ||
@@ -81,7 +77,8 @@ class EventBus {
       eventName === "timer:stopped" ||
       eventName === "timer:reset" ||
       eventName === "GAME_MODE_CHANGED" ||
-      eventName === "SESSION_STATUS_CHANGED"
+      eventName === "SESSION_STATUS_CHANGED" ||
+      eventName === "cocazo:trigger"
     );
   }
 
@@ -93,8 +90,6 @@ class EventBus {
     const { eventName, payload, messageId } = message || {};
     if (!eventName) return;
 
-    // BroadcastChannel and storage fallback can deliver the same event. Ignore
-    // the duplicate while still allowing genuinely separate events immediately.
     if (messageId) {
       if (this.seenMessages.has(messageId)) return;
       this.seenMessages.add(messageId);
@@ -108,9 +103,6 @@ class EventBus {
     this._emitLocal(eventName, payload, true);
   }
 
-  /**
-   * Subscribes a callback function to a specific event name with duplicate subscription protection.
-   */
   subscribe(eventName, callback) {
     if (!eventName || typeof callback !== "function") return;
     if (!this.listeners.has(eventName)) {
@@ -134,10 +126,6 @@ class EventBus {
     }
   }
 
-  /**
-   * Emits an event locally and, for overlay-critical events, across browser
-   * windows/tabs through both BroadcastChannel and a storage fallback.
-   */
   emit(eventName, payload, isRemote = false) {
     this._emitLocal(eventName, payload, isRemote);
 
