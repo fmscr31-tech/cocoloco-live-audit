@@ -3,9 +3,9 @@ import { addPoints, getPlayer, getPlayers } from "./playerManager";
 import { addPointsToTeam, getTeam } from "./TeamManager";
 
 /**
- * Ability Action Dispatcher v1.1
+ * Ability Action Dispatcher v1.2
  * Executes scoreAction exactly once when an Ability reaches ability:started.
- * Gifts resolved through the Ability system do not enter the legacy score path.
+ * Gift identity is resolved by TikTok/player ID first, then username/display name.
  */
 class AbilityActionDispatcher {
   constructor() {
@@ -16,7 +16,7 @@ class AbilityActionDispatcher {
   dispatch(ability) {
     if (!ability?.abilityId) return { success: false, reason: "INVALID_ABILITY" };
 
-    const executionId = ability.executionId || `${ability.abilityId}:${ability.timestamp || Date.now()}:${ability.sender || ability.username || "unknown"}`;
+    const executionId = ability.executionId || `${ability.abilityId}:${ability.timestamp || Date.now()}:${ability.playerId || ability.sender || ability.username || "unknown"}`;
     if (this.processed.has(executionId)) {
       console.warn("[AbilityActionDispatcher] Duplicate execution ignored:", executionId);
       return { success: false, reason: "DUPLICATE" };
@@ -36,24 +36,22 @@ class AbilityActionDispatcher {
 
     switch (type) {
       case "ADD_POINTS": {
-        if (!username || !Number.isFinite(baseValue) || baseValue === 0) {
-          return { success: false, reason: "INVALID_ADD_POINTS_TARGET" };
-        }
-
-        const player = getPlayer(username) || getPlayerByNameSafe(username);
-        if (!player) {
-          console.warn("[AbilityActionDispatcher] ADD_POINTS target not found:", username);
-          return { success: false, reason: "PLAYER_NOT_FOUND", username };
+        const player = this._resolvePlayer(ability);
+        if (!player || !Number.isFinite(baseValue) || baseValue === 0) {
+          console.warn("[AbilityActionDispatcher] ADD_POINTS target not found:", {
+            playerId: ability.playerId,
+            userId: ability.userId,
+            username,
+            displayName: ability.displayName
+          });
+          return { success: false, reason: "PLAYER_NOT_FOUND", username, playerId: ability.playerId || null };
         }
 
         const points = baseValue * quantity;
         const updated = addPoints(player.id, points);
         if (!updated) return { success: false, reason: "SCORE_UPDATE_FAILED" };
 
-        // Team mode keeps a separate persisted team scoreboard.
-        if (updated.teamId) {
-          addPointsToTeam(updated.teamId, points);
-        }
+        if (updated.teamId) addPointsToTeam(updated.teamId, points);
 
         const result = {
           success: true,
@@ -61,24 +59,24 @@ class AbilityActionDispatcher {
           points,
           quantity,
           playerId: updated.id,
-          username: updated.name,
+          tiktokId: updated.tiktokId || null,
+          username: updated.username || updated.name,
           teamId: updated.teamId || null,
           newTotal: updated.points,
           abilityId: ability.abilityId,
+          giftId: ability.giftId || null,
+          canonicalGiftId: ability.canonicalGiftId || null,
           source: "ABILITY"
         };
 
         eventBus.publish("ability:score_executed", result);
+        eventBus.publish("gift:points_awarded", result);
         return result;
       }
 
       case "RESET_SCORE": {
-        // Money Gun targets the configured team (currently team2 from the
-        // Ability resolver). Never reset the entire game when no team exists.
         const teamId = ability.teamId;
-        if (!teamId) {
-          return { success: false, reason: "TEAM_TARGET_REQUIRED" };
-        }
+        if (!teamId) return { success: false, reason: "TEAM_TARGET_REQUIRED" };
 
         const team = getTeam(teamId);
         if (!team) {
@@ -93,9 +91,7 @@ class AbilityActionDispatcher {
           .map(player => player.id);
 
         const previousTeamPoints = Number(team.points) || 0;
-        if (previousTeamPoints !== 0) {
-          addPointsToTeam(teamId, -previousTeamPoints);
-        }
+        if (previousTeamPoints !== 0) addPointsToTeam(teamId, -previousTeamPoints);
 
         const result = {
           success: true,
@@ -104,25 +100,29 @@ class AbilityActionDispatcher {
           playersReset: affected.length,
           previousTeamPoints,
           abilityId: ability.abilityId,
+          giftId: ability.giftId || null,
+          canonicalGiftId: ability.canonicalGiftId || null,
           source: "ABILITY"
         };
 
         eventBus.publish("ability:score_executed", result);
+        eventBus.publish("gift:action_dispatched", result);
         return result;
       }
 
       case "ADD_ROUND": {
-        // This is deliberately not converted into player points. It is a
-        // round-level action and is exposed for the round/game subsystem.
         const result = {
           success: true,
           type,
           value: Number.isFinite(baseValue) ? baseValue : 0,
           teamId: ability.teamId || null,
           abilityId: ability.abilityId,
+          giftId: ability.giftId || null,
+          canonicalGiftId: ability.canonicalGiftId || null,
           source: "ABILITY"
         };
         eventBus.publish("ability:round_executed", result);
+        eventBus.publish("gift:action_dispatched", result);
         return result;
       }
 
@@ -132,22 +132,39 @@ class AbilityActionDispatcher {
           success: true,
           type,
           abilityId: ability.abilityId,
+          giftId: ability.giftId || null,
+          canonicalGiftId: ability.canonicalGiftId || null,
           source: "ABILITY"
         };
         eventBus.publish("ability:score_executed", result);
+        eventBus.publish("gift:action_dispatched", result);
         return result;
       }
     }
   }
-}
 
-function getPlayerByNameSafe(username) {
-  const target = String(username).trim().toLowerCase();
-  return getPlayers().find(player =>
-    String(player.name || "").trim().toLowerCase() === target ||
-    String(player.username || "").trim().toLowerCase() === target ||
-    String(player.displayName || "").trim().toLowerCase() === target
-  ) || null;
+  _resolvePlayer(ability) {
+    const identityCandidates = [ability.playerId, ability.userId].filter(Boolean).map(String);
+
+    for (const candidate of identityCandidates) {
+      const player = getPlayer(candidate);
+      if (player) return player;
+    }
+
+    const username = String(ability.username || ability.sender || "").trim().toLowerCase();
+    const displayName = String(ability.displayName || "").trim().toLowerCase();
+    if (!username && !displayName) return null;
+
+    return getPlayers().find(player => {
+      const playerUsername = String(player.username || "").trim().toLowerCase();
+      const playerName = String(player.name || "").trim().toLowerCase();
+      const playerDisplayName = String(player.displayName || "").trim().toLowerCase();
+      return (
+        (username && (playerUsername === username || playerName === username || playerDisplayName === username)) ||
+        (displayName && (playerDisplayName === displayName || playerName === displayName))
+      );
+    }) || null;
+  }
 }
 
 export const abilityActionDispatcher = new AbilityActionDispatcher();
