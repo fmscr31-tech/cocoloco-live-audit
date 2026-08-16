@@ -6,10 +6,19 @@ import { getCurrentRound } from "./roundManager";
 import { addPlayer } from "./playerManager";
 
 class ChatCommandParser {
-  constructor() { this.initListener(); }
+  constructor() {
+    this.initListener();
+    this.initWinListener();
+  }
 
   initListener() {
     eventBus.subscribe("normalized:chat", (event) => this.parseChatEvent(event));
+  }
+
+  initWinListener() {
+    // WIN LIMPIA is now an external result signal. Contexto/TikFinity tells us
+    // who won; this parser must never infer a win from the text itself.
+    eventBus.subscribe("win:detected", (event) => this.processWinSignal(event));
   }
 
   normalize(value) {
@@ -20,6 +29,22 @@ class ChatCommandParser {
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
+  }
+
+  _getRoundContext() {
+    let gameState = null;
+    try { gameState = getState(); } catch (error) { console.warn("[CHAT LIVE] Could not read game state:", error); }
+
+    let currentRound = null;
+    try { currentRound = getCurrentRound(); } catch (error) { console.warn("[CHAT LIVE] Could not read canonical round:", error); }
+
+    const activeRound = Boolean(
+      currentRound?.status === "active" ||
+      gameState?.round?.status === "active" ||
+      gameState?.round?.active === true
+    );
+
+    return { gameState, currentRound, activeRound };
   }
 
   parseChatEvent(event) {
@@ -34,18 +59,7 @@ class ChatCommandParser {
 
     const regState = registrationManager.getRegistrationState();
     const config = commandConfigManager.refreshFromStorage();
-
-    let gameState = null;
-    try { gameState = getState(); } catch (error) { console.warn("[CHAT LIVE] Could not read game state:", error); }
-
-    let currentRound = null;
-    try { currentRound = getCurrentRound(); } catch (error) { console.warn("[CHAT LIVE] Could not read canonical round:", error); }
-
-    const activeRound = Boolean(
-      currentRound?.status === "active" ||
-      gameState?.round?.status === "active" ||
-      gameState?.round?.active === true
-    );
+    const { gameState, currentRound, activeRound } = this._getRoundContext();
 
     console.log("[CHAT LIVE 02] EVENT NORMALIZED", {
       playerId: eventPlayerId,
@@ -61,6 +75,7 @@ class ChatCommandParser {
     });
     console.log("[CHAT LIVE 05] COMMAND CONFIG", config);
 
+    // Registration remains command-driven and unchanged.
     if (regState.status === "OPEN") {
       if (config.registrationMode !== "CHAT" && config.registrationMode !== "MIXED") {
         eventBus.publish("chat:command_rejected", { event, reason: "CHAT_REGISTRATION_DISABLED" });
@@ -113,121 +128,107 @@ class ChatCommandParser {
     }
 
     if (activeRound) {
-      const winConfig = config.winLimpia || {};
-
-      // The active round is the authoritative snapshot. The old implementation
-      // preferred Win Limpia config over the round snapshot, which could make a
-      // valid answer lose to a stale value such as "clase". Only fall back to
-      // current configuration when the active round has no answer of its own.
-      const configuredAnswer = this.normalize(
-        winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
-      );
-
-      const roundAnswer = this.normalize(
-        currentRound?.correctAnswer ??
-        currentRound?.answer ??
-        currentRound?.word ??
-        currentRound?.targetAnswer ??
-        gameState?.round?.correctAnswer ??
-        gameState?.round?.answer ??
-        gameState?.round?.word ??
-        gameState?.round?.targetAnswer ??
-        ""
-      );
-
-      const targetAnswer = roundAnswer || configuredAnswer;
-      const answerSource = roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG";
-
-      console.log("[WIN LIMPIA CHECK]", {
-        enabled: winConfig.enabled !== false,
-        activeRound,
-        registrationStatus: regState.status,
-        targetAnswer,
-        receivedAnswer: cleanMessage,
-        matches: Boolean(targetAnswer && cleanMessage === targetAnswer),
-        eventPlayerId,
-        eventUsername,
-        eventDisplayName,
-        roundAnswer: roundAnswer || null,
-        configuredAnswer: configuredAnswer || null,
-        answerSource
-      });
-
-      if (winConfig.enabled !== false && targetAnswer && cleanMessage === targetAnswer) {
-        const registeredPlayers = registrationManager.getRegisteredPlayers();
-        const matchedRegPlayer = registeredPlayers.find((p) => {
-          const registeredId = p?.playerId || p?.id || p?.tiktokId;
-          const registeredUsername = this.normalize(p?.username || p?.uniqueId);
-          const registeredDisplayName = this.normalize(p?.displayName || p?.name || p?.nickname);
-
-          return (
-            (eventPlayerId && registeredId && String(registeredId) === String(eventPlayerId)) ||
-            (eventUsername && registeredUsername && eventUsername === registeredUsername) ||
-            (eventDisplayName && registeredDisplayName && eventDisplayName === registeredDisplayName)
-          );
-        });
-
-        if (matchedRegPlayer) {
-          const scoringId = matchedRegPlayer.playerId || matchedRegPlayer.id || matchedRegPlayer.tiktokId || matchedRegPlayer.username;
-
-          console.log("[WIN LIMPIA MATCH]", { matchedRegPlayer, scoringId });
-
-          const scoringPlayer = addPlayer({
-            name: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
-            displayName: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
-            username: matchedRegPlayer.username || matchedRegPlayer.displayName || scoringId,
-            tiktokId: scoringId,
-            avatar: matchedRegPlayer.avatar || "",
-            teamId: matchedRegPlayer.teamId || null
-          });
-
-          console.log("[WIN LIMPIA SCORE IDENTITY READY]", {
-            scoringId,
-            localPlayerId: scoringPlayer?.id || null,
-            localTikTokId: scoringPlayer?.tiktokId || null,
-            beforePoints: scoringPlayer?.points ?? null,
-            beforeWins: scoringPlayer?.wins ?? null
-          });
-
-          const player = playerWin(scoringId);
-          if (player) {
-            console.log("[WIN LIMPIA SUCCESS] +1 POINT +1 WIN", {
-              playerId: player.id,
-              tiktokId: player.tiktokId,
-              player: player.name,
-              points: player.points,
-              wins: player.wins,
-              wordsFound: player.wordsFound,
-              correctAnswer: targetAnswer
-            });
-
-            eventBus.publish("win:correct_matched", {
-              event,
-              player,
-              correctAnswer: targetAnswer,
-              pointsAdded: 1,
-              winsAdded: 1,
-              source: "WIN_LIMPIA"
-            });
-
-            return { accepted: true, win: true, player };
-          }
-
-          console.error("[WIN LIMPIA FATAL] Identity was materialized but playerWin returned null", {
-            scoringId,
-            scoringPlayer
-          });
-        } else {
-          console.log("[WIN LIMPIA] Correct answer from unregistered viewer; ignored.");
-        }
-      }
-
-      eventBus.publish("chat:command_rejected", { event, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" });
-      return { accepted: false, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" };
+      // IMPORTANT: A normal chat message is NOT a WIN LIMPIA anymore.
+      // The winning answer is owned by Contexto Interactive. Once Contexto
+      // emits win:detected, processWinSignal() awards the point using identity
+      // only. There is deliberately no configuredAnswer/roundAnswer comparison.
+      eventBus.publish("chat:command_rejected", { event, reason: "ACTIVE_ROUND_CHAT_IGNORED" });
+      return { accepted: false, reason: "ACTIVE_ROUND_CHAT_IGNORED" };
     }
 
     eventBus.publish("chat:command_rejected", { event, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" });
     return { accepted: false, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" };
+  }
+
+  processWinSignal(event) {
+    console.log("[WIN LIMPIA SIGNAL RECEIVED]", event);
+
+    if (!event?.winLimpia && event?.type !== "WIN_LIMPIA") {
+      console.warn("[WIN LIMPIA] Ignoring non-authoritative signal", event);
+      return { accepted: false, reason: "INVALID_WIN_SIGNAL" };
+    }
+
+    const regState = registrationManager.getRegistrationState();
+    const { activeRound } = this._getRoundContext();
+
+    if (!activeRound) {
+      console.warn("[WIN LIMPIA] Winner signal received outside active round", { event, regState });
+      return { accepted: false, reason: "NO_ACTIVE_ROUND" };
+    }
+
+    const eventPlayerId = event.playerId || event.userId || event.uniqueId || event.username || event.displayName;
+    const eventUsername = this.normalize(event.username || event.uniqueId);
+    const eventDisplayName = this.normalize(event.displayName || event.nickname);
+
+    const registeredPlayers = registrationManager.getRegisteredPlayers();
+    const matchedRegPlayer = registeredPlayers.find((p) => {
+      const registeredId = p?.playerId || p?.id || p?.tiktokId;
+      const registeredUsername = this.normalize(p?.username || p?.uniqueId);
+      const registeredDisplayName = this.normalize(p?.displayName || p?.name || p?.nickname);
+
+      return (
+        (eventPlayerId && registeredId && String(registeredId) === String(eventPlayerId)) ||
+        (eventUsername && registeredUsername && eventUsername === registeredUsername) ||
+        (eventDisplayName && registeredDisplayName && eventDisplayName === registeredDisplayName)
+      );
+    });
+
+    if (!matchedRegPlayer) {
+      console.log("[WIN LIMPIA] Winner signal belongs to an unregistered viewer; ignored.", {
+        eventPlayerId,
+        eventUsername,
+        eventDisplayName
+      });
+      return { accepted: false, reason: "WINNER_NOT_REGISTERED" };
+    }
+
+    const scoringId = matchedRegPlayer.playerId || matchedRegPlayer.id || matchedRegPlayer.tiktokId || matchedRegPlayer.username;
+
+    const scoringPlayer = addPlayer({
+      name: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
+      displayName: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
+      username: matchedRegPlayer.username || matchedRegPlayer.displayName || scoringId,
+      tiktokId: scoringId,
+      avatar: matchedRegPlayer.avatar || event.avatar || "",
+      teamId: matchedRegPlayer.teamId || null
+    });
+
+    console.log("[WIN LIMPIA SCORE IDENTITY READY]", {
+      scoringId,
+      localPlayerId: scoringPlayer?.id || null,
+      localTikTokId: scoringPlayer?.tiktokId || null,
+      beforePoints: scoringPlayer?.points ?? null,
+      beforeWins: scoringPlayer?.wins ?? null
+    });
+
+    const player = playerWin(scoringId);
+    if (!player) {
+      console.error("[WIN LIMPIA FATAL] Identity was materialized but playerWin returned null", {
+        scoringId,
+        scoringPlayer
+      });
+      return { accepted: false, reason: "SCORE_UPDATE_FAILED" };
+    }
+
+    console.log("[WIN LIMPIA SUCCESS] +1 POINT +1 WIN", {
+      playerId: player.id,
+      tiktokId: player.tiktokId,
+      player: player.name,
+      points: player.points,
+      wins: player.wins,
+      wordsFound: player.wordsFound,
+      source: "WIN_LIMPIA_EXTERNAL"
+    });
+
+    eventBus.publish("win:correct_matched", {
+      event,
+      player,
+      pointsAdded: 1,
+      winsAdded: 1,
+      source: "WIN_LIMPIA_EXTERNAL"
+    });
+
+    return { accepted: true, win: true, player };
   }
 }
 
