@@ -4,8 +4,9 @@ import { players } from "../playerManager";
 import { getTeams } from "../TeamManager";
 
 /**
- * Battle Effect Engine: Manages temporary competitive battle effects (e.g. FREEZE) 
+ * Battle Effect Engine: Manages temporary competitive battle effects (e.g. FREEZE)
  * with extensible scope support (TEAM, PLAYER, GLOBAL).
+ * Freeze configuration is data-driven from configManager.
  */
 class BattleEffectEngine {
   constructor() {
@@ -22,20 +23,35 @@ class BattleEffectEngine {
       config = config || {};
       config.freeze = {
         enabled: true,
-        scope: "TEAM", // "TEAM" | "GLOBAL" | "PLAYER"
-        duration: 300, // 300 seconds = 5 minutes = 300000 ms
+        scope: "TEAM",
+        duration: 300,
         rescueCount: 2,
-        activationGift: "STAR",
-        counterGift: "STAR"
+        activationGift: "Twinkling Star",
+        counterGift: "Twinkling Star",
+        sound: null
       };
       configManager.set("battleEffects", config);
-    } else {
-      // Safe migration: if legacy default duration was 30 or missing, upgrade to 300 seconds (5 minutes)
-      if (config.freeze.duration === undefined || config.freeze.duration === 30 || config.freeze.duration < 5) {
-        config.freeze.duration = 300;
-        configManager.set("battleEffects", config);
-      }
+      return;
     }
+
+    let changed = false;
+    if (config.freeze.duration === undefined || config.freeze.duration === 30 || config.freeze.duration < 5) {
+      config.freeze.duration = 300;
+      changed = true;
+    }
+    if (!config.freeze.activationGift) {
+      config.freeze.activationGift = "Twinkling Star";
+      changed = true;
+    }
+    if (config.freeze.counterGift === undefined) {
+      config.freeze.counterGift = config.freeze.activationGift;
+      changed = true;
+    }
+    if (config.freeze.sound === undefined) {
+      config.freeze.sound = null;
+      changed = true;
+    }
+    if (changed) configManager.set("battleEffects", config);
   }
 
   initListeners() {
@@ -55,53 +71,74 @@ class BattleEffectEngine {
     return teams.find(t => t.id === player.teamId || t.name.toLowerCase() === String(player.teamId).toLowerCase()) || null;
   }
 
+  normalizeGift(value) {
+    return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  isActivationGift(reward, configuredGift) {
+    const target = this.normalizeGift(configuredGift);
+    if (!target) return false;
+
+    const candidates = [
+      reward?.canonicalGiftId,
+      reward?.giftId,
+      reward?.giftName,
+      reward?.gift?.id,
+      reward?.gift?.name
+    ].map(value => this.normalizeGift(value));
+
+    return candidates.some(candidate => candidate && candidate === target);
+  }
+
   handleRewardEffect(reward) {
-    const config = configManager.get("battleEffects.freeze") || { enabled: true, scope: "TEAM", duration: 300, rescueCount: 2, activationGift: "STAR" };
-    if (!config || !config.enabled) return;
+    const config = configManager.get("battleEffects.freeze") || {};
+    if (!config.enabled) return;
 
-    const giftName = (reward.giftName || "").toUpperCase();
-    const targetGift = (config.activationGift || "STAR").toUpperCase();
+    const activationGift = config.activationGift || "Twinkling Star";
     const requiredCount = Number(config.rescueCount !== undefined ? config.rescueCount : 2);
+    if (!this.isActivationGift(reward, activationGift)) return;
 
-    if (giftName === targetGift) {
-      const senderTeam = this.getPlayerTeam(reward.username);
-      const scope = config.scope || "TEAM";
-      const count = Number(reward.repeatCount || reward.diamondCount || 1);
+    const senderTeam = this.getPlayerTeam(reward.username);
+    const scope = config.scope || "TEAM";
+    const count = Number(reward.repeatCount || reward.diamondCount || 1);
 
-      if (scope === "TEAM") {
-        if (!senderTeam) return;
-        const teams = getTeams();
-        const affectedTeam = teams.find(t => t.id !== senderTeam.id);
-        if (!affectedTeam) return;
+    if (scope === "TEAM") {
+      if (!senderTeam) return;
+      const teams = getTeams();
+      const affectedTeam = teams.find(t => t.id !== senderTeam.id);
+      if (!affectedTeam) return;
 
-        // Unlock / Counterattack logic
-        if (this.activeEffect && this.activeEffect.affectedTeamId === senderTeam.id) {
-          this.removeEffect();
-          if (count >= requiredCount) {
-            this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
-          }
-          return;
-        }
-
-        if (!this.activeEffect) {
-          this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
-        } else if (count >= requiredCount && this.activeEffect.affectedTeamId === affectedTeam.id) {
-          this.removeEffect();
+      if (this.activeEffect && this.activeEffect.affectedTeamId === senderTeam.id) {
+        this.removeEffect();
+        if (count >= requiredCount) {
           this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
         }
-      } else if (scope === "GLOBAL") {
-        // Global scope: freezes everyone except attacker
-        if (!this.activeEffect) {
-          this.activateEffect("FREEZE", scope, null, "TODOS", [], reward.username);
-        } else {
-          this.removeEffect();
-        }
+        return;
+      }
+
+      if (!this.activeEffect) {
+        this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
+      } else if (count >= requiredCount && this.activeEffect.affectedTeamId === affectedTeam.id) {
+        this.removeEffect();
+        this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
+      }
+    } else if (scope === "GLOBAL") {
+      if (!this.activeEffect) {
+        this.activateEffect("FREEZE", scope, null, "TODOS", [], reward.username);
+      } else {
+        this.removeEffect();
       }
     }
   }
 
   activateEffect(type, scope, teamId, teamName, affectedPlayers, activatedBy) {
-    const freezeConfig = configManager.get("battleEffects.freeze") || { duration: 300, scope: "TEAM", rescueCount: 2 };
+    const freezeConfig = configManager.get("battleEffects.freeze") || {
+      duration: 300,
+      scope: "TEAM",
+      rescueCount: 2,
+      activationGift: "Twinkling Star",
+      sound: null
+    };
     const durationSec = Number(freezeConfig.duration !== undefined ? freezeConfig.duration : 300);
     const durationMs = durationSec * 1000;
     const effectScope = freezeConfig.scope || scope || "TEAM";
@@ -114,6 +151,8 @@ class BattleEffectEngine {
       affectedTeamName: teamName,
       affectedPlayers,
       activatedBy,
+      activationGift: freezeConfig.activationGift || "Twinkling Star",
+      sound: freezeConfig.sound || null,
       createdAt: now,
       expiresAt: now + durationMs,
       totalDuration: durationSec
@@ -173,15 +212,9 @@ class BattleEffectEngine {
     if (!this.activeEffect) return false;
     const scope = this.activeEffect.scope;
 
-    if (scope === "TEAM") {
-      return teamId && teamId === this.activeEffect.affectedTeamId;
-    }
-    if (scope === "GLOBAL") {
-      return (username || "").toLowerCase() !== (this.activeEffect.activatedBy || "").toLowerCase();
-    }
-    if (scope === "PLAYER") {
-      return (this.activeEffect.affectedPlayers || []).includes(userId);
-    }
+    if (scope === "TEAM") return teamId && teamId === this.activeEffect.affectedTeamId;
+    if (scope === "GLOBAL") return (username || "").toLowerCase() !== (this.activeEffect.activatedBy || "").toLowerCase();
+    if (scope === "PLAYER") return (this.activeEffect.affectedPlayers || []).includes(userId);
     return false;
   }
 
@@ -200,6 +233,8 @@ class BattleEffectEngine {
       scope: this.activeEffect ? this.activeEffect.scope : "TEAM",
       affectedTeam: this.activeEffect ? this.activeEffect.affectedTeamName : null,
       activatedBy: this.activeEffect ? this.activeEffect.activatedBy : null,
+      activationGift: this.activeEffect ? this.activeEffect.activationGift : null,
+      sound: this.activeEffect ? this.activeEffect.sound : null,
       remainingTime: this.getRemainingTime()
     };
   }
