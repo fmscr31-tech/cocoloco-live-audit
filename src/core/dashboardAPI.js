@@ -5,7 +5,7 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./engines/powerUpEngine";
+import { powerUpEngine } from "./powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -18,16 +18,6 @@ import { isTimerRunning } from "./timerManager";
 let currentMode = localStorage.getItem('cocoloco_game_mode') || 'INDIVIDUAL';
 let liveSessionActive = false;
 
-/**
- * Dashboard Data API: Single read-only data layer for external interfaces (Overlay, Admin Dashboard, Analytics).
- * Separates engine logic from visual representation.
- * Contains NO game logic, does NOT mutate internal state or storage.
- * Supports reactive updates via eventBus.
- * 
- * ARCHITECTURAL ISOLATION NOTE:
- * Timer events (timer:tick, timer:started, etc.) are handled exclusively by GameTimer via eventBus
- * and do NOT touch DashboardAPI subscribers, players, registration, rankings, or bubbles.
- */
 class DashboardAPI {
   constructor() {
     this.subscribers = new Set();
@@ -35,9 +25,7 @@ class DashboardAPI {
     this.initReactiveBridge();
   }
 
-  getGameMode() {
-    return currentMode;
-  }
+  getGameMode() { return currentMode; }
   
   setGameMode(mode) {
     currentMode = mode;
@@ -47,9 +35,7 @@ class DashboardAPI {
     return { success: true, mode };
   }
 
-  isLiveActive() {
-    return liveSessionActive;
-  }
+  isLiveActive() { return liveSessionActive; }
 
   setLiveSessionStatus(status) {
     liveSessionActive = status;
@@ -57,25 +43,56 @@ class DashboardAPI {
     eventBus.emit('SESSION_STATUS_CHANGED', { active: status });
   }
 
-  subscribeToModeChange(callback) {
-    return eventBus.subscribe('GAME_MODE_CHANGED', callback);
-  }
-
-  invalidateCache() {
-    this.cachedDashboard = null;
-  }
+  subscribeToModeChange(callback) { return eventBus.subscribe('GAME_MODE_CHANGED', callback); }
+  invalidateCache() { this.cachedDashboard = null; }
 
   initReactiveBridge() {
-    const notifySubscribers = (payload) => {
+    const notifySubscribers = (payload, eventName = null) => {
       console.log("[DASHBOARD NOTIFY] Subscribers notified after event, payload:", payload);
       this.invalidateCache();
       const data = this.getLiveDashboard();
-      this.subscribers.forEach(cb => {
-        try {
-          cb(data);
-        } catch (e) {
-          console.error("Error in DashboardAPI subscriber callback:", e);
+
+      // CRITICAL CROSS-WINDOW FIX:
+      // The overlay has its own JS context and therefore its own gameEngine state.
+      // A remote score event reaches this context through EventBus, but calling
+      // getState() here would still read the overlay's stale local player list.
+      // The authoritative score snapshot is already present in the event payload.
+      // Apply it directly to the dashboard snapshot before notifying subscribers.
+      if (eventName === "game:score_updated" && payload?.playerSnapshot) {
+        const snapshot = payload.playerSnapshot;
+        const snapshotId = snapshot.id || snapshot.playerId || snapshot.tiktokId;
+        const currentPlayers = Array.isArray(data?.game?.players) ? [...data.game.players] : [];
+
+        const index = currentPlayers.findIndex(player => {
+          const playerId = player?.id || player?.playerId || player?.tiktokId;
+          const playerUsername = String(player?.username || "").trim().toLowerCase();
+          const snapshotUsername = String(snapshot?.username || "").trim().toLowerCase();
+          return (
+            (snapshotId && playerId && String(snapshotId) === String(playerId)) ||
+            (snapshotUsername && playerUsername && snapshotUsername === playerUsername)
+          );
+        });
+
+        if (index >= 0) {
+          currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
+        } else {
+          currentPlayers.push({ ...snapshot });
         }
+
+        data.game = { ...data.game, players: currentPlayers };
+        data.timestamp = Date.now();
+        console.log("[DASHBOARD SCORE SNAPSHOT APPLIED]", {
+          eventName,
+          playerId: snapshotId,
+          points: snapshot.points,
+          wins: snapshot.wins,
+          players: currentPlayers
+        });
+      }
+
+      this.subscribers.forEach(cb => {
+        try { cb(data); }
+        catch (e) { console.error("Error in DashboardAPI subscriber callback:", e); }
       });
     };
 
@@ -89,7 +106,7 @@ class DashboardAPI {
     eventBus.subscribe("session:updated", notifySubscribers);
     eventBus.subscribe("session:started", notifySubscribers);
     eventBus.subscribe("session:ended", notifySubscribers);
-    eventBus.subscribe("game:score_updated", notifySubscribers);
+    eventBus.subscribe("game:score_updated", (payload) => notifySubscribers(payload, "game:score_updated"));
     eventBus.subscribe("game:objective_completed", notifySubscribers);
     eventBus.subscribe("game:winner_detected", notifySubscribers);
     eventBus.subscribe("mission:created", notifySubscribers);
@@ -118,8 +135,6 @@ class DashboardAPI {
     eventBus.subscribe("round:finished", notifySubscribers);
     eventBus.subscribe("config:command_updated", notifySubscribers);
 
-    // Timer domain is 100% isolated and handled directly by GameTimer via eventBus.
-
     eventBus.subscribe("GAME_MODE_CHANGED", (payload) => {
       const modeVal = payload?.mode || payload;
       if (typeof modeVal === "string") {
@@ -131,97 +146,60 @@ class DashboardAPI {
     eventBus.subscribe("SESSION_STATUS_CHANGED", notifySubscribers);
   }
 
-  /**
-   * Subscribes a listener to live dashboard data updates.
-   */
   subscribe(callback) {
     if (typeof callback === "function") {
       this.subscribers.add(callback);
-      // Immediately provide initial snapshot
       callback(this.getLiveDashboard());
       return () => this.subscribers.delete(callback);
     }
   }
 
-  /**
-   * Returns current active or last session info.
-   */
-  getCurrentSession() {
-    return sessionManager.getSession();
-  }
+  getCurrentSession() { return sessionManager.getSession(); }
 
-  /**
-   * Returns complete live dashboard state snapshot.
-   */
   getLiveDashboard() {
-    if (this.cachedDashboard) {
-      return this.cachedDashboard;
-    }
+    if (this.cachedDashboard) return this.cachedDashboard;
 
     let session = {};
     try { session = sessionManager.getSession() || {}; } catch(e) {}
-
     let stats = {};
     try { stats = statisticsEngine.getStatistics() || {}; } catch(e) {}
-
     let rankings = [];
     try {
-      if (typeof rankingEngine.getTopPlayers === "function") {
-        rankings = rankingEngine.getTopPlayers() || [];
-      } else if (typeof rankingEngine.getPlayerRanking === "function") {
+      if (typeof rankingEngine.getTopPlayers === "function") rankings = rankingEngine.getTopPlayers() || [];
+      else if (typeof rankingEngine.getPlayerRanking === "function") {
         const pr = rankingEngine.getPlayerRanking();
         rankings = pr?.topPoints || pr || [];
-      } else {
-        rankings = [];
       }
-    } catch (e) {
-      rankings = [];
-    }
-    if (!Array.isArray(rankings)) {
-      rankings = [];
-    }
+    } catch (e) { rankings = []; }
+    if (!Array.isArray(rankings)) rankings = [];
 
     let rules = {};
     try { rules = gameRulesEngine.getCurrentRules() || {}; } catch(e) {}
-
     let missions = [];
     try { missions = missionEngine.getActiveMissions() || []; } catch(e) {}
-
     let battleEffects = {};
     try { battleEffects = battleEffectEngine.getEffectState() || {}; } catch(e) {}
-
     let powerUps = {};
     try { powerUps = powerUpEngine.getPowerUpState() || {}; } catch(e) {}
-
     let historical = {};
     try { historical = historicalLeaderboardEngine.getSessionLeaderboard(session) || {}; } catch(e) {}
-
     let livePhase = {};
     try { livePhase = liveFlowManager.getPhaseState() || {}; } catch(e) {}
-
     let registration = {};
     try { registration = registrationManager.getRegistrationState() || {}; } catch(e) {}
-
     let commandConfig = {};
     try { commandConfig = commandConfigManager.getConfig() || {}; } catch(e) {}
-
     let game = {};
     try { game = getState() || {}; } catch(e) {}
 
-    // Registration is authoritative for who is currently enrolled. The game
-    // state is authoritative for live scores. Merge them so newly registered
-    // team members cannot disappear merely because the game state snapshot is
-    // still carrying an older player list.
     const registeredPlayers = Array.isArray(registration?.players) ? registration.players : [];
     const gamePlayers = Array.isArray(game?.players) ? game.players : [];
     if (registeredPlayers.length > 0) {
       const mergedPlayers = gamePlayers.map(player => ({ ...player }));
-
       registeredPlayers.forEach(registered => {
         const registeredId = registered?.playerId || registered?.id || registered?.tiktokId || registered?.username;
         const registeredUsername = String(registered?.username || "").trim().toLowerCase();
         const registeredDisplayName = String(registered?.displayName || registered?.name || "").trim().toLowerCase();
-
         const existingIndex = mergedPlayers.findIndex(player => {
           const playerId = player?.id || player?.playerId || player?.tiktokId;
           const playerUsername = String(player?.username || "").trim().toLowerCase();
@@ -232,7 +210,6 @@ class DashboardAPI {
             (registeredDisplayName && playerName && registeredDisplayName === playerName)
           );
         });
-
         if (existingIndex >= 0) {
           mergedPlayers[existingIndex] = {
             ...mergedPlayers[existingIndex],
@@ -260,7 +237,6 @@ class DashboardAPI {
           });
         }
       });
-
       game = { ...game, players: mergedPlayers };
     }
 
@@ -284,7 +260,6 @@ class DashboardAPI {
       liveActive: liveSessionActive,
       timestamp: Date.now()
     };
-
     return this.cachedDashboard;
   }
 }
