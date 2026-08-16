@@ -22,23 +22,33 @@ function createTeam({ id = crypto.randomUUID(), name, color = "#ffffff", icon = 
 }
 
 /**
- * Keeps the legacy TeamManager aligned with the canonical teams configured by
- * commandConfigManager. Existing scores/wins/player membership are preserved.
- * This prevents the manual-score selector from pointing at a different team
- * registry than registration and gift scoring.
+ * Keeps the runtime TeamManager aligned with commandConfigManager.
+ *
+ * IMPORTANT: configuration IDs are not always stable across older versions
+ * of the app. Therefore an existing team is matched by ID first and by name
+ * second. This prevents a manual +1/+5/+10 adjustment from being immediately
+ * replaced with a freshly-created zero-score team during the panel refresh.
  */
 function syncConfiguredTeams(configTeams = []) {
   if (!Array.isArray(configTeams) || configTeams.length === 0) return getTeams();
 
   const next = configTeams.map((configTeam, index) => {
     const id = configTeam.id || `team_${index + 1}`;
-    const existing = teams.find(team => String(team.id) === String(id));
+    const normalizedName = String(configTeam.name || `Equipo ${index + 1}`).trim().toLowerCase();
+
+    const existing = teams.find(team =>
+      String(team.id) === String(id) ||
+      String(team.name || "").trim().toLowerCase() === normalizedName
+    );
+
     return {
       ...(existing || {}),
       id,
       name: configTeam.name || existing?.name || `Equipo ${index + 1}`,
       color: configTeam.color || existing?.color || "#ffffff",
       icon: configTeam.icon || existing?.icon || "🏳️",
+      // Preserve the canonical runtime score/wins. Never reset them merely
+      // because the admin panel refreshed or configuration was synchronized.
       points: Number(existing?.points) || 0,
       wins: Number(existing?.wins) || 0,
       players: Array.isArray(existing?.players) ? existing.players : []
@@ -78,11 +88,11 @@ function removePlayerFromAllTeams(playerId) {
 }
 
 function addPointsToTeam(teamId, points) {
-  const team = teams.find(team => team.id === teamId);
-  if (!team) return;
+  const team = teams.find(team => String(team.id) === String(teamId));
+  if (!team) return null;
   team.points = Math.max(0, (Number(team.points) || 0) + Number(points || 0));
   saveTeams();
-  return team;
+  return { ...team };
 }
 
 function addTeamPoints(teamId, points) {
@@ -90,23 +100,23 @@ function addTeamPoints(teamId, points) {
 }
 
 function addWinToTeam(teamId) {
-  const team = teams.find(team => team.id === teamId);
-  if (!team) return;
+  const team = teams.find(team => String(team.id) === String(teamId));
+  if (!team) return null;
   team.wins = Math.max(0, (Number(team.wins) || 0) + 1);
   saveTeams();
-  return team;
+  return { ...team };
 }
 
 function adjustTeamWins(teamId, delta) {
-  const team = teams.find(team => team.id === teamId);
-  if (!team) return;
+  const team = teams.find(team => String(team.id) === String(teamId));
+  if (!team) return null;
   team.wins = Math.max(0, (Number(team.wins) || 0) + Number(delta || 0));
   saveTeams();
-  return team;
+  return { ...team };
 }
 
 function getTeam(teamId) {
-  return teams.find(team => team.id === teamId);
+  return teams.find(team => String(team.id) === String(teamId));
 }
 
 function getTeams() {
