@@ -3,11 +3,16 @@ import { resetRoundTeamScores } from "./TeamManager";
 import { sessionManager } from "./sessionManager";
 import { getPlayers } from "./playerManager";
 import { registrationManager } from "./registrationManager";
+import { commandConfigManager } from "./commandConfigManager";
 
 let currentRound = null;
 let lastFinishedRoundId = null;
 
-export function startRound(data){
+export function startRound(data = {}){
+  const config = commandConfigManager.getConfig();
+  const configuredAnswer = config?.winLimpia?.correctAnswer || "";
+  const roundAnswer = data.correctAnswer ?? data.answer ?? data.word ?? configuredAnswer;
+
   currentRound = {
     id: data.id || Date.now(),
     name: data.name || "Ronda Principal",
@@ -15,9 +20,17 @@ export function startRound(data){
     entryGift: data.entryGift,
     prize: data.prize,
     gameMode: data.gameMode || (typeof localStorage !== "undefined" ? localStorage.getItem('cocoloco_game_mode') : null) || "TEAM",
+    correctAnswer: String(roundAnswer || "").trim().toLowerCase(),
     status: "active",
     startTime: new Date()
   };
+
+  console.log("[ROUND ANSWER SNAPSHOT]", {
+    roundId: currentRound.id,
+    correctAnswer: currentRound.correctAnswer,
+    source: data.correctAnswer != null || data.answer != null || data.word != null ? "ROUND_START_DATA" : "COMMAND_CONFIG"
+  });
+
   return currentRound;
 }
 
@@ -44,10 +57,6 @@ export function endRound(){
 
   resetRoundTeamScores();
 
-  // A round is the participation boundary. Historical data has already been
-  // archived above, so remove the old registered identities and immediately
-  // open a clean registration window for the next round. This does not touch
-  // gift/ability configuration or team definitions.
   registrationManager.prepareNextRoundRegistration();
 
   eventBus.publish("round:finished", {
