@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { resolveCanonicalGiftId } from "../../config/canonicalGifts";
+import "../overlay/cocazo.css";
 
 /**
  * GiftImage Component v1
