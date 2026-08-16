@@ -18,10 +18,9 @@ function normalizeAnswer(value) {
 }
 
 // WIN LIMPIA AUTHORITY:
-// The operator controls the live answer from the Win Limpia configuration.
-// When that value changes during an active round, the canonical round answer
-// must change with it. Otherwise chatCommandParser keeps comparing against a
-// stale word and rejects the actual answer received from TikTok.
+// The active round owns the answer snapshot. Configuration changes during an
+// active round are synchronized into that snapshot so chat matching cannot
+// remain stuck on an older answer.
 eventBus.subscribe("config:command_updated", ({ config } = {}) => {
   if (!currentRound || currentRound.status !== "active") return;
 
@@ -52,7 +51,19 @@ eventBus.subscribe("config:command_updated", ({ config } = {}) => {
 export function startRound(data = {}) {
   const config = commandConfigManager.refreshFromStorage();
   const configuredAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
-  const explicitAnswer = normalizeAnswer(data.correctAnswer ?? data.answer ?? data.word ?? "");
+
+  // Accept every answer field used by the round/game layers. In particular,
+  // targetAnswer/roundAnswer were previously ignored, causing a valid word
+  // supplied by the round controller to be silently replaced by stale config.
+  const explicitAnswer = normalizeAnswer(
+    data.correctAnswer ??
+    data.answer ??
+    data.word ??
+    data.targetAnswer ??
+    data.roundAnswer ??
+    data.winLimpiaAnswer ??
+    ""
+  );
 
   // An explicitly supplied round answer wins. Otherwise the current LIVE
   // Win Limpia configuration becomes the answer for this round.
