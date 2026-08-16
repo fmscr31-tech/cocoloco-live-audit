@@ -30,6 +30,16 @@ function loadAbilities() {
   }));
 }
 
+function loadGiftMap() {
+  const saved = configManager.get("abilityGiftMap");
+  return Array.isArray(saved) ? saved : GIFT_ABILITY_MAP;
+}
+
+function loadGiftSounds() {
+  const saved = configManager.get("giftSounds");
+  return Array.isArray(saved) ? saved : [];
+}
+
 function loadFreeze() {
   const saved = configManager.get("battleEffects.freeze") || {};
   return {
@@ -45,8 +55,8 @@ const selectStyle = { ...inputStyle, minWidth: "150px" };
 
 export function AbilityManagerControls() {
   const [abilities, setAbilities] = useState(loadAbilities);
-  const [abilityGiftMap, setAbilityGiftMap] = useState(() => configManager.get("abilityGiftMap") || GIFT_ABILITY_MAP);
-  const [giftSounds, setGiftSounds] = useState(() => configManager.get("giftSounds") || []);
+  const [abilityGiftMap, setAbilityGiftMap] = useState(loadGiftMap);
+  const [giftSounds, setGiftSounds] = useState(loadGiftSounds);
   const [freezeConfig, setFreezeConfig] = useState(loadFreeze);
 
   const soundOptions = useMemo(() => {
@@ -58,17 +68,38 @@ export function AbilityManagerControls() {
     return [...new Set(values.filter(Boolean))];
   }, [abilities, freezeConfig.sound]);
 
-  const saveAbilities = next => { setAbilities(next); configManager.set("abilities", next); };
-  const saveAbility = (id, patch) => saveAbilities({ ...abilities, [id]: { ...abilities[id], ...patch } });
+  // IMPORTANT: never persist the whole stale abilities object after editing one
+  // field. Each edit reads the latest persisted ability and writes only that ID.
+  const saveAbility = (id, patch) => {
+    const latestAbilities = configManager.get("abilities") || {};
+    const current = latestAbilities[id] || abilities[id] || ABILITY_REGISTRY[id];
+    const nextAbility = {
+      ...current,
+      ...patch,
+      display: patch.display ? { ...(current.display || {}), ...patch.display } : current.display,
+      gameAction: patch.gameAction ? { ...(current.gameAction || {}), ...patch.gameAction } : current.gameAction,
+      scoreAction: patch.scoreAction ? { ...(current.scoreAction || {}), ...patch.scoreAction } : current.scoreAction
+    };
+
+    configManager.set(`abilities.${id}`, nextAbility);
+    setAbilities({
+      ...latestAbilities,
+      [id]: nextAbility
+    });
+  };
+
   const saveFreeze = patch => {
-    const next = { ...freezeConfig, ...patch };
+    const latest = configManager.get("battleEffects.freeze") || {};
+    const next = { ...DEFAULT_FREEZE, ...latest, ...patch };
     setFreezeConfig(next);
     configManager.set("battleEffects.freeze", next);
   };
+
   const preview = sound => sound && audioManager.previewSound(sound);
 
   const changeGift = (abilityId, giftName) => {
-    const next = abilityGiftMap.map(item => item.abilityId === abilityId
+    const latest = loadGiftMap();
+    const next = latest.map(item => item.abilityId === abilityId
       ? { ...item, giftName, giftId: giftName.toLowerCase().replace(/\s+/g, "_") }
       : item);
     setAbilityGiftMap(next);
@@ -77,32 +108,37 @@ export function AbilityManagerControls() {
 
   const changeAliases = (abilityId, value) => {
     const aliases = value.split(",").map(v => v.trim()).filter(Boolean);
-    const next = abilityGiftMap.map(item => item.abilityId === abilityId ? { ...item, aliases } : item);
+    const latest = loadGiftMap();
+    const next = latest.map(item => item.abilityId === abilityId ? { ...item, aliases } : item);
     setAbilityGiftMap(next);
     configManager.set("abilityGiftMap", next);
   };
 
   const changeGiftSound = (index, field, value) => {
-    const next = giftSounds.map((item, i) => i === index ? { ...item, [field]: value } : item);
+    const latest = loadGiftSounds();
+    const next = latest.map((item, i) => i === index ? { ...item, [field]: value } : item);
     setGiftSounds(next);
     configManager.set("giftSounds", next);
   };
 
   const addGiftSound = () => {
-    const next = [...giftSounds, { giftName: "New Gift", giftId: "new_gift", sound: "", enabled: true }];
+    const latest = loadGiftSounds();
+    const next = [...latest, { giftName: "New Gift", giftId: "new_gift", sound: "", enabled: true }];
     setGiftSounds(next);
     configManager.set("giftSounds", next);
   };
 
   const deleteGiftSound = index => {
-    const next = giftSounds.filter((_, i) => i !== index);
+    const latest = loadGiftSounds();
+    const next = latest.filter((_, i) => i !== index);
     setGiftSounds(next);
     configManager.set("giftSounds", next);
   };
 
   const runPreview = ability => {
     preview(ability.sound);
-    const mapping = abilityGiftMap.find(item => item.abilityId === ability.abilityId);
+    const latestMap = loadGiftMap();
+    const mapping = latestMap.find(item => item.abilityId === ability.abilityId);
     abilityEventQueue.enqueue({
       abilityId: ability.abilityId,
       sourceGift: mapping?.giftName || "Gift",
@@ -146,7 +182,7 @@ export function AbilityManagerControls() {
       <div style={{ background: "rgba(0,140,220,.1)", border: "1px solid rgba(0,245,255,.3)", borderRadius: "8px", padding: "12px" }}>
         <div style={{ fontSize: "12px", fontWeight: 900, color: "#00f5ff", textTransform: "uppercase", marginBottom: "10px" }}>❄️ Freeze Effect Parameters</div>
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center", fontSize: "11px" }}>
-          <label>🎁 TikTok Gift <select value={freezeConfig.activationGiftId} onChange={e => { const gift = FREEZE_GIFTS.find(g => g.id === e.target.value); saveFreeze({ activationGiftId: gift.id, activationGift: gift.name }); }} style={selectStyle}>{FREEZE_GIFTS.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
+          <label>🎁 TikTok Gift <select value={freezeConfig.activationGiftId} onChange={e => { const gift = FREEZE_GIFTS.find(g => g.id === e.target.value); if (gift) saveFreeze({ activationGiftId: gift.id, activationGift: gift.name }); }} style={selectStyle}>{FREEZE_GIFTS.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
           <label>🔊 Sound <select value={freezeConfig.sound || ""} onChange={e => saveFreeze({ sound: e.target.value })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{sound.split("/").pop()}</option>)}</select></label>
           <button onClick={() => preview(freezeConfig.sound)}>🔊 Test Sound</button>
           <label>Duration (Seconds) <input type="number" min="5" max="600" value={freezeConfig.duration} onChange={e => saveFreeze({ duration: Math.max(5, Number(e.target.value) || 300) })} style={{ ...inputStyle, width: "65px" }} /></label>
