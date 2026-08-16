@@ -31,23 +31,14 @@ class ChatCommandParser {
     const eventUsername = this.normalize(event.username || event.uniqueId);
     const eventDisplayName = this.normalize(event.displayName || event.nickname);
 
-    console.log("[CHAT LIVE 02] EVENT NORMALIZED", {
-      playerId: eventPlayerId,
-      username: event.username,
-      displayName: event.displayName,
-      message: rawMessage
-    });
-
     const regState = registrationManager.getRegistrationState();
     const config = commandConfigManager.getConfig();
 
     let gameState = null;
-    try { gameState = getState(); }
-    catch (error) { console.warn("[CHAT LIVE] Could not read game state:", error); }
+    try { gameState = getState(); } catch (error) { console.warn("[CHAT LIVE] Could not read game state:", error); }
 
     let currentRound = null;
-    try { currentRound = getCurrentRound(); }
-    catch (error) { console.warn("[CHAT LIVE] Could not read canonical round:", error); }
+    try { currentRound = getCurrentRound(); } catch (error) { console.warn("[CHAT LIVE] Could not read canonical round:", error); }
 
     const activeRound = Boolean(
       currentRound?.status === "active" ||
@@ -55,6 +46,12 @@ class ChatCommandParser {
       gameState?.round?.active === true
     );
 
+    console.log("[CHAT LIVE 02] EVENT NORMALIZED", {
+      playerId: eventPlayerId,
+      username: event.username,
+      displayName: event.displayName,
+      message: rawMessage
+    });
     console.log("[CHAT LIVE 03] REGISTRATION STATE", regState);
     console.log("[CHAT LIVE 04] ACTIVE ROUND", activeRound, {
       canonicalStatus: currentRound?.status,
@@ -65,23 +62,23 @@ class ChatCommandParser {
 
     if (activeRound || regState.status !== "OPEN") {
       const winConfig = config.winLimpia || {};
-
-      // The active round is the runtime source of truth. The command config is
-      // only the fallback used when a round was started without an explicit
-      // answer snapshot. This prevents a stale answer in localStorage from
-      // blocking the answer actually assigned to the current round.
-      const targetAnswer = this.normalize(
+      const configuredAnswer = this.normalize(
+        winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
+      );
+      const roundAnswer = this.normalize(
         currentRound?.correctAnswer ??
         currentRound?.answer ??
         currentRound?.word ??
         gameState?.round?.correctAnswer ??
         gameState?.round?.answer ??
         gameState?.round?.word ??
-        winConfig.correctAnswer ??
-        winConfig.answer ??
-        winConfig.word ??
         ""
       );
+
+      // Win Limpia must use the current configured answer. A stale answer
+      // snapshot from an older round must never override the live command
+      // configuration while the round is running.
+      const targetAnswer = configuredAnswer || roundAnswer;
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
@@ -92,8 +89,8 @@ class ChatCommandParser {
         eventPlayerId,
         eventUsername,
         eventDisplayName,
-        roundAnswer: currentRound?.correctAnswer || currentRound?.answer || currentRound?.word || null,
-        configuredAnswer: winConfig.correctAnswer || winConfig.answer || winConfig.word || null
+        roundAnswer: roundAnswer || null,
+        configuredAnswer: configuredAnswer || null
       });
 
       if (winConfig.enabled !== false && targetAnswer && cleanMessage === targetAnswer) {
