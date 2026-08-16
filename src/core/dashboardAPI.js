@@ -5,7 +5,7 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./powerUpEngine";
+import { powerUpEngine } from "./engines/powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -24,9 +24,7 @@ class DashboardAPI {
     this.cachedDashboard = null;
     this.initReactiveBridge();
   }
-
   getGameMode() { return currentMode; }
-  
   setGameMode(mode) {
     currentMode = mode;
     localStorage.setItem('cocoloco_game_mode', mode);
@@ -34,15 +32,12 @@ class DashboardAPI {
     eventBus.emit('GAME_MODE_CHANGED', { mode });
     return { success: true, mode };
   }
-
   isLiveActive() { return liveSessionActive; }
-
   setLiveSessionStatus(status) {
     liveSessionActive = status;
     this.invalidateCache();
     eventBus.emit('SESSION_STATUS_CHANGED', { active: status });
   }
-
   subscribeToModeChange(callback) { return eventBus.subscribe('GAME_MODE_CHANGED', callback); }
   invalidateCache() { this.cachedDashboard = null; }
 
@@ -52,12 +47,10 @@ class DashboardAPI {
       this.invalidateCache();
       const data = this.getLiveDashboard();
 
-      // CRITICAL CROSS-WINDOW FIX:
-      // The overlay has its own JS context and therefore its own gameEngine state.
-      // A remote score event reaches this context through EventBus, but calling
-      // getState() here would still read the overlay's stale local player list.
-      // The authoritative score snapshot is already present in the event payload.
-      // Apply it directly to the dashboard snapshot before notifying subscribers.
+      // The overlay runs in a separate browser context. Its local gameEngine is
+      // not the authoritative game state from the admin/panel context. When a
+      // score event arrives remotely, apply the authoritative player snapshot
+      // carried by the event before notifying overlay subscribers.
       if (eventName === "game:score_updated" && payload?.playerSnapshot) {
         const snapshot = payload.playerSnapshot;
         const snapshotId = snapshot.id || snapshot.playerId || snapshot.tiktokId;
@@ -82,11 +75,9 @@ class DashboardAPI {
         data.game = { ...data.game, players: currentPlayers };
         data.timestamp = Date.now();
         console.log("[DASHBOARD SCORE SNAPSHOT APPLIED]", {
-          eventName,
           playerId: snapshotId,
           points: snapshot.points,
-          wins: snapshot.wins,
-          players: currentPlayers
+          wins: snapshot.wins
         });
       }
 
@@ -134,7 +125,6 @@ class DashboardAPI {
     eventBus.subscribe("ROUND_STARTED", notifySubscribers);
     eventBus.subscribe("round:finished", notifySubscribers);
     eventBus.subscribe("config:command_updated", notifySubscribers);
-
     eventBus.subscribe("GAME_MODE_CHANGED", (payload) => {
       const modeVal = payload?.mode || payload;
       if (typeof modeVal === "string") {
@@ -153,12 +143,10 @@ class DashboardAPI {
       return () => this.subscribers.delete(callback);
     }
   }
-
   getCurrentSession() { return sessionManager.getSession(); }
 
   getLiveDashboard() {
     if (this.cachedDashboard) return this.cachedDashboard;
-
     let session = {};
     try { session = sessionManager.getSession() || {}; } catch(e) {}
     let stats = {};
@@ -172,7 +160,6 @@ class DashboardAPI {
       }
     } catch (e) { rankings = []; }
     if (!Array.isArray(rankings)) rankings = [];
-
     let rules = {};
     try { rules = gameRulesEngine.getCurrentRules() || {}; } catch(e) {}
     let missions = [];
