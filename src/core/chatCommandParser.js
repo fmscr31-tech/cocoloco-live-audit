@@ -180,9 +180,9 @@ class ChatCommandParser {
     }
 
     if (activeRound) {
-      // During the active round, every normal chat goes to the authoritative
-      // Contexto engine. Contexto decides whether rank === 1. We do NOT compare
-      // the chat text against a configured answer here.
+      // Contexto is authoritative for WIN LIMPIA. The live chat parser must
+      // forward every active-round guess to the Contexto engine and must never
+      // compare chat text against a configured answer.
       const contextoUser = {
         ...event,
         comment: rawMessage,
@@ -196,22 +196,52 @@ class ChatCommandParser {
         photoUrl: event.photoUrl || event.profilePictureUrl || event.avatar || ""
       };
 
+      // IMPORTANT: Contexto exposes its authoritative submitWord API directly.
+      // Prefer it over the legacy wrapper because the wrapper can be absent in
+      // the CocoLoco manager window even while Contexto itself is fully loaded.
+      const submitWord =
+        typeof window !== "undefined" && typeof window.Contexto?.submitWord === "function"
+          ? window.Contexto.submitWord.bind(window.Contexto)
+          : null;
+
+      if (submitWord) {
+        console.log("[WIN LIMPIA CHAT -> CONTEXTO.submitWord]", {
+          playerId: contextoUser.playerId,
+          username: contextoUser.username,
+          comment: contextoUser.comment
+        });
+        try {
+          Promise.resolve(submitWord(contextoUser)).catch((error) => {
+            console.error("[WIN LIMPIA CONTEXTO.submitWord ASYNC ERROR]", error);
+          });
+          return { accepted: true, forwardedToContexto: true, transport: "Contexto.submitWord" };
+        } catch (error) {
+          console.error("[WIN LIMPIA CONTEXTO.submitWord ERROR]", error);
+          return { accepted: false, reason: "CONTEXTO_FORWARD_FAILED" };
+        }
+      }
+
+      // Backward-compatible fallback for builds that expose only the wrapper.
       if (typeof window !== "undefined" && typeof window.handleRealComment === "function") {
-        console.log("[WIN LIMPIA CHAT -> CONTEXTO]", {
+        console.log("[WIN LIMPIA CHAT -> handleRealComment]", {
           playerId: contextoUser.playerId,
           username: contextoUser.username,
           comment: contextoUser.comment
         });
         try {
           window.handleRealComment(contextoUser);
-          return { accepted: true, forwardedToContexto: true };
+          return { accepted: true, forwardedToContexto: true, transport: "handleRealComment" };
         } catch (error) {
           console.error("[WIN LIMPIA CONTEXTO FORWARD ERROR]", error);
           return { accepted: false, reason: "CONTEXTO_FORWARD_FAILED" };
         }
       }
 
-      console.warn("[WIN LIMPIA CONTEXTO UNAVAILABLE] Active-round chat could not be forwarded");
+      console.warn("[WIN LIMPIA CONTEXTO UNAVAILABLE] Active-round chat could not be forwarded", {
+        hasContexto: Boolean(typeof window !== "undefined" && window.Contexto),
+        hasSubmitWord: Boolean(typeof window !== "undefined" && typeof window.Contexto?.submitWord === "function"),
+        hasHandleRealComment: Boolean(typeof window !== "undefined" && typeof window.handleRealComment === "function")
+      });
       eventBus.publish("chat:command_rejected", { event, reason: "CONTEXTO_UNAVAILABLE" });
       return { accepted: false, reason: "CONTEXTO_UNAVAILABLE" };
     }
