@@ -5,13 +5,23 @@ export class EventTranslator {
   static translate(eventName, rawData) {
     if (!rawData) return null;
 
+    const playerId = rawData.userId || rawData.user?.userId || rawData.user?.id || rawData.uniqueId || rawData.nickname || "";
+    const username = rawData.uniqueId || rawData.nickname || "Anonymous";
+    const displayName = rawData.nickname || rawData.uniqueId || "Anonymous";
+    const avatar = rawData.profilePictureUrl || rawData.profilePicture || rawData.user?.profilePictureUrl || "";
+
     switch (eventName) {
       case "chat":
       case "message":
         return {
           type: "CHAT",
-          username: rawData.uniqueId || rawData.nickname || "Anonymous",
-          message: rawData.comment || "",
+          playerId,
+          userId: rawData.userId || rawData.user?.userId || "",
+          username,
+          displayName,
+          avatar,
+          profilePictureUrl: avatar,
+          message: rawData.comment || rawData.message || "",
           timestamp: Date.now()
         };
 
@@ -20,14 +30,21 @@ export class EventTranslator {
       case "roomUser":
         return {
           type: "JOIN",
-          username: rawData.uniqueId || rawData.nickname || "Anonymous",
+          playerId,
+          userId: rawData.userId || rawData.user?.userId || "",
+          username,
+          displayName,
+          avatar,
           timestamp: Date.now()
         };
 
       case "like":
         return {
           type: "LIKE",
-          username: rawData.uniqueId || rawData.nickname || "Anonymous",
+          playerId,
+          userId: rawData.userId || rawData.user?.userId || "",
+          username,
+          displayName,
           count: Number(rawData.likeCount || 1),
           timestamp: Date.now()
         };
@@ -36,21 +53,30 @@ export class EventTranslator {
       case "follow":
         return {
           type: "FOLLOW",
-          username: rawData.uniqueId || rawData.nickname || "Anonymous",
+          playerId,
+          userId: rawData.userId || rawData.user?.userId || "",
+          username,
+          displayName,
           timestamp: Date.now()
         };
 
       case "share":
         return {
           type: "SHARE",
-          username: rawData.uniqueId || rawData.nickname || "Anonymous",
+          playerId,
+          userId: rawData.userId || rawData.user?.userId || "",
+          username,
+          displayName,
           timestamp: Date.now()
         };
 
       case "gift":
         return {
           type: "GIFT",
-          username: rawData.uniqueId || rawData.nickname || "Anonymous",
+          playerId,
+          userId: rawData.userId || rawData.user?.userId || "",
+          username,
+          displayName,
           giftName: rawData.giftName || rawData.gift?.giftName || "Gift",
           diamondCount: Number(rawData.diamondCount || rawData.gift?.diamondCount || 1),
           repeatCount: Number(rawData.repeatCount || 1),
@@ -61,7 +87,10 @@ export class EventTranslator {
       case "social_subscribe":
         return {
           type: "SUBSCRIBE",
-          username: rawData.uniqueId || rawData.nickname || "Anonymous",
+          playerId,
+          userId: rawData.userId || rawData.user?.userId || "",
+          username,
+          displayName,
           tier: rawData.tier || 1,
           timestamp: Date.now()
         };
