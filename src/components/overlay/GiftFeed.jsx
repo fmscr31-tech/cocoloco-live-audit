@@ -1,6 +1,39 @@
+import { useEffect, useState } from "react";
 import { GiftImage } from "../common/GiftImage";
+import { eventBus } from "../../core/eventBus";
+import goPopularImg from "../../assets/Go Popular.webp";
 
 export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
+  const [cocazo, setCocazo] = useState(null);
+
+  // Go Popular/Cocazo is an Ability event, so the overlay listens directly to
+  // the authoritative ability queue. This keeps the visual effect independent
+  // of the legacy GiftFeed alert path and guarantees it fires in LIVE overlay
+  // browser contexts after ability:started is broadcast.
+  useEffect(() => {
+    const unsubStarted = eventBus.subscribe("ability:started", (item) => {
+      if (item?.abilityId !== "cocazo") return;
+
+      console.log("[COCAZO OVERLAY] START", item);
+      setCocazo({
+        username: item.sender || item.username || "JUGADOR",
+        sourceGift: item.sourceGift || "Go Popular",
+        executionId: item.executionId || Date.now()
+      });
+    });
+
+    const unsubFinished = eventBus.subscribe("ability:finished", (item) => {
+      if (item?.abilityId !== "cocazo") return;
+      console.log("[COCAZO OVERLAY] FINISH", item);
+      setCocazo(null);
+    });
+
+    return () => {
+      unsubStarted();
+      unsubFinished();
+    };
+  }, []);
+
   const getGiftPhrase = (giftName = "") => {
     const name = String(giftName).toLowerCase();
     if (name.includes("sombrero") || name.includes("hat")) {
@@ -23,6 +56,8 @@ export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
       return "ULTIMATE GALAXY ENERGY";
     } else if (name.includes("money gun") || name.includes("pistola")) {
       return "EPIC IMPACT BULLET STORM";
+    } else if (name.includes("go popular") || name.includes("cocazo") || name.includes("popular")) {
+      return "COCAZO ACTIVADO";
     } else if (name.includes("freeze") || name.includes("star") || name.includes("congel")) {
       return "CASTIGO CONGELAMIENTO";
     } else {
@@ -40,6 +75,7 @@ export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
   const isDonutGift = String(giftDisplay).toLowerCase().includes("donas") || String(giftDisplay).toLowerCase().includes("donut");
   const isGalaxyGift = String(giftDisplay).toLowerCase().includes("galaxy") || String(giftDisplay).toLowerCase().includes("galaxia");
   const isMoneyGunGift = String(giftDisplay).toLowerCase().includes("money gun") || String(giftDisplay).toLowerCase().includes("pistola");
+  const isCocazoGift = String(giftDisplay).toLowerCase().includes("go popular") || String(giftDisplay).toLowerCase().includes("cocazo") || String(giftDisplay).toLowerCase().includes("popular");
   const isFreezeGift = String(giftDisplay).toLowerCase().includes("freeze") || String(giftDisplay).toLowerCase().includes("star") || String(giftDisplay).toLowerCase().includes("congel");
   
   const phrase = epicEvent?.tagline || getGiftPhrase(giftDisplay);
@@ -61,6 +97,9 @@ export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
     } else if (text.includes("MONEY GUN") || text.includes("BULLET STORM")) {
       player = "EQUIPO";
       action = "DESTRUIDO";
+    } else if (text.includes("COCAZO") || text.includes("GO POPULAR")) {
+      player = text.includes("FERNANDO") ? "FERNANDO" : "JUGADOR";
+      action = "COCAZO";
     } else if (text.includes("FREEZE") || text.includes("CASTIGO")) {
       player = text.includes("FERNANDO") ? "FERNANDO" : "MODERADOR";
       action = "CONGELADO";
@@ -88,6 +127,25 @@ export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
 
   return (
     <>
+      {cocazo && (
+        <div
+          className="cocazo-live-effect"
+          key={cocazo.executionId}
+          aria-label="Cocazo activado"
+        >
+          <div className="cocazo-impact-ring" />
+          <div className="cocazo-particles">🥥</div>
+          <img
+            src={goPopularImg}
+            alt="Go Popular"
+            className="cocazo-gift-image"
+          />
+          <div className="cocazo-title">💥 COCAZO 💥</div>
+          <div className="cocazo-sender">{cocazo.username}</div>
+          <div className="cocazo-subtitle">GO POPULAR • ¡IMPACTO!</div>
+        </div>
+      )}
+
       {epicGift && (
         <div style={{
           position: "absolute",
@@ -129,51 +187,33 @@ export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
           top: "2%",
           left: "50%",
           transform: "translateX(-50%)",
-          background: isHatGift ? "linear-gradient(135deg, rgba(140, 60, 20, 0.95), rgba(90, 30, 10, 0.98))" : isDonutGift ? "linear-gradient(135deg, rgba(140, 60, 20, 0.95), rgba(70, 20, 60, 0.98))" : isGalaxyGift ? "linear-gradient(135deg, rgba(0, 90, 200, 0.95), rgba(120, 0, 200, 0.98))" : isMoneyGunGift ? "linear-gradient(135deg, rgba(180, 20, 20, 0.95), rgba(90, 10, 10, 0.98))" : isFreezeGift ? "linear-gradient(135deg, rgba(0, 120, 200, 0.95), rgba(0, 50, 140, 0.98))" : "linear-gradient(135deg, rgba(80, 20, 110, 0.95), rgba(20, 40, 90, 0.98))",
+          background: isHatGift ? "linear-gradient(135deg, rgba(140, 60, 20, 0.95), rgba(90, 30, 10, 0.98))" : isDonutGift ? "linear-gradient(135deg, rgba(140, 60, 20, 0.95), rgba(70, 20, 60, 0.98))" : isGalaxyGift ? "linear-gradient(135deg, rgba(0, 90, 200, 0.95), rgba(120, 0, 200, 0.98))" : isMoneyGunGift ? "linear-gradient(135deg, rgba(180, 20, 20, 0.95), rgba(90, 10, 10, 0.98))" : isCocazoGift ? "linear-gradient(135deg, rgba(20, 120, 40, 0.96), rgba(0, 60, 20, 0.98))" : isFreezeGift ? "linear-gradient(135deg, rgba(0, 120, 200, 0.95), rgba(0, 50, 140, 0.98))" : "linear-gradient(135deg, rgba(80, 20, 110, 0.95), rgba(20, 40, 90, 0.98))",
           backdropFilter: "blur(6px)",
-          border: isHatGift ? "1.5px solid #ff6622" : isDonutGift ? "1.5px solid #ffaa00" : isGalaxyGift ? "1.5px solid #00ffff" : isMoneyGunGift ? "1.5px solid #ff3333" : isFreezeGift ? "1.5px solid #00f5ff" : "1px solid #ff007f",
-          boxShadow: isHatGift ? "0 0 15px rgba(255,100,34,0.6)" : isDonutGift ? "0 0 15px rgba(255,170,0,0.6)" : isGalaxyGift ? "0 0 20px rgba(0,245,255,0.8)" : isMoneyGunGift ? "0 0 20px rgba(255,51,51,0.8)" : isFreezeGift ? "0 0 20px rgba(0,245,255,0.8)" : "0 0 10px rgba(255,0,127,0.4)",
+          border: isHatGift ? "1.5px solid #ff6622" : isDonutGift ? "1.5px solid #ffaa00" : isGalaxyGift ? "1.5px solid #00ffff" : isMoneyGunGift ? "1.5px solid #ff3333" : isCocazoGift ? "1.5px solid #66ff66" : isFreezeGift ? "1.5px solid #00f5ff" : "1px solid #ff007f",
+          boxShadow: isHatGift ? "0 0 15px rgba(255,100,34,0.6)" : isDonutGift ? "0 0 15px rgba(255,170,0,0.6)" : isGalaxyGift ? "0 0 20px rgba(0,245,255,0.8)" : isMoneyGunGift ? "0 0 20px rgba(255,51,51,0.8)" : isCocazoGift ? "0 0 25px rgba(80,255,80,0.9)" : isFreezeGift ? "0 0 20px rgba(0,245,255,0.8)" : "0 0 10px rgba(255,0,127,0.4)",
           padding: "3px 10px",
           borderRadius: "4px",
           zIndex: 999,
           maxWidth: "155px",
           width: "58%",
           textAlign: "center",
-          animation: "epicImpactSmooth 1.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards",
+          animation: isCocazoGift ? "cocazoSlam 1.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards" : "epicImpactSmooth 1.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards",
           overflow: "visible"
         }}>
-          {/* Top glass reflection line */}
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "1px",
-            background: isHatGift ? "linear-gradient(90deg, transparent, rgba(255,100,34,1), transparent)" : isDonutGift ? "linear-gradient(90deg, transparent, rgba(255,170,0,1), transparent)" : isGalaxyGift ? "linear-gradient(90deg, transparent, rgba(0,245,255,1), transparent)" : isMoneyGunGift ? "linear-gradient(90deg, transparent, rgba(255,51,51,1), transparent)" : isFreezeGift ? "linear-gradient(90deg, transparent, rgba(0,245,255,1), transparent)" : "linear-gradient(90deg, transparent, rgba(255,0,127,1), transparent)"
-          }}></div>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "1px", background: isCocazoGift ? "linear-gradient(90deg, transparent, rgba(100,255,100,1), transparent)" : isHatGift ? "linear-gradient(90deg, transparent, rgba(255,100,34,1), transparent)" : isDonutGift ? "linear-gradient(90deg, transparent, rgba(255,170,0,1), transparent)" : isGalaxyGift ? "linear-gradient(90deg, transparent, rgba(0,245,255,1), transparent)" : isMoneyGunGift ? "linear-gradient(90deg, transparent, rgba(255,51,51,1), transparent)" : isFreezeGift ? "linear-gradient(90deg, transparent, rgba(0,245,255,1), transparent)" : "linear-gradient(90deg, transparent, rgba(255,0,127,1), transparent)" }}></div>
 
-          <div style={{ fontSize: "8.5px", fontWeight: 900, color: isHatGift ? "#ff9933" : isDonutGift ? "#ffaa00" : isGalaxyGift ? "#00ffff" : isMoneyGunGift ? "#ff9999" : isFreezeGift ? "#00f5ff" : "#00f5ff", textShadow: "0 0 6px rgba(0,0,0,0.9)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "1px" }}>
-            {isHatGift ? "🤠 RETO CREATIVO 🤠" : isDonutGift ? "🔇 EL MUDO 🔇" : isGalaxyGift ? "🌌 ULTIMATE GALAXY 🌌" : isMoneyGunGift ? "💥 EPIC IMPACT 💥" : isFreezeGift ? "🧊 CASTIGO FREEZE 🧊" : `💥 ${epicEvent.username || epicEvent.title || "ANNA"} 💥`}
+          <div style={{ fontSize: "8.5px", fontWeight: 900, color: isCocazoGift ? "#7dff7d" : isHatGift ? "#ff9933" : isDonutGift ? "#ffaa00" : isGalaxyGift ? "#00ffff" : isMoneyGunGift ? "#ff9999" : isFreezeGift ? "#00f5ff" : "#00f5ff", textShadow: "0 0 6px rgba(0,0,0,0.9)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "1px" }}>
+            {isCocazoGift ? "🥥 COCAZO • GO POPULAR 🥥" : isHatGift ? "🤠 RETO CREATIVO 🤠" : isDonutGift ? "🔇 EL MUDO 🔇" : isGalaxyGift ? "🌌 ULTIMATE GALAXY 🌌" : isMoneyGunGift ? "💥 EPIC IMPACT 💥" : isFreezeGift ? "🧊 CASTIGO FREEZE 🧊" : `💥 ${epicEvent.username || epicEvent.title || "ANNA"} 💥`}
           </div>
           <div style={{ fontSize: "5.5px", fontWeight: 900, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: "2px" }}>
             {phrase}
           </div>
-          <div style={{
-            background: "rgba(0, 0, 0, 0.5)",
-            border: "1px solid rgba(255, 215, 0, 0.5)",
-            borderRadius: "3px",
-            padding: "1px 4px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
+          <div style={{ background: "rgba(0, 0, 0, 0.5)", border: "1px solid rgba(255, 215, 0, 0.5)", borderRadius: "3px", padding: "1px 4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "6.5px", fontWeight: 900, color: "#ffd700" }}>
-              <span style={{ width: "12px", height: "12px", display: "inline-block" }}>
-                <GiftImage giftId={giftDisplay} style={{ width: "12px", height: "12px" }} />
-              </span>
+              <span style={{ width: "12px", height: "12px", display: "inline-block" }}><GiftImage giftId={giftDisplay} style={{ width: "12px", height: "12px" }} /></span>
               {giftDisplay}
             </span>
-            <span style={{ fontSize: "6.5px", fontWeight: 900, color: "#00ffcc" }}>{isHatGift ? "¡ACTÚA!" : isDonutGift ? "¡SILENCIO!" : isGalaxyGift ? "+1 RONDA" : isMoneyGunGift ? "DESTRUIDO" : isFreezeGift ? "CONGELADO" : (epicEvent.points || "+50 PTS")}</span>
+            <span style={{ fontSize: "6.5px", fontWeight: 900, color: "#00ffcc" }}>{isCocazoGift ? "¡IMPACTO!" : isHatGift ? "¡ACTÚA!" : isDonutGift ? "¡SILENCIO!" : isGalaxyGift ? "+1 RONDA" : isMoneyGunGift ? "DESTRUIDO" : isFreezeGift ? "CONGELADO" : (epicEvent.points || "+50 PTS")}</span>
           </div>
         </div>
       )}
@@ -197,36 +237,12 @@ export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
           animation: "goldenImpact 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), bannerBreath 4s infinite ease-in-out",
           overflow: "visible"
         }}>
-          {/* Light sweep / shine effect layer */}
-          <div style={{
-            position: "absolute",
-            top: -40,
-            left: -80,
-            width: "50px",
-            height: "200%",
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.85), transparent)",
-            transform: "rotate(25deg)",
-            animation: "goldenShineSweep 2s infinite ease-in-out",
-            pointerEvents: "none",
-            zIndex: 3
-          }}></div>
-
-          {/* Top glass specular reflection */}
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "1.5px",
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent)",
-            zIndex: 2
-          }}></div>
-
+          <div style={{ position: "absolute", top: -40, left: -80, width: "50px", height: "200%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.85), transparent)", transform: "rotate(25deg)", animation: "goldenShineSweep 2s infinite ease-in-out", pointerEvents: "none", zIndex: 3 }}></div>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "1.5px", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent)", zIndex: 2 }}></div>
           <div style={{ position: "relative", zIndex: 4 }}>
             <div style={{ fontSize: "17px", lineHeight: "1.2", marginTop: "0px", marginBottom: "0px", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.7))", animation: "bounce 0.5s infinite alternate" }}>🏆</div>
             <div style={{ color: "#0c091a", fontSize: "12.5px", fontWeight: 900, textShadow: "0 1px 2px rgba(255,255,255,0.8)", margin: "1px 0", textTransform: "uppercase", letterSpacing: "1px" }}>{displayName}</div>
             <div style={{ fontSize: "5.5px", fontWeight: 900, color: "#ffffff", background: "rgba(12, 9, 26, 0.85)", padding: "1px 5px", borderRadius: "2.5px", margin: "2px 0", textTransform: "uppercase", display: "inline-block", boxShadow: "0 0 5px rgba(0,0,0,0.5)", letterSpacing: "0.6px" }}>CHAMPION ROUND WINNER</div>
-
             {winner.mvps && winner.mvps.length > 0 && (
               <div style={{ marginTop: "3px", borderTop: "1px solid rgba(12,9,26,0.25)", paddingTop: "2.5px", display: "flex", flexDirection: "column", gap: "1.5px" }}>
                 <div style={{ fontSize: "5.5px", fontWeight: 900, color: "#3d2900", textTransform: "uppercase", letterSpacing: "0.5px" }}>PODIO DE CAMPEONES</div>
@@ -234,19 +250,7 @@ export function GiftFeed({ alert, showWin, winner, epicEvent, epicGift }) {
                   const isFirst = idx === 0;
                   const isSecond = idx === 1;
                   return (
-                    <div key={idx} style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      background: isFirst ? "rgba(12, 9, 26, 0.85)" : isSecond ? "rgba(12, 9, 26, 0.75)" : "rgba(12, 9, 26, 0.6)",
-                      padding: isFirst ? "2px 5px" : "1px 4px",
-                      borderRadius: "2.5px",
-                      fontSize: isFirst ? "8.5px" : isSecond ? "7.5px" : "7px",
-                      fontWeight: isFirst ? 900 : isSecond ? 800 : 700,
-                      color: isFirst ? "#ffd700" : "#e2e8f0",
-                      border: isFirst ? "1px solid #ffd700" : isSecond ? "1px solid #c0c0c0" : "1px solid #cd7f32",
-                      boxShadow: isFirst ? "0 0 6px rgba(255,215,0,0.4)" : "none"
-                    }}>
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: isFirst ? "rgba(12, 9, 26, 0.85)" : isSecond ? "rgba(12, 9, 26, 0.75)" : "rgba(12, 9, 26, 0.6)", padding: isFirst ? "2px 5px" : "1px 4px", borderRadius: "2.5px", fontSize: isFirst ? "8.5px" : isSecond ? "7.5px" : "7px", fontWeight: isFirst ? 900 : isSecond ? 800 : 700, color: isFirst ? "#ffd700" : "#e2e8f0", border: isFirst ? "1px solid #ffd700" : isSecond ? "1px solid #c0c0c0" : "1px solid #cd7f32", boxShadow: isFirst ? "0 0 6px rgba(255,215,0,0.4)" : "none" }}>
                       <span>{isFirst ? "🥇 " : isSecond ? "🥈 " : "🥉 "}{mvp.name}</span>
                       <span style={{ color: "#ffffff" }}>{mvp.points} pts</span>
                     </div>
