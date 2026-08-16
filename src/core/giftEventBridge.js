@@ -6,7 +6,7 @@ import { abilityEventQueue } from "./abilityEventQueue";
 import { resolveCanonicalGiftId } from "../config/canonicalGifts";
 
 /**
- * Gift Event Bridge v5
+ * Gift Event Bridge v6
  * Authoritative event-driven pipeline:
  * TikFinity notification -> canonical gift -> ability/action -> score/effect -> overlay.
  *
@@ -60,8 +60,8 @@ class GiftEventBridge {
     // Explicit streaking=true is authoritative.
     if (streaking === true || streaking === 1 || streaking === "1") return true;
 
-    // TikTok's streakable gifts are type 1. When repeatEnd is explicitly false,
-    // the event is an intermediate streak update and must not execute yet.
+    // TikTok/TikFinity streakable gifts use type 1. If repeatEnd is explicitly
+    // false, this is an intermediate update and must not execute yet.
     if (giftType === 1 && (repeatEnd === false || repeatEnd === 0 || repeatEnd === "0")) {
       return true;
     }
@@ -86,7 +86,11 @@ class GiftEventBridge {
         teamId: normalizedEvent.teamId,
         duration: normalizedEvent.duration,
         quantity: normalizedEvent.quantity || 1,
-        repeatCount: normalizedEvent.quantity || 1
+        repeatCount: normalizedEvent.quantity || 1,
+        repeatEnd: normalizedEvent.repeatEnd,
+        streaking: normalizedEvent.streaking,
+        giftType: normalizedEvent.giftType,
+        eventId: normalizedEvent.eventId
       });
 
       if (abilityPayload) {
@@ -98,8 +102,15 @@ class GiftEventBridge {
           giftName: normalizedEvent.giftName,
           playerId: normalizedEvent.playerId,
           userId: normalizedEvent.userId,
+          username: normalizedEvent.username,
           displayName: normalizedEvent.displayName,
-          avatar: normalizedEvent.avatar
+          avatar: normalizedEvent.avatar,
+          quantity: normalizedEvent.quantity,
+          repeatCount: normalizedEvent.quantity,
+          repeatEnd: normalizedEvent.repeatEnd,
+          streaking: normalizedEvent.streaking,
+          giftType: normalizedEvent.giftType,
+          eventId: normalizedEvent.eventId
         });
 
         eventBus.emit("gift:action_dispatched", {
@@ -156,13 +167,11 @@ class GiftEventBridge {
       return null;
     }
 
-    // IMPORTANT: do this before canonical resolution. A streak-in-progress
-    // notification is a real TikTok event, but it is not yet a game trigger.
-    if (!this._isStreakIntermediate(rawPayload, data, giftObj)) {
-      // no-op; continue to authoritative processing below
-    } else {
+    // IMPORTANT: do this before canonical resolution and before event-id caching.
+    // Intermediate streak updates are real TikTok events, but are not game triggers.
+    if (this._isStreakIntermediate(rawPayload, data, giftObj)) {
       const progressQuantity = Math.max(1, Number(
-        rawPayload.quantity || data.repeatCount || data.count || data.quantity || giftObj.repeatCount || 1
+        rawPayload.quantity || data.repeatCount || data.repeat_count || data.count || data.quantity || giftObj.repeatCount || giftObj.repeat_count || 1
       ));
       eventBus.emit("gift:streak_progress", {
         type: "GIFT_STREAK_PROGRESS",
@@ -170,6 +179,10 @@ class GiftEventBridge {
         giftName: rawPayload.giftName || rawPayload.gift_name || data.giftName || data.gift_name || giftObj.name || null,
         quantity: progressQuantity,
         username: rawPayload.username || rawPayload.uniqueId || data.uniqueId || data.username || "Viewer",
+        displayName: rawPayload.displayName || data.displayName || data.nickname || null,
+        eventId: rawPayload.eventId || rawPayload.eventID || data.eventId || data.eventID || rawPayload.msgId || rawPayload.messageID || data.msgId || data.messageID || null,
+        repeatEnd: rawPayload.repeatEnd ?? rawPayload.repeat_end ?? data.repeatEnd ?? data.repeat_end ?? giftObj.repeatEnd ?? giftObj.repeat_end,
+        streaking: rawPayload.streaking ?? rawPayload.isRepeating ?? rawPayload.is_repeating ?? data.streaking ?? data.isRepeating ?? data.is_repeating ?? giftObj.streaking ?? giftObj.isRepeating ?? giftObj.is_repeating,
         source,
         timestamp: Date.now()
       });
@@ -214,12 +227,15 @@ class GiftEventBridge {
     }
 
     const actualGiftName = canonical ? canonical.display.name : (giftName || giftId || "Unknown Gift");
-    const quantity = Math.max(1, Number(rawPayload.quantity || data.repeatCount || data.count || data.quantity || giftObj.repeatCount || 1));
+    const quantity = Math.max(1, Number(rawPayload.quantity || data.repeatCount || data.repeat_count || data.count || data.quantity || giftObj.repeatCount || giftObj.repeat_count || 1));
     const playerId = rawPayload.playerId || rawPayload.userId || data.playerId || data.userId || data.uniqueId || rawPayload.uniqueId || rawPayload.username || "";
     const username = rawPayload.username || rawPayload.uniqueId || data.uniqueId || data.username || data.tikfinityUsername || "Viewer";
     const displayName = rawPayload.displayName || data.displayName || data.nickname || username;
     const userId = rawPayload.userId || data.userId || playerId;
     const avatar = rawPayload.avatar || rawPayload.profilePictureUrl || data.avatar || data.profilePictureUrl || "";
+    const repeatEnd = rawPayload.repeatEnd ?? rawPayload.repeat_end ?? data.repeatEnd ?? data.repeat_end ?? giftObj.repeatEnd ?? giftObj.repeat_end;
+    const streaking = rawPayload.streaking ?? rawPayload.isRepeating ?? rawPayload.is_repeating ?? data.streaking ?? data.isRepeating ?? data.is_repeating ?? giftObj.streaking ?? giftObj.isRepeating ?? giftObj.is_repeating;
+    const giftType = rawPayload.giftType ?? rawPayload.gift_type ?? data.giftType ?? data.gift_type ?? giftObj.type ?? giftObj.giftType ?? giftObj.gift_type;
 
     const normalized = {
       type: "GIFT",
@@ -237,6 +253,9 @@ class GiftEventBridge {
       teamId: rawPayload.teamId || data.teamId || null,
       duration: rawPayload.duration || data.duration,
       eventId: nativeId || null,
+      repeatEnd,
+      streaking,
+      giftType,
       timestamp: Date.now(),
       source
     };
