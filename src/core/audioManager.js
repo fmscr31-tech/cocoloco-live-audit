@@ -3,12 +3,6 @@ import { GIFT_ABILITY_MAP } from "../config/giftAbilityMap";
 import { ABILITY_REGISTRY } from "../config/abilityRegistry";
 import { configManager } from "./configManager";
 
-/**
- * Audio Manager v5.1
- * Single authoritative audio routing layer for abilities and independent gifts.
- * Ability Manager configuration is persisted through configManager and is used
- * at runtime; legacy static mappings are used only as fallback/default data.
- */
 class AudioManager {
   constructor() {
     this.enabled = true;
@@ -52,8 +46,7 @@ class AudioManager {
   initPreload() {
     if (typeof window === "undefined") return;
     const paths = new Set();
-    const currentAbilities = this.getAbilities();
-    Object.values(currentAbilities).forEach(ability => {
+    Object.values(this.getAbilities()).forEach(ability => {
       if (ability.sound) paths.add(ability.sound);
     });
     this.getAbilityMap().forEach(m => {
@@ -118,7 +111,6 @@ class AudioManager {
 
   previewSound(soundPath) {
     if (!soundPath || !this.enabled) return;
-
     try {
       let audio = this.audioCache.get(soundPath);
       if (!audio) {
@@ -147,9 +139,14 @@ class AudioManager {
     if (!this.enabled || !soundPath) return;
 
     const isAdminPreview = item?.source === "ADMIN_PREVIEW" || item?.sender === "ADMIN_PREVIEW";
+    // CocoDanceZone exists only in the live overlay. Treat its explicit
+    // COCAZO source as an authoritative overlay playback request even when
+    // the overlay URL uses a custom route that does not contain /overlay.
+    const isCocazoOverlay = item?.source === "COCAZO";
+
     if (isAdminPreview) {
       if (this.isOverlayContext) return;
-    } else if (!this.isOverlayContext) {
+    } else if (!this.isOverlayContext && !isCocazoOverlay) {
       return;
     }
 
@@ -196,9 +193,6 @@ class AudioManager {
       if (!this.enabled || !giftEvent) return;
       const giftName = String(giftEvent.giftId || giftEvent.giftName || giftEvent.canonicalGiftId || "").trim();
       const mapping = this.findAbilityMapping(giftName);
-
-      // Ability gifts are handled exclusively by ability:started so their sound
-      // comes from the persisted Ability Manager configuration.
       if (mapping) return;
 
       const giftSoundsConfig = configManager.get("giftSounds") || [];
@@ -229,9 +223,6 @@ class AudioManager {
       }
     });
 
-    // Freeze is intentionally separate from the Ability sound path. Its sound
-    // is read only from battleEffects.freeze, so changing an Ability sound can
-    // never silently replace the Freeze sound.
     eventBus.subscribe("freeze:activated", (payload) => {
       if (!this.enabled) return;
       const freezeConfig = this.getFreezeConfig();
