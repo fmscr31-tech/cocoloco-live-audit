@@ -118,10 +118,11 @@ export function AbilityManagerControls() {
     const values = [
       ...Object.values(abilities).map(a => normalizeSound(a.sound)).filter(Boolean),
       normalizeSound(freezeConfig.sound),
+      ...giftSounds.map(item => normalizeSound(item.sound)).filter(Boolean),
       ...(AVAILABLE_SOUNDS || []).map(normalizeSound).filter(Boolean)
     ];
     return [...new Set(values.filter(Boolean))];
-  }, [abilities, freezeConfig.sound]);
+  }, [abilities, freezeConfig.sound, giftSounds]);
 
   const saveAbility = (id, patch) => {
     const latestAbilities = configManager.get("abilities") || {};
@@ -345,8 +346,11 @@ export function AbilityManagerControls() {
                   <div><label style={labelStyle}>Gift Name</label><input value={item.giftName || ""} onChange={e => changeGiftSound(index, "giftName", e.target.value)} style={inputStyle} /></div>
                   <div><label style={labelStyle}>TikTok Gift ID</label><input value={item.giftId || ""} onChange={e => changeGiftSound(index, "giftId", e.target.value)} style={inputStyle} /></div>
                 </div>
-                <label style={labelStyle}>Assigned Sound</label>
-                <input value={item.sound || ""} onChange={e => changeGiftSound(index, "sound", e.target.value)} placeholder="/Sounds/file.mp3" style={inputStyle} />
+                <label style={labelStyle}>🎵 Assigned Sound</label>
+                <select value={normalizeSound(item.sound)} onChange={e => changeGiftSound(index, "sound", e.target.value)} style={selectStyle}>
+                  <option value="">— Sin sonido —</option>
+                  {soundOptions.map(sound => <option key={sound} value={sound}>{soundLabel(sound)}</option>)}
+                </select>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "7px", flexWrap: "wrap" }}>
                   <span style={{ color: "#ffd166", fontSize: "9px", fontWeight: 900, marginRight: "auto" }}>🎵 {soundLabel(item.sound)}</span>
                   <button onClick={() => preview(item.sound)} style={buttonStyle}>🔊 Test</button>
