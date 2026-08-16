@@ -77,18 +77,19 @@ class ChatCommandParser {
         ""
       );
 
-      // CRITICAL WIN LIMPIA RULE:
-      // During an active round, the answer selected for THIS round is the
-      // scoring authority. The command configuration can be stale (for
-      // example "clase") while the active round is actually "paradoja" or
-      // "poeta". Never let persisted config override an active round answer.
-      // Config is only the fallback for legacy rounds with no round answer.
-      const targetAnswer = activeRound
-        ? (roundAnswer || configuredAnswer)
-        : (configuredAnswer || roundAnswer);
-      const answerSource = activeRound
-        ? (roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG_FALLBACK")
-        : (configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND_FALLBACK");
+      // WIN LIMPIA LIVE AUTHORITY:
+      // The answer currently configured by the operator in the LIVE control
+      // must be recognized immediately. An explicit answer stored in an older
+      // round-start payload can be stale (for example the round still carries
+      // "clase" while the LIVE control was changed to "guapo"). Therefore the
+      // persisted/current Win Limpia configuration has priority for chat.
+      // The round answer remains a fallback for legacy rounds with no configured
+      // answer. This prevents ACTIVE_ROUND_NOT_CORRECT_ANSWER when the operator
+      // has already changed the visible Win Limpia answer.
+      const targetAnswer = configuredAnswer || roundAnswer;
+      const answerSource = configuredAnswer
+        ? "WIN_LIMPIA_CONFIG"
+        : "ACTIVE_ROUND";
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
