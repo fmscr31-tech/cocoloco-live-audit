@@ -45,6 +45,7 @@ class AbilityManager {
       display: { ...ability.display },
       gameAction: { ...ability.gameAction },
       scoreAction: { ...ability.scoreAction },
+      sound: ability.sound || null,
       duration: ability.duration || 10000,
       timestamp: Date.now(),
       ...context
