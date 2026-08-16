@@ -25,10 +25,9 @@ patchFile('src/components/overlay.jsx', source => {
   const anchor = 'useEffect(() => {\n  const unsubStarted = eventBus.subscribe("ability:started", (item) => {';
   if (!source.includes(anchor)) throw new Error('Overlay ability listener anchor not found.');
 
-  const block = `useEffect(() => {\n  const unsubWinCorrect = eventBus.subscribe("win:correct", (payload) => {\n    console.log("[WIN LIMPIA RECEIVED]", payload);\n    const winnerPayload = {\n      id: payload?.playerId || payload?.id,\n      name: payload?.name || payload?.username || "JUGADOR",\n      points: Number(payload?.points) || 0,\n      wins: Number(payload?.wins) || 0\n    };\n    setWinner(winnerPayload);\n    setShowWin(true);\n    setAlert(\`👑 ¡WIN LIMPIA: \${winnerPayload.name}!\`);\n    setTimeout(() => {\n      setShowWin(false);\n      setAlert(null);\n    }, 4000);\n  });\n\n  const unsubScoreUpdated = eventBus.subscribe("game:score_updated", (payload) => {\n    console.log("[LIVE SCORE EVENT]", payload);\n  });\n\n`;
+  const block = `  const unsubWinCorrect = eventBus.subscribe("win:correct", (payload) => {\n    console.log("[WIN LIMPIA RECEIVED]", payload);\n    const winnerPayload = {\n      id: payload?.playerId || payload?.id,\n      name: payload?.name || payload?.username || "JUGADOR",\n      points: Number(payload?.points) || 0,\n      wins: Number(payload?.wins) || 0\n    };\n    setWinner(winnerPayload);\n    setShowWin(true);\n    setAlert(\`👑 ¡WIN LIMPIA: \${winnerPayload.name}!\`);\n    setTimeout(() => {\n      setShowWin(false);\n      setAlert(null);\n    }, 4000);\n  });\n\n  const unsubScoreUpdated = eventBus.subscribe("game:score_updated", (payload) => {\n    console.log("[LIVE SCORE EVENT]", payload);\n  });\n\n`;
 
-  // Insert these subscriptions into the existing ability-effect lifecycle.
-  const replaced = source.replace(anchor, `${block}${anchor}`);
+  const replaced = source.replace(anchor, `useEffect(() => {\n${block}  const unsubStarted = eventBus.subscribe("ability:started", (item) => {`);
   if (replaced === source) throw new Error('Failed to insert Win Limpia overlay listener.');
 
   const cleanupAnchor = '    unsubStarted();\n    unsubFinished();';
