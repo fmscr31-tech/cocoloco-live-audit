@@ -18,7 +18,7 @@ export class TikTokConnector extends BaseConnector {
     this.wsClient = null;
     this.heartbeatTimer = null;
     this.reconnectTimer = null;
-    this.status = "DISCONNECTED"; // DISCONNECTED, CONNECTING, CONNECTED, ERROR, RECONNECTING
+    this.status = "DISCONNECTED";
   }
 
   async connect(config = {}) {
@@ -34,9 +34,9 @@ export class TikTokConnector extends BaseConnector {
           resolve(true);
         }, 300);
       });
-    } else {
-      return this._connectWebSocket();
     }
+
+    return this._connectWebSocket();
   }
 
   _connectWebSocket() {
@@ -69,7 +69,7 @@ export class TikTokConnector extends BaseConnector {
             const data = JSON.parse(msg.data);
             this.handleMessage(data);
           } catch (e) {
-            // Ignore invalid JSON safely
+            console.warn("[Tikfinity Connector] Ignoring invalid WebSocket JSON");
           }
         };
 
@@ -103,9 +103,7 @@ export class TikTokConnector extends BaseConnector {
       return;
     }
 
-    if (data.type === "pong" || data.type === "status") {
-      return;
-    }
+    if (data.type === "pong" || data.type === "status") return;
 
     const rawPayload = data.payload || data;
     const eventType = data.event || data.eventType || rawPayload?.event || rawPayload?.type || rawPayload?.eventType || "unknown";
@@ -115,7 +113,23 @@ export class TikTokConnector extends BaseConnector {
     console.log("[TikFinity DEBUG] RAW EVENT", data);
     console.log("[TikFinity DEBUG] EVENT TYPE", eventType);
 
-    // Robust gift event detection across all possible TikFinity/TikTok payloads
+    // WIN LIMPIA is an authoritative external result. It must never be derived
+    // by comparing the chat text with a locally stored answer. Contexto/TikFinity
+    // can send an explicit winner event or annotate the originating chat event.
+    const winSignal = this._extractWinSignal(data, rawPayload, innerData, eventType);
+    if (winSignal) {
+      const winner = this._buildIdentityPayload(rawPayload, innerData, winSignal);
+      console.log("[WIN LIMPIA EXTERNAL SIGNAL]", winner);
+      eventBus.publish("win:detected", winner);
+
+      // If this message is also a normal chat event, keep forwarding the chat
+      // for mirror-chat/registration purposes, but do not make chat text the
+      // source of truth for scoring.
+      if (String(eventType).toLowerCase() === "win" || String(eventType).toLowerCase().includes("win")) {
+        return;
+      }
+    }
+
     const isGiftEvent =
       (eventType && (eventType.toLowerCase().includes("gift") || eventType.toLowerCase() === "sendgift")) ||
       innerData?.giftName ||
@@ -133,7 +147,7 @@ export class TikTokConnector extends BaseConnector {
     if (isGiftEvent) {
       console.log("[TikFinity DEBUG] GIFT PAYLOAD", JSON.stringify(rawPayload, null, 2));
       tikfinityAdapter.handleTikfinityPayload(rawPayload);
-      return; // Fully processed and dispatched by tikfinityAdapter -> giftEventBridge. Prevents duplicate scoring.
+      return;
     }
 
     let adapted = null;
@@ -142,26 +156,101 @@ export class TikTokConnector extends BaseConnector {
       adapted = {
         ...adaptedBase,
         type: this._standardizeEventType(eventType),
-        username: innerData.username || innerData.nickname || innerData.uniqueId || innerData.tikfinityUsername || rawPayload?.username || rawPayload?.uniqueId || adaptedBase.username,
-        userId: innerData.userId || innerData.secUid || innerData.uniqueId || rawPayload?.playerId || rawPayload?.userId || rawPayload?.uniqueId || adaptedBase.userId,
+        username: innerData.username || innerData.uniqueId || innerData.nickname || innerData.tikfinityUsername || rawPayload?.username || rawPayload?.uniqueId || adaptedBase.username,
+        userId: innerData.userId || innerData.uniqueId || innerData.secUid || rawPayload?.playerId || rawPayload?.userId || rawPayload?.uniqueId || adaptedBase.userId,
         payload: rawPayload,
-        playerId: rawPayload?.playerId || innerData?.playerId || innerData?.userId || adaptedBase.userId,
+        playerId: rawPayload?.playerId || innerData?.playerId || innerData?.userId || innerData?.uniqueId || adaptedBase.userId,
         displayName: rawPayload?.displayName || innerData?.displayName || innerData?.nickname || rawPayload?.username || adaptedBase.username
       };
     }
 
     if (adapted && adapted.type !== "UNKNOWN") {
       console.log("[EVENT TO MONITOR]", adapted);
+
+      // WIN_LIMPIA is intentionally outside the normal CHAT command path.
+      // The external winner signal already tells us who won.
+      if (adapted.type === "WIN_LIMPIA") {
+        const winner = this._buildIdentityPayload(rawPayload, innerData, true);
+        eventBus.publish("win:detected", winner);
+        return;
+      }
+
       receiveEvent(adapted);
       this._dispatchToEventBus(adapted);
       console.log("[EVENT DEBUG BEFORE MONITOR]", JSON.stringify({
-        eventType: eventType,
+        eventType,
         type: adapted.type,
         payload: rawPayload,
         normalized: adapted
       }, null, 2));
       console.log("[Tikfinity Connector] Event forwarded to eventMonitor");
     }
+  }
+
+  _extractWinSignal(data, rawPayload, innerData, eventType) {
+    const normalizedType = String(eventType || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+    const typeIsWin = ["win", "winner", "win_limpia", "winlimpia", "correct_answer", "correctanswer", "answer_correct", "context_win"].includes(normalizedType) || normalizedType.includes("win_limpia");
+
+    const candidates = [
+      data?.winLimpia,
+      data?.isWinLimpia,
+      data?.winner,
+      data?.winnerDetected,
+      data?.correctAnswerDetected,
+      rawPayload?.winLimpia,
+      rawPayload?.isWinLimpia,
+      rawPayload?.winner,
+      rawPayload?.winnerDetected,
+      rawPayload?.correctAnswerDetected,
+      innerData?.winLimpia,
+      innerData?.isWinLimpia,
+      innerData?.winner,
+      innerData?.winnerDetected,
+      innerData?.correctAnswerDetected
+    ];
+
+    return typeIsWin || candidates.some(value => value === true || String(value || "").toLowerCase() === "win_limpia");
+  }
+
+  _buildIdentityPayload(rawPayload, innerData, winSignal = false) {
+    const userId =
+      rawPayload?.playerId ||
+      rawPayload?.userId ||
+      innerData?.playerId ||
+      innerData?.userId ||
+      innerData?.uniqueId ||
+      rawPayload?.uniqueId ||
+      rawPayload?.username ||
+      "";
+
+    const username =
+      rawPayload?.username ||
+      rawPayload?.uniqueId ||
+      innerData?.uniqueId ||
+      innerData?.username ||
+      innerData?.tikfinityUsername ||
+      "";
+
+    const displayName =
+      rawPayload?.displayName ||
+      innerData?.displayName ||
+      innerData?.nickname ||
+      username ||
+      "Jugador";
+
+    return {
+      type: "WIN_LIMPIA",
+      winLimpia: true,
+      playerId: userId,
+      userId,
+      username,
+      displayName,
+      avatar: rawPayload?.avatar || rawPayload?.profilePictureUrl || innerData?.avatar || innerData?.profilePictureUrl || "",
+      comment: rawPayload?.comment || innerData?.comment || rawPayload?.message || innerData?.message || "",
+      source: "EXTERNAL_WIN_SIGNAL",
+      originalEventType: rawPayload?.event || rawPayload?.eventType || data?.event || data?.eventType || "WIN_LIMPIA",
+      timestamp: Date.now()
+    };
   }
 
   _standardizeEventType(rawType) {
@@ -180,6 +269,15 @@ export class TikTokConnector extends BaseConnector {
       case "WEBCASTGIFTISTMESSAGE":
       case "WEBCASTGIFT":
         return "GIFT";
+      case "WIN":
+      case "WINNER":
+      case "WIN_LIMPIA":
+      case "WINLIMPIA":
+      case "CORRECT_ANSWER":
+      case "CORRECTANSWER":
+      case "ANSWER_CORRECT":
+      case "CONTEXT_WIN":
+        return "WIN_LIMPIA";
       case "LIKE":
         return "LIKE";
       case "SOCIAL":
@@ -198,11 +296,6 @@ export class TikTokConnector extends BaseConnector {
     const payload = adapted.payload || {};
     const nested = payload?.data || {};
 
-    // IMPORTANT FOR WIN LIMPIA:
-    // The bridge already provides the canonical TikTok identity as playerId.
-    // Do not replace it with adapted.userId/secUid during normalization.
-    // Registration stores playerId -> tiktokId, and playerWin() must receive
-    // that same identity to award the +1 point.
     const playerId =
       payload.playerId ||
       payload.userId ||
@@ -305,9 +398,7 @@ export class TikTokConnector extends BaseConnector {
       this.reconnectTimer = null;
     }
     if (this.wsClient) {
-      try {
-        this.wsClient.close();
-      } catch (e) {}
+      try { this.wsClient.close(); } catch (e) {}
       this.wsClient = null;
     }
     this.status = "DISCONNECTED";
