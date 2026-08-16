@@ -14,10 +14,6 @@ class AbilityEventQueue {
     this.timerId = null;
   }
 
-  /**
-   * Enqueues a new ability item.
-   * @param {Object} abilityPayload - { abilityId, sourceGift, teamId, sender, duration, display, gameAction, scoreAction, sound, priority }
-   */
   enqueue(abilityPayload) {
     if (!abilityPayload) return;
 
@@ -62,11 +58,14 @@ class AbilityEventQueue {
 
     // Cocazo is a visual/audio reaction owned by CocoDanceZone. The raw
     // normalized:gift event must not be broadcast because it would re-run the
-    // entire gift pipeline in the overlay. Instead broadcast this post-resolution
-    // trigger so the overlay reacts exactly once to the already-resolved ability.
+    // entire gift pipeline in the overlay. Broadcast this post-resolution
+    // trigger instead, carrying giftName explicitly so the overlay can identify
+    // Go Popular even though the ability payload uses sourceGift.
     if (item.abilityId === "cocazo") {
       eventBus.publish("cocazo:trigger", {
         ...item,
+        giftName: item.giftName || item.sourceGift || "Go Popular",
+        canonicalGiftId: item.canonicalGiftId || "go_popular",
         source: "COCAZO"
       });
     }
