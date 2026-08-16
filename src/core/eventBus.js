@@ -35,13 +35,10 @@ class EventBus {
     return (
       eventName === "game:score_updated" ||
       eventName === "win:correct" ||
-      eventName === "win:detected" ||
       eventName === "overlay:win" ||
       eventName === "ability:started" ||
       eventName === "ability:finished" ||
-      eventName === "gift:received" ||
       eventName === "gift:action_dispatched" ||
-      eventName === "gift:points_awarded" ||
       eventName === "effect:activated" ||
       eventName === "effect:updated" ||
       eventName === "effect:removed" ||
@@ -131,7 +128,7 @@ class EventBus {
   _emitLocal(eventName, payload, isRemote) {
     if (!eventName || !this.listeners.has(eventName)) return;
     this.listeners.get(eventName).forEach(callback => {
-      try { callback(payload); }
+      try { callback(payload, isRemote); }
       catch (error) { console.error(`Error in event listener for [${eventName}]:`, error); }
     });
   }
@@ -139,9 +136,9 @@ class EventBus {
   publish(eventName, payload) { return this.emit(eventName, payload); }
 
   once(eventName, callback) {
-    const wrapper = (payload) => {
+    const wrapper = (payload, isRemote) => {
       this.unsubscribe(eventName, wrapper);
-      callback(payload);
+      callback(payload, isRemote);
     };
     return this.subscribe(eventName, wrapper);
   }
