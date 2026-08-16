@@ -66,7 +66,7 @@ export const ABILITY_REGISTRY = {
   epic_impact: {
     abilityId: "epic_impact",
     display: {
-      name: "Epic Impact",
+      name: "REINICIA OPONENTES",
       icon: "💥",
       color: "red",
       animation: "epicImpactSmooth"
