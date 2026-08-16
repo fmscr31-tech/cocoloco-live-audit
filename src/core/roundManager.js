@@ -46,14 +46,26 @@ eventBus.subscribe("config:command_updated", ({ config } = {}) => {
 });
 
 export function startRound(data = {}) {
-  // Explicit round data is the strongest source because it represents the
-  // answer selected for THIS round. Only fall back to Win Limpia config when
-  // the round start did not provide an answer. This prevents the default/stale
-  // "clase" value from overriding an active round whose answer is "programa".
   const config = commandConfigManager.refreshFromStorage();
-  const configuredAnswer = config?.winLimpia?.correctAnswer || "";
-  const explicitAnswer = data.correctAnswer ?? data.answer ?? data.word ?? "";
-  const roundAnswer = explicitAnswer || configuredAnswer;
+  const configuredAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
+  const explicitAnswer = normalizeAnswer(data.correctAnswer ?? data.answer ?? data.word ?? "");
+
+  // WIN LIMPIA configuration is the canonical operator-controlled answer.
+  // The previous implementation gave explicit round-start data priority, which
+  // allowed a stale value from the round-start UI/state (for example "clase")
+  // to override the word currently configured for LIVE (for example
+  // "papeleria"). That made a real correct chat answer fail the Win Limpia
+  // comparison before scoring was ever reached.
+  //
+  // Priority is therefore:
+  //   1. current Win Limpia configuration
+  //   2. explicit round data only when no Win Limpia answer exists
+  const roundAnswer = configuredAnswer || explicitAnswer;
+  const answerSource = configuredAnswer
+    ? "COMMAND_CONFIG_WIN_LIMPIA"
+    : explicitAnswer
+      ? "ROUND_START_DATA_FALLBACK"
+      : "EMPTY";
 
   currentRound = {
     id: data.id || Date.now(),
@@ -67,7 +79,7 @@ export function startRound(data = {}) {
         ? localStorage.getItem("cocoloco_game_mode")
         : null) ||
       "TEAM",
-    correctAnswer: normalizeAnswer(roundAnswer),
+    correctAnswer: roundAnswer,
     status: "active",
     startTime: new Date()
   };
@@ -75,11 +87,9 @@ export function startRound(data = {}) {
   console.log("[ROUND ANSWER SNAPSHOT]", {
     roundId: currentRound.id,
     correctAnswer: currentRound.correctAnswer,
-    source: explicitAnswer
-      ? "ROUND_START_DATA"
-      : configuredAnswer
-        ? "COMMAND_CONFIG_WIN_LIMPIA"
-        : "EMPTY"
+    explicitAnswer,
+    configuredAnswer,
+    source: answerSource
   });
 
   return currentRound;
