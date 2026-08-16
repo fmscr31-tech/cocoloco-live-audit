@@ -41,6 +41,11 @@ class EventBus {
   }
 
   isCrossWindowEvent(eventName) {
+    // These events are part of the live overlay's authoritative state path.
+    // Registration, round lifecycle and timer events MUST cross the browser
+    // boundary just like score/gift/effect events. Without this, the admin can
+    // update in real time while a separate OBS/browser-source overlay remains
+    // stale until F5.
     return (
       eventName === "game:score_updated" ||
       eventName === "win:correct" ||
@@ -52,7 +57,31 @@ class EventBus {
       eventName === "effect:updated" ||
       eventName === "effect:removed" ||
       eventName === "effect:expired" ||
-      eventName === "player:highlight"
+      eventName === "player:highlight" ||
+      eventName === "player:created" ||
+      eventName === "player:updated" ||
+      eventName === "PLAYER_CREATED" ||
+      eventName === "registration:state_synced" ||
+      eventName === "registration:updated" ||
+      eventName === "registration:opened" ||
+      eventName === "registration:closed" ||
+      eventName === "registration:locked" ||
+      eventName === "registration:cleared" ||
+      eventName === "registration:player_registered" ||
+      eventName === "registration:player_removed" ||
+      eventName === "players:reset" ||
+      eventName === "round:started" ||
+      eventName === "ROUND_STARTED" ||
+      eventName === "round:finished" ||
+      eventName === "round:answer_snapshot" ||
+      eventName === "timer:started" ||
+      eventName === "timer:tick" ||
+      eventName === "timer:paused" ||
+      eventName === "timer:resumed" ||
+      eventName === "timer:stopped" ||
+      eventName === "timer:reset" ||
+      eventName === "GAME_MODE_CHANGED" ||
+      eventName === "SESSION_STATUS_CHANGED"
     );
   }
 
@@ -96,9 +125,6 @@ class EventBus {
     return () => this.unsubscribe(eventName, callback);
   }
 
-  /**
-   * Unsubscribes a callback function from a specific event name.
-   */
   unsubscribe(eventName, callback) {
     if (!eventName || !this.listeners.has(eventName)) return;
     const subSet = this.listeners.get(eventName);
@@ -133,8 +159,6 @@ class EventBus {
 
     try {
       window.localStorage.setItem(this.storageKey, JSON.stringify(message));
-      // Removing the key is unnecessary and can suppress useful storage events
-      // in some browser implementations. The next message overwrites it.
     } catch (e) {
       console.warn("[EventBus] Storage fallback send failed:", e);
     }
