@@ -7,13 +7,6 @@ export const players = [];
 const REGISTRATION_STORAGE_KEY = "cocoloco_registered_players_v2";
 const PLAYER_STORAGE_KEY = "cocoloco_live_data";
 
-// ==============================
-// PERSISTENCIA CANONICA DE JUGADORES
-// ==============================
-// Manual scoring was previously kept only in the in-memory playerManager array.
-// That made the score appear to reset after a refresh and could leave the
-// dashboard/overlay with different snapshots. The playerManager is the source
-// of truth for individual player scores, so every mutation is persisted here.
 function persistPlayers() {
   try {
     const current = loadData() || {};
@@ -60,15 +53,8 @@ function hydratePlayersFromStorage() {
   }
 }
 
-// Restore the canonical player list as soon as this module is loaded so an
-// overlay/admin refresh does not temporarily fall back to zeroed scores.
 hydratePlayersFromStorage();
 
-// ==============================
-// RESOLVER DE IDENTIDAD
-// ==============================
-// RegistrationManager uses playerId/tiktokId while playerManager uses its
-// internal UUID in id. Scoring must accept either identity.
 function findLocalPlayerById(playerId) {
   if (!playerId) return null;
   return players.find(
@@ -76,9 +62,6 @@ function findLocalPlayerById(playerId) {
   ) || null;
 }
 
-// A player can be registered in another browser window/tab while the current
-// window has not yet materialized that identity in playerManager. Hydrate it
-// from the shared registration storage before scoring.
 function hydrateRegisteredPlayer(playerId) {
   if (!playerId || typeof localStorage === "undefined") return null;
 
@@ -117,12 +100,9 @@ function findPlayerById(playerId) {
   return findLocalPlayerById(playerId) || hydrateRegisteredPlayer(playerId);
 }
 
-// ==============================
 // CROSS-WINDOW SCORE SYNC
-// ==============================
-// The Admin and Overlay run in separate browser contexts. A score event must
-// carry the complete player snapshot so the receiving context can update its
-// own in-memory player without incrementing twice.
+// A complete player snapshot is received so another browser context updates
+// its local copy without incrementing the score a second time.
 eventBus.subscribe("game:score_updated", (payload) => {
   const snapshot = payload?.playerSnapshot;
   if (!snapshot || !snapshot.id) return;
@@ -139,13 +119,25 @@ eventBus.subscribe("game:score_updated", (payload) => {
 
   publishPlayersState();
   persistPlayers();
-
   console.log("[PlayerManager] Score snapshot synchronized:", snapshot);
 });
 
-// ==============================
-// CREAR JUGADOR
-// ==============================
+// CROSS-WINDOW ROUND RESET
+// RegistrationManager runs in the admin context while the overlay has its own
+// playerManager instance. A local array clear is therefore not sufficient.
+// This event is broadcast through EventBus/BroadcastChannel so every context
+// removes the previous round's player identities immediately.
+eventBus.subscribe("players:reset", (payload) => {
+  const removedCount = players.length;
+  players.length = 0;
+  publishPlayersState();
+  persistPlayers();
+  console.log("[PlayerManager] Round player reset synchronized:", {
+    removedCount,
+    reason: payload?.reason || "ROUND_FINISHED"
+  });
+});
+
 export function addPlayer(input) {
   const name = typeof input === "string" ? input : (input.displayName || input.name || input.username || "Anonymous");
   const tiktokId = typeof input === "object" && input !== null ? (input.tiktokId || input.playerId || "") : "";
@@ -163,22 +155,10 @@ export function addPlayer(input) {
 
   if (exists) {
     let changed = false;
-    if (avatar && !exists.avatar) {
-      exists.avatar = avatar;
-      changed = true;
-    }
-    if (tiktokId && !exists.tiktokId) {
-      exists.tiktokId = tiktokId;
-      changed = true;
-    }
-    if (username && !exists.username) {
-      exists.username = username;
-      changed = true;
-    }
-    if (input && typeof input === "object" && input.teamId && !exists.teamId) {
-      exists.teamId = input.teamId;
-      changed = true;
-    }
+    if (avatar && !exists.avatar) { exists.avatar = avatar; changed = true; }
+    if (tiktokId && !exists.tiktokId) { exists.tiktokId = tiktokId; changed = true; }
+    if (username && !exists.username) { exists.username = username; changed = true; }
+    if (input && typeof input === "object" && input.teamId && !exists.teamId) { exists.teamId = input.teamId; changed = true; }
     if (changed) {
       exists.updatedAt = Date.now();
       publishPlayersState();
@@ -215,9 +195,6 @@ export function addPlayer(input) {
   return newPlayer;
 }
 
-// ==============================
-// REMOVER JUGADOR
-// ==============================
 export function removePlayer(playerId) {
   const index = players.findIndex(
     p => p.id === playerId || p.tiktokId === playerId || p.playerId === playerId
@@ -230,9 +207,6 @@ export function removePlayer(playerId) {
   return removed;
 }
 
-// ==============================
-// VICTORIA DE JUGADOR (WIN LIMPIA)
-// ==============================
 export function addWin(playerId) {
   const player = findPlayerById(playerId);
   if (!player) {
@@ -242,7 +216,6 @@ export function addWin(playerId) {
 
   player.wins++;
   player.wordsFound++;
-  // WIN LIMPIA: exactamente +1 punto por adivinar correctamente.
   player.points += 1;
   player.streak++;
   player.updatedAt = Date.now();
@@ -263,9 +236,6 @@ export function addWin(playerId) {
   return player;
 }
 
-// ==============================
-// SUMAR PUNTOS (GIFT / MANUAL)
-// ==============================
 export function addPoints(playerId, points = 1) {
   const player = findPlayerById(playerId);
   if (!player) {
@@ -280,8 +250,6 @@ export function addPoints(playerId, points = 1) {
   player.points = Math.max(0, previousPoints + delta);
   player.updatedAt = Date.now();
 
-  // This mutation is authoritative. Persist BEFORE broadcasting so a refresh
-  // cannot race the score update and temporarily restore the old value.
   publishPlayersState();
   persistPlayers();
 
@@ -298,9 +266,6 @@ export function addPoints(playerId, points = 1) {
   return player;
 }
 
-// ==============================
-// ASIGNAR EQUIPO
-// ==============================
 export function assignTeam(playerId, teamId) {
   const player = findPlayerById(playerId);
   if (!player) return null;
@@ -312,9 +277,6 @@ export function assignTeam(playerId, teamId) {
   return player;
 }
 
-// ==============================
-// REMOVER EQUIPO
-// ==============================
 export function removeTeam(playerId) {
   const player = findPlayerById(playerId);
   if (!player) return null;
@@ -325,9 +287,6 @@ export function removeTeam(playerId) {
   return player;
 }
 
-// ==============================
-// AVATAR
-// ==============================
 export function setAvatar(playerId, avatar) {
   const player = findPlayerById(playerId);
   if (!player) return null;
@@ -338,27 +297,10 @@ export function setAvatar(playerId, avatar) {
   return player;
 }
 
-// ==============================
-// BUSCAR JUGADOR
-// ==============================
-export function getPlayer(playerId) {
-  return findPlayerById(playerId);
-}
+export function getPlayer(playerId) { return findPlayerById(playerId); }
+export function getPlayerByName(name) { return players.find(p => p.name.toLowerCase() === name.toLowerCase()); }
+export function getPlayers() { return [...players]; }
 
-export function getPlayerByName(name) {
-  return players.find(p => p.name.toLowerCase() === name.toLowerCase());
-}
-
-// ==============================
-// TODOS LOS JUGADORES
-// ==============================
-export function getPlayers() {
-  return [...players];
-}
-
-// ==============================
-// RANKING
-// ==============================
 export function getLeaderboard() {
   return [...players].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
@@ -366,9 +308,6 @@ export function getLeaderboard() {
   });
 }
 
-// ==============================
-// RESET
-// ==============================
 export function resetPlayers() {
   players.length = 0;
   publishPlayersState();
