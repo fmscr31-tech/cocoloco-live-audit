@@ -3,17 +3,18 @@ import { dashboardAPI } from "../../core/dashboardAPI";
 import { commandConfigManager } from "../../core/commandConfigManager";
 
 /**
- * Command Config Controls v2 (Including dedicated Win Limpia operational UI section)
+ * Command Config Controls v3.
+ * WIN LIMPIA is controlled by an external Contexto/TikFinity result signal.
+ * There is intentionally no winning-word field here.
  */
 export function CommandConfigControls() {
   const [config, setConfig] = useState({
     registrationMode: "MIXED",
     teams: [],
-    winLimpia: { enabled: true, correctAnswer: "clase", points: 1 }
+    winLimpia: { enabled: true, points: 1 }
   });
 
   const [winEnabled, setWinEnabled] = useState(true);
-  const [correctAnswer, setCorrectAnswer] = useState("clase");
   const [winPoints, setWinPoints] = useState(1);
   const [feedback, setFeedback] = useState(null);
 
@@ -23,7 +24,6 @@ export function CommandConfigControls() {
         setConfig(dashboard.commandConfig);
         if (dashboard.commandConfig.winLimpia) {
           setWinEnabled(dashboard.commandConfig.winLimpia.enabled !== false);
-          setCorrectAnswer(dashboard.commandConfig.winLimpia.correctAnswer || "clase");
           setWinPoints(dashboard.commandConfig.winLimpia.points || 1);
         }
       }
@@ -48,14 +48,13 @@ export function CommandConfigControls() {
 
   const handleSaveWinLimpia = (e) => {
     e.preventDefault();
-    const updatedWin = {
+
+    const fullCfg = commandConfigManager.getConfig();
+    fullCfg.winLimpia = {
       enabled: winEnabled,
-      correctAnswer: (correctAnswer || "").trim().toLowerCase(),
       points: Number(winPoints) || 1
     };
 
-    const fullCfg = commandConfigManager.getConfig();
-    fullCfg.winLimpia = updatedWin;
     const res = commandConfigManager.updateFullConfig(fullCfg);
     if (res.success) {
       notify("✅ Configuración de Win Limpia guardada correctamente.");
@@ -93,7 +92,6 @@ export function CommandConfigControls() {
         ⚙️ Configuración de Comandos & Win Limpia
       </h3>
 
-      {/* DEDICATED WIN LIMPIA CONFIGURATION SECTION */}
       <form onSubmit={handleSaveWinLimpia} style={{
         background: "rgba(12, 10, 20, 0.85)",
         border: "1px solid rgba(0, 245, 255, 0.3)",
@@ -144,15 +142,15 @@ export function CommandConfigControls() {
           </div>
         </div>
 
-        <div>
-          <label style={{ fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "2px", fontWeight: 700 }}>Palabra / Respuesta correcta:</label>
-          <input
-            type="text"
-            placeholder="Ej: clase, palabra, adivinanza"
-            value={correctAnswer}
-            onChange={(e) => setCorrectAnswer(e.target.value)}
-            style={{ width: "100%", background: "#120f1d", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", padding: "6px", fontSize: "11px", boxSizing: "border-box", fontWeight: 700 }}
-          />
+        <div style={{
+          fontSize: "10px",
+          lineHeight: 1.45,
+          color: "#a0aec0",
+          background: "rgba(0,245,255,0.05)",
+          borderRadius: "6px",
+          padding: "8px"
+        }}>
+          El resultado ganador lo entrega directamente Contexto/TikFinity. Este panel solamente controla si Win Limpia está activo y cuántos puntos concede.
         </div>
 
         <button
@@ -169,7 +167,6 @@ export function CommandConfigControls() {
         )}
       </form>
 
-      {/* REGISTRATION MODE */}
       <div style={{ marginBottom: "8px" }}>
         <label style={{ fontSize: "11px", color: "#a0aec0", display: "block", marginBottom: "4px" }}>
           Modo de Inscripción:
@@ -217,17 +214,7 @@ export function CommandConfigControls() {
                 type="text"
                 defaultValue={team.commands.join(", ")}
                 onBlur={(e) => handleTeamUpdate(team.id, "commands", e.target.value)}
-                style={{
-                  width: "100%",
-                  background: "#181528",
-                  color: "white",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  borderRadius: "4px",
-                  padding: "4px",
-                  fontSize: "11px",
-                  marginTop: "2px",
-                  boxSizing: "border-box"
-                }}
+                style={{ width: "100%", background: "#181528", color: "white", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "4px", padding: "4px", fontSize: "11px", marginTop: "2px", boxSizing: "border-box" }}
               />
             </div>
 
@@ -237,17 +224,7 @@ export function CommandConfigControls() {
                 type="text"
                 defaultValue={team.gifts.join(", ")}
                 onBlur={(e) => handleTeamUpdate(team.id, "gifts", e.target.value)}
-                style={{
-                  width: "100%",
-                  background: "#181528",
-                  color: "white",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  borderRadius: "4px",
-                  padding: "4px",
-                  fontSize: "11px",
-                  marginTop: "2px",
-                  boxSizing: "border-box"
-                }}
+                style={{ width: "100%", background: "#181528", color: "white", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "4px", padding: "4px", fontSize: "11px", marginTop: "2px", boxSizing: "border-box" }}
               />
             </div>
           </div>
