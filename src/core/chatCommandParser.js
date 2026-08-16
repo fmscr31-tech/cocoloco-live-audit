@@ -20,13 +20,50 @@ class ChatCommandParser {
     eventBus.subscribe("win:detected", (event) => this.processWinSignal(event));
   }
 
+  /**
+   * Contexto is sometimes rendered inside a same-origin iframe/window while
+   * CocoLoco's chat parser runs in the parent document. `window.Contexto` then
+   * exists in DevTools when inspecting the Contexto frame, but not on the
+   * parent window where this module executes. Resolve the actual Contexto
+   * window instead of assuming a single global window.
+   */
+  findContextoWindow(root = window, visited = new Set()) {
+    if (typeof window === "undefined" || !root || visited.has(root)) return null;
+    visited.add(root);
+
+    try {
+      if (root.Contexto && typeof root.Contexto.submitWord === "function") {
+        return root;
+      }
+    } catch {}
+
+    const candidates = [];
+    try { if (root.parent && root.parent !== root) candidates.push(root.parent); } catch {}
+    try { if (root.opener && root.opener !== root) candidates.push(root.opener); } catch {}
+
+    try {
+      for (let i = 0; i < root.frames.length; i += 1) {
+        try { candidates.push(root.frames[i]); } catch {}
+      }
+    } catch {}
+
+    for (const candidate of candidates) {
+      const found = this.findContextoWindow(candidate, visited);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
   initContextoBridge() {
     if (typeof window === "undefined") return;
     if (window.__COCOLOCO_CONTEXTO_BRIDGE__) return;
     window.__COCOLOCO_CONTEXTO_BRIDGE__ = true;
 
     const install = () => {
-      const gameManager = window.GameManager;
+      const contextoWindow = this.findContextoWindow();
+      const gameManager = contextoWindow?.GameManager;
+
       if (!gameManager || typeof gameManager.endRound !== "function") {
         window.setTimeout(install, 250);
         return;
@@ -68,7 +105,9 @@ class ChatCommandParser {
       };
 
       gameManager.__COCOLOCO_WIN_BRIDGE__ = true;
-      console.log("[WIN LIMPIA CONTEXTO BRIDGE INSTALLED]");
+      console.log("[WIN LIMPIA CONTEXTO BRIDGE INSTALLED]", {
+        transport: contextoWindow === window ? "same-window" : "nested-window"
+      });
     };
 
     install();
@@ -180,9 +219,6 @@ class ChatCommandParser {
     }
 
     if (activeRound) {
-      // Contexto is authoritative for WIN LIMPIA. The live chat parser must
-      // forward every active-round guess to the Contexto engine and must never
-      // compare chat text against a configured answer.
       const contextoUser = {
         ...event,
         comment: rawMessage,
@@ -196,16 +232,17 @@ class ChatCommandParser {
         photoUrl: event.photoUrl || event.profilePictureUrl || event.avatar || ""
       };
 
-      // IMPORTANT: Contexto exposes its authoritative submitWord API directly.
-      // Prefer it over the legacy wrapper because the wrapper can be absent in
-      // the CocoLoco manager window even while Contexto itself is fully loaded.
+      // Contexto may live in a same-origin frame. Resolve that actual window
+      // before falling back to the legacy wrapper.
+      const contextoWindow = this.findContextoWindow();
       const submitWord =
-        typeof window !== "undefined" && typeof window.Contexto?.submitWord === "function"
-          ? window.Contexto.submitWord.bind(window.Contexto)
+        contextoWindow && typeof contextoWindow.Contexto?.submitWord === "function"
+          ? contextoWindow.Contexto.submitWord.bind(contextoWindow.Contexto)
           : null;
 
       if (submitWord) {
         console.log("[WIN LIMPIA CHAT -> CONTEXTO.submitWord]", {
+          transport: contextoWindow === window ? "same-window" : "nested-window",
           playerId: contextoUser.playerId,
           username: contextoUser.username,
           comment: contextoUser.comment
@@ -221,7 +258,6 @@ class ChatCommandParser {
         }
       }
 
-      // Backward-compatible fallback for builds that expose only the wrapper.
       if (typeof window !== "undefined" && typeof window.handleRealComment === "function") {
         console.log("[WIN LIMPIA CHAT -> handleRealComment]", {
           playerId: contextoUser.playerId,
@@ -238,8 +274,9 @@ class ChatCommandParser {
       }
 
       console.warn("[WIN LIMPIA CONTEXTO UNAVAILABLE] Active-round chat could not be forwarded", {
-        hasContexto: Boolean(typeof window !== "undefined" && window.Contexto),
-        hasSubmitWord: Boolean(typeof window !== "undefined" && typeof window.Contexto?.submitWord === "function"),
+        hasContextoOnParserWindow: Boolean(typeof window !== "undefined" && window.Contexto),
+        hasContextoSubmitWordOnParserWindow: Boolean(typeof window !== "undefined" && typeof window.Contexto?.submitWord === "function"),
+        nestedContextoFound: Boolean(contextoWindow),
         hasHandleRealComment: Boolean(typeof window !== "undefined" && typeof window.handleRealComment === "function")
       });
       eventBus.publish("chat:command_rejected", { event, reason: "CONTEXTO_UNAVAILABLE" });
