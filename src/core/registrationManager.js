@@ -39,10 +39,7 @@ class RegistrationManager {
 
   saveToStorage() {
     try {
-      localStorage.setItem(
-        STORAGE_KEY_PLAYERS,
-        JSON.stringify(Array.from(this.registeredPlayers.values()))
-      );
+      localStorage.setItem(STORAGE_KEY_PLAYERS, JSON.stringify(Array.from(this.registeredPlayers.values())));
       localStorage.setItem(STORAGE_KEY_STATUS, this.status);
     } catch (e) {
       console.warn("[RegistrationManager] Failed to save to storage:", e);
@@ -68,10 +65,7 @@ class RegistrationManager {
 
   broadcastSync() {
     this.saveToStorage();
-    const payload = {
-      players: Array.from(this.registeredPlayers.values()),
-      status: this.status
-    };
+    const payload = { players: Array.from(this.registeredPlayers.values()), status: this.status };
     eventBus.emit("registration:state_synced", payload);
     eventBus.publish("registration:updated", payload);
   }
@@ -92,15 +86,7 @@ class RegistrationManager {
       });
     }
 
-    return {
-      status: this.status,
-      mode: config.gameRegistrationMode,
-      players,
-      teamGroups,
-      count: players.length,
-      readiness,
-      timestamp: Date.now()
-    };
+    return { status: this.status, mode: config.gameRegistrationMode, players, teamGroups, count: players.length, readiness, timestamp: Date.now() };
   }
 
   openRegistration() {
@@ -129,11 +115,7 @@ class RegistrationManager {
 
   registerPlayer(playerData) {
     if (this.status !== "OPEN") {
-      eventBus.publish("registration:rejected", {
-        playerData,
-        reason: "REGISTRATION_CLOSED",
-        timestamp: Date.now()
-      });
+      eventBus.publish("registration:rejected", { playerData, reason: "REGISTRATION_CLOSED", timestamp: Date.now() });
       return { success: false, reason: "REGISTRATION_CLOSED" };
     }
 
@@ -144,13 +126,7 @@ class RegistrationManager {
     }
 
     const username = playerData.username || playerData.displayName || playerData.uniqueId || playerId;
-    const avatar = playerData.avatar ||
-      playerData.profilePictureUrl ||
-      playerData.profilePicture ||
-      playerData.payload?.profilePictureUrl ||
-      playerData.payload?.data?.profilePictureUrl ||
-      playerData.payload?.avatar ||
-      "";
+    const avatar = playerData.avatar || playerData.profilePictureUrl || playerData.profilePicture || playerData.payload?.profilePictureUrl || playerData.payload?.data?.profilePictureUrl || playerData.payload?.avatar || "";
 
     if (this.registeredPlayers.has(playerId)) {
       const existingPlayer = this.registeredPlayers.get(playerId);
@@ -217,18 +193,8 @@ class RegistrationManager {
 
     if (config.gameRegistrationMode === "INDIVIDUAL") {
       const count = players.length;
-      if (count < config.minPlayers) {
-        return {
-          ready: false,
-          message: `Faltan ${config.minPlayers - count} jugadores (Mínimo requerido: ${config.minPlayers}).`
-        };
-      }
-      if (count > config.maxPlayers) {
-        return {
-          ready: false,
-          message: `Se supera el máximo de jugadores permitido (${config.maxPlayers}).`
-        };
-      }
+      if (count < config.minPlayers) return { ready: false, message: `Faltan ${config.minPlayers - count} jugadores (Mínimo requerido: ${config.minPlayers}).` };
+      if (count > config.maxPlayers) return { ready: false, message: `Se supera el máximo de jugadores permitido (${config.maxPlayers}).` };
       return { ready: true, message: "Listo para iniciar ronda individual." };
     }
 
@@ -236,40 +202,21 @@ class RegistrationManager {
     for (const t of teams) {
       const teamPlayers = players.filter(p => p.teamId === t.id);
       const tCount = teamPlayers.length;
-      if (tCount < t.minPlayers) {
-        return {
-          ready: false,
-          message: `El equipo "${t.name}" necesita ${t.minPlayers - tCount} jugadores más (Mín: ${t.minPlayers}).`
-        };
-      }
-      if (tCount > t.maxPlayers) {
-        return {
-          ready: false,
-          message: `El equipo "${t.name}" supera el máximo de jugadores (${t.maxPlayers}).`
-        };
-      }
+      if (tCount < t.minPlayers) return { ready: false, message: `El equipo "${t.name}" necesita ${t.minPlayers - tCount} jugadores más (Mín: ${t.minPlayers}).` };
+      if (tCount > t.maxPlayers) return { ready: false, message: `El equipo "${t.name}" supera el máximo de jugadores (${t.maxPlayers}).` };
     }
     return { ready: true, message: "Todos los equipos alcanzan sus mínimos. ¡Listo para iniciar ronda!" };
   }
 
   removePlayer(playerId) {
-    if (this.status === "LOCKED") {
-      return { success: false, reason: "REGISTRATION_LOCKED" };
-    }
-
-    if (!this.registeredPlayers.has(playerId)) {
-      return { success: false, reason: "PLAYER_NOT_FOUND" };
-    }
+    if (this.status === "LOCKED") return { success: false, reason: "REGISTRATION_LOCKED" };
+    if (!this.registeredPlayers.has(playerId)) return { success: false, reason: "PLAYER_NOT_FOUND" };
 
     const player = this.registeredPlayers.get(playerId);
     this.registeredPlayers.delete(playerId);
     removePlayer(playerId);
     this.broadcastSync();
-    eventBus.publish("registration:player_removed", {
-      playerId,
-      player,
-      count: this.registeredPlayers.size
-    });
+    eventBus.publish("registration:player_removed", { playerId, player, count: this.registeredPlayers.size });
     return { success: true, player };
   }
 
@@ -278,16 +225,13 @@ class RegistrationManager {
   }
 
   /**
-   * Clears the current registration AND removes those identities from the
-   * canonical playerManager. This is the clean-slate operation for a new round.
-   * It is intentionally allowed when CLOSED (after a round has ended), but not
-   * while LOCKED because LOCKED means the current round is still protected.
+   * Clean-slate transition used after a round has definitively finished.
+   * Unlike clearRegistration(), this method is allowed to run from LOCKED
+   * because the lock belongs to the round that just ended. It removes the
+   * previous round's registered identities and immediately opens a fresh
+   * registration window. Gift/ability configuration is untouched.
    */
-  clearRegistration() {
-    if (this.status === "LOCKED") {
-      return { success: false, reason: "REGISTRATION_LOCKED" };
-    }
-
+  prepareNextRoundRegistration() {
     const previousPlayers = Array.from(this.registeredPlayers.values());
 
     previousPlayers.forEach(player => {
@@ -300,9 +244,35 @@ class RegistrationManager {
 
     eventBus.publish("registration:cleared", {
       timestamp: Date.now(),
-      removedCount: previousPlayers.length
+      removedCount: previousPlayers.length,
+      reason: "ROUND_FINISHED"
+    });
+    eventBus.publish("registration:opened", {
+      status: this.status,
+      timestamp: Date.now(),
+      reason: "ROUND_FINISHED"
     });
 
+    return { success: true, removedCount: previousPlayers.length };
+  }
+
+  /**
+   * Clears the current registration AND removes those identities from the
+   * canonical playerManager. This is the clean-slate operation for a new round.
+   * It is intentionally allowed when CLOSED (after a round has ended), but not
+   * while LOCKED because LOCKED means the current round is still protected.
+   */
+  clearRegistration() {
+    if (this.status === "LOCKED") return { success: false, reason: "REGISTRATION_LOCKED" };
+
+    const previousPlayers = Array.from(this.registeredPlayers.values());
+    previousPlayers.forEach(player => removePlayer(player.playerId));
+
+    this.registeredPlayers.clear();
+    this.status = "OPEN";
+    this.broadcastSync();
+
+    eventBus.publish("registration:cleared", { timestamp: Date.now(), removedCount: previousPlayers.length });
     return { success: true, removedCount: previousPlayers.length };
   }
 }
