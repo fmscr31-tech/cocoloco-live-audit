@@ -1,9 +1,10 @@
 import { giftEventBridge } from "../giftEventBridge";
 
 /**
- * Tikfinity Connector Foundation v3.
+ * Tikfinity Connector Foundation v4.
  * Converts TikFinity gift notifications into authoritative normalized gift events.
- * The gift notification itself is the trigger; no answer/state comparison is used.
+ * Preserves TikTok streak metadata so the bridge can distinguish intermediate
+ * repeat updates from the authoritative repeatEnd event.
  */
 class TikfinityAdapter {
   handleTikfinityPayload(rawPayload) {
@@ -90,9 +91,55 @@ class TikfinityAdapter {
       return null;
     }
 
-    const quantity = Number(data.repeatCount || data.quantity || data.count || giftObj.repeatCount || 1);
-    const diamondValue = Number(data.diamondCount || data.diamondValue || data.diamonds || data.coins || giftObj.diamondCount || giftObj.coins || 1);
-    const eventId = rawPayload.eventId || data.eventId || rawPayload.msgId || data.msgId || rawPayload.transactionId || data.transactionId || data.id || null;
+    const quantity = Number(
+      data.repeatCount ||
+      data.repeat_count ||
+      data.quantity ||
+      data.count ||
+      giftObj.repeatCount ||
+      giftObj.repeat_count ||
+      rawPayload.repeatCount ||
+      rawPayload.repeat_count ||
+      1
+    );
+
+    const diamondValue = Number(
+      data.diamondCount ||
+      data.diamondValue ||
+      data.diamonds ||
+      data.coins ||
+      giftObj.diamondCount ||
+      giftObj.diamonds ||
+      giftObj.coins ||
+      rawPayload.diamondCount ||
+      rawPayload.diamondValue ||
+      1
+    );
+
+    const eventId =
+      rawPayload.eventId || rawPayload.eventID ||
+      data.eventId || data.eventID ||
+      rawPayload.msgId || rawPayload.messageID ||
+      data.msgId || data.messageID ||
+      rawPayload.transactionId || rawPayload.transactionID ||
+      data.transactionId || data.transactionID ||
+      data.id || null;
+
+    // Preserve the exact TikTok/TikFinity streak lifecycle fields.
+    const repeatEnd =
+      rawPayload.repeatEnd ?? rawPayload.repeat_end ??
+      data.repeatEnd ?? data.repeat_end ??
+      giftObj.repeatEnd ?? giftObj.repeat_end;
+
+    const streaking =
+      rawPayload.streaking ?? rawPayload.isRepeating ?? rawPayload.is_repeating ??
+      data.streaking ?? data.isRepeating ?? data.is_repeating ??
+      giftObj.streaking ?? giftObj.isRepeating ?? giftObj.is_repeating;
+
+    const giftType =
+      rawPayload.giftType ?? rawPayload.gift_type ??
+      data.giftType ?? data.gift_type ??
+      giftObj.type ?? giftObj.giftType ?? giftObj.gift_type;
 
     console.log("[TikFinity GIFT AUTHORITATIVE]", {
       playerId,
@@ -103,7 +150,10 @@ class TikfinityAdapter {
       giftName,
       quantity,
       diamondValue,
-      eventId
+      eventId,
+      repeatEnd,
+      streaking,
+      giftType
     });
 
     const normalized = giftEventBridge.processExternalGift({
@@ -116,7 +166,11 @@ class TikfinityAdapter {
       giftName,
       quantity,
       diamondValue,
-      eventId
+      eventId,
+      repeatEnd,
+      streaking,
+      giftType,
+      rawInput: rawPayload.rawInput || data.rawInput || giftName || giftId
     });
 
     console.log("[TikFinity DEBUG] NORMALIZED GIFT", normalized);
