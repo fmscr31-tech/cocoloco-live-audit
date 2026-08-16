@@ -4,7 +4,7 @@ import { ABILITY_REGISTRY } from "../config/abilityRegistry";
 import { GIFT_ABILITY_MAP } from "../config/giftAbilityMap";
 
 const CONFIG_STORAGE_KEY = "cocoloco_system_config";
-const ABILITY_SOUND_MIGRATION_VERSION = 3;
+const ABILITY_SOUND_MIGRATION_VERSION = 4;
 
 const DEFAULT_GIFT_SOUNDS = [
   { giftName: "Heart Me", giftId: "heart_me", sound: "/Sounds/mudo.mp3", enabled: true },
@@ -26,10 +26,10 @@ const DEFAULT_FREEZE_CONFIG = {
  *
  * IMPORTANT:
  * - Existing user configuration is preserved.
- * - Defaults are used only when a configuration section is genuinely missing.
- * - User-selected ability/gift/freeze sounds are NEVER replaced by a default.
- * - Writes always start from the latest localStorage snapshot so another
- *   browser tab/window cannot overwrite newer sound selections with stale data.
+ * - Defaults repair missing structure only.
+ * - User-selected ability/gift/freeze sounds are NEVER replaced by defaults.
+ * - New authoritative abilities/maps are merged into older stored configs so
+ *   adding a new supported gift cannot silently remain unavailable in LIVE.
  */
 class ConfigManager {
   constructor() {
@@ -56,20 +56,10 @@ class ConfigManager {
       abilities: ABILITY_REGISTRY,
       abilityGiftMap: GIFT_ABILITY_MAP,
       giftSounds: DEFAULT_GIFT_SOUNDS,
-      battleEffects: {
-        freeze: DEFAULT_FREEZE_CONFIG
-      },
-      teams: {
-        maxTeams: 4,
-        defaultIcon: "🌴"
-      },
-      game: {
-        defaultTimerMinutes: 20,
-        autoStartBattles: false
-      },
-      session: {
-        autoSaveIntervalMs: 5000
-      }
+      battleEffects: { freeze: DEFAULT_FREEZE_CONFIG },
+      teams: { maxTeams: 4, defaultIcon: "🌴" },
+      game: { defaultTimerMinutes: 20, autoStartBattles: false },
+      session: { autoSaveIntervalMs: 5000 }
     };
   }
 
@@ -90,24 +80,38 @@ class ConfigManager {
     }
   }
 
-  /**
-   * Repairs only missing structural configuration.
-   *
-   * Version 3 deliberately removes the old sound migration behavior. A sound
-   * selected by the operator is user data, even if it happens to equal a
-   * historical/default sound path. It must never be rewritten automatically.
-   */
   migrateConfiguration() {
     let changed = false;
 
     if (!this.config.abilities || typeof this.config.abilities !== "object") {
       this.config.abilities = { ...ABILITY_REGISTRY };
       changed = true;
+    } else {
+      // Add new authoritative abilities without overwriting operator changes.
+      for (const [abilityId, ability] of Object.entries(ABILITY_REGISTRY)) {
+        if (!this.config.abilities[abilityId]) {
+          this.config.abilities[abilityId] = { ...ability };
+          changed = true;
+        }
+      }
     }
 
     if (!Array.isArray(this.config.abilityGiftMap)) {
-      this.config.abilityGiftMap = GIFT_ABILITY_MAP;
+      this.config.abilityGiftMap = GIFT_ABILITY_MAP.map(item => ({ ...item, aliases: [...(item.aliases || [])] }));
       changed = true;
+    } else {
+      // Merge new mappings by gift/ability identity. Existing mappings remain
+      // authoritative so custom operator mappings are not overwritten.
+      for (const mapping of GIFT_ABILITY_MAP) {
+        const exists = this.config.abilityGiftMap.some(existing =>
+          String(existing?.giftId || "").trim().toLowerCase() === String(mapping.giftId).trim().toLowerCase() ||
+          String(existing?.abilityId || "").trim().toLowerCase() === String(mapping.abilityId).trim().toLowerCase()
+        );
+        if (!exists) {
+          this.config.abilityGiftMap.push({ ...mapping, aliases: [...(mapping.aliases || [])] });
+          changed = true;
+        }
+      }
     }
 
     if (!Array.isArray(this.config.giftSounds)) {
@@ -160,9 +164,6 @@ class ConfigManager {
     if (changed) this.persist();
   }
 
-  /**
-   * Gets a configuration section or specific nested property using dot notation.
-   */
   get(path) {
     if (!path) return this.config;
     const parts = path.split(".");
@@ -174,20 +175,11 @@ class ConfigManager {
     return current;
   }
 
-  /**
-   * Updates a configuration section/property and persists the change.
-   *
-   * CRITICAL: reload the latest persisted configuration before applying the
-   * update. Multiple dashboard/overlay tabs otherwise hold independent stale
-   * snapshots and one tab can accidentally restore old ability sounds.
-   */
   set(path, value) {
     if (!path) return;
 
     const latest = this.loadConfig();
-    if (latest && typeof latest === "object") {
-      this.config = latest;
-    }
+    if (latest && typeof latest === "object") this.config = latest;
 
     const parts = path.split(".");
     let current = this.config;
