@@ -8,6 +8,11 @@ import "../freezeAudioBridge";
  * Battle Effect Engine: Manages temporary competitive battle effects (e.g. FREEZE)
  * with extensible scope support (TEAM, PLAYER, GLOBAL).
  * Freeze configuration is data-driven from configManager.
+ *
+ * Gift integration is authoritative through gift:received. This is intentional:
+ * TikTokConnector routes gift packets into the canonical gift pipeline before the
+ * generic event/reward pipeline, so waiting only for reward:processed could miss
+ * real LIVE freeze gifts entirely.
  */
 class BattleEffectEngine {
   constructor() {
@@ -56,6 +61,12 @@ class BattleEffectEngine {
   }
 
   initListeners() {
+    eventBus.subscribe("gift:received", (gift) => {
+      this.handleGiftReceived(gift);
+    });
+
+    // Keep compatibility with any legacy/manual reward source that still emits
+    // reward:processed. The direct gift path above is authoritative for TikTok.
     eventBus.subscribe("reward:processed", (reward) => {
       this.handleRewardEffect(reward);
     });
@@ -88,7 +99,47 @@ class BattleEffectEngine {
       reward?.gift?.name
     ].map(value => this.normalizeGift(value));
 
-    return candidates.some(candidate => candidate && candidate === target);
+    if (candidates.some(candidate => candidate && candidate === target)) return true;
+
+    // Official CocoLoco freeze gifts are Twinkling Star and Coconut. Preserve a
+    // single-string operator setting while accepting either canonical identity
+    // when the default activation is one of the two official freeze gifts.
+    const freezeGiftAliases = new Set([
+      "twinkling star",
+      "twinkling_star",
+      "star",
+      "estrella",
+      "coconut",
+      "coco"
+    ]);
+    if (freezeGiftAliases.has(target)) {
+      return candidates.some(candidate => freezeGiftAliases.has(candidate));
+    }
+
+    return false;
+  }
+
+  handleGiftReceived(gift) {
+    const config = configManager.get("battleEffects.freeze") || {};
+    if (!config.enabled) return;
+
+    const activationGift = config.activationGift || "Twinkling Star";
+    const isOfficialFreezeGift = [
+      "twinkling_star",
+      "twinkling star",
+      "star",
+      "estrella",
+      "coconut",
+      "coco"
+    ].includes(this.normalizeGift(gift?.canonicalGiftId)) || [
+      "twinkling star",
+      "coconut",
+      "coco"
+    ].includes(this.normalizeGift(gift?.giftName));
+
+    if (!isOfficialFreezeGift || !this.isActivationGift(gift, activationGift)) return;
+
+    this.handleFreezeActivation(gift);
   }
 
   handleRewardEffect(reward) {
@@ -96,15 +147,24 @@ class BattleEffectEngine {
     if (!config.enabled) return;
 
     const activationGift = config.activationGift || "Twinkling Star";
-    const requiredCount = Number(config.rescueCount !== undefined ? config.rescueCount : 2);
     if (!this.isActivationGift(reward, activationGift)) return;
 
-    const senderTeam = this.getPlayerTeam(reward.username);
+    this.handleFreezeActivation(reward);
+  }
+
+  handleFreezeActivation(reward) {
+    const config = configManager.get("battleEffects.freeze") || {};
+    const requiredCount = Number(config.rescueCount !== undefined ? config.rescueCount : 2);
+    const senderTeam = this.getPlayerTeam(reward?.username || reward?.sender || reward?.displayName);
     const scope = config.scope || "TEAM";
-    const count = Number(reward.repeatCount || reward.diamondCount || 1);
+    const count = Number(reward?.quantity || reward?.repeatCount || reward?.diamondCount || 1);
 
     if (scope === "TEAM") {
-      if (!senderTeam) return;
+      if (!senderTeam) {
+        console.warn("[BattleEffectEngine] Freeze gift received but sender has no team:", reward?.username || reward?.sender);
+        return;
+      }
+
       const teams = getTeams();
       const affectedTeam = teams.find(t => t.id !== senderTeam.id);
       if (!affectedTeam) return;
@@ -112,20 +172,20 @@ class BattleEffectEngine {
       if (this.activeEffect && this.activeEffect.affectedTeamId === senderTeam.id) {
         this.removeEffect();
         if (count >= requiredCount) {
-          this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
+          this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username || reward.sender);
         }
         return;
       }
 
       if (!this.activeEffect) {
-        this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
+        this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username || reward.sender);
       } else if (count >= requiredCount && this.activeEffect.affectedTeamId === affectedTeam.id) {
         this.removeEffect();
-        this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username);
+        this.activateEffect("FREEZE", scope, affectedTeam.id, affectedTeam.name, [], reward.username || reward.sender);
       }
     } else if (scope === "GLOBAL") {
       if (!this.activeEffect) {
-        this.activateEffect("FREEZE", scope, null, "TODOS", [], reward.username);
+        this.activateEffect("FREEZE", scope, null, "TODOS", [], reward.username || reward.sender);
       } else {
         this.removeEffect();
       }

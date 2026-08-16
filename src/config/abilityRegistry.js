@@ -1,5 +1,5 @@
 /**
- * Ability Registry v2
+ * Ability Registry v3
  * Centralized configuration defining game abilities independently from gifts.
  */
 export const ABILITY_REGISTRY = {
@@ -44,7 +44,7 @@ export const ABILITY_REGISTRY = {
     display: { name: "Susto a Coco", icon: "😱", color: "purple", animation: "scareActive" },
     gameAction: { type: "VISUAL_EFFECT", value: "SCARE" },
     scoreAction: { type: "NONE", value: 0 },
-    sound: null,
+    sound: "/Sounds/Grito feo.mp3",
     enabled: true,
     duration: 3000
   },
