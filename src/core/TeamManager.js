@@ -116,10 +116,20 @@ function adjustTeamWins(teamId, delta) {
 }
 
 function getTeam(teamId) {
+  // Cross-window manual score changes are persisted in localStorage. Refresh
+  // the in-memory registry before reading so the Overlay never renders a
+  // stale team score after a score event arrives through BroadcastChannel.
+  loadTeams();
   return teams.find(team => String(team.id) === String(teamId));
 }
 
 function getTeams() {
+  // The Admin Panel and Overlay run in separate browser contexts. A manual
+  // score is saved by the Admin context, while the Overlay has its own
+  // in-memory TeamManager instance. Always reload the persisted team snapshot
+  // before returning it so cross-window score/win updates become visible
+  // immediately without requiring an Overlay refresh.
+  loadTeams();
   return [...teams].sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
 }
 
