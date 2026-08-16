@@ -1,7 +1,9 @@
 import { eventBus } from "./eventBus";
+// Importing the dispatcher registers the single authoritative score executor.
+import "./abilityActionDispatcher";
 
 /**
- * Ability Event Queue v1.0
+ * Ability Event Queue v1.1
  * Manages sequential playback of abilities (FIFO with future priority support).
  * Prevents visual overlap by queueing overlapping ability triggers and playing them one by one.
  */
@@ -14,7 +16,7 @@ class AbilityEventQueue {
 
   /**
    * Enqueues a new ability item.
-   * @param {Object} abilityPayload - { abilityId, sourceGift, teamId, sender, duration, display, gameAction, scoreAction, priority }
+   * @param {Object} abilityPayload - { abilityId, sourceGift, teamId, sender, duration, display, gameAction, scoreAction, sound, priority }
    */
   enqueue(abilityPayload) {
     if (!abilityPayload) return;
@@ -23,6 +25,7 @@ class AbilityEventQueue {
       ...abilityPayload,
       priority: abilityPayload.priority !== undefined ? abilityPayload.priority : 0,
       timestamp: abilityPayload.timestamp || Date.now(),
+      executionId: abilityPayload.executionId || `ability_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
       status: "queued"
     };
 
@@ -32,9 +35,9 @@ class AbilityEventQueue {
     this.queue.push(item);
     this.queue.sort((a, b) => {
       if (b.priority !== a.priority) {
-        return b.priority - a.priority; // higher priority first (future ready)
+        return b.priority - a.priority;
       }
-      return a.timestamp - b.timestamp; // FIFO for same priority
+      return a.timestamp - b.timestamp;
     });
 
     eventBus.publish("ability:queued", item);
@@ -44,9 +47,6 @@ class AbilityEventQueue {
     }
   }
 
-  /**
-   * Processes the next ability in the queue if none is currently playing.
-   */
   processNext() {
     if (this.currentPlaying || this.queue.length === 0) {
       return;
@@ -66,9 +66,6 @@ class AbilityEventQueue {
     }, duration);
   }
 
-  /**
-   * Finishes the currently playing ability and starts the next.
-   */
   finishCurrent() {
     if (!this.currentPlaying) return;
 
@@ -86,23 +83,14 @@ class AbilityEventQueue {
     this.processNext();
   }
 
-  /**
-   * Returns the currently playing ability item.
-   */
   getCurrentPlaying() {
     return this.currentPlaying;
   }
 
-  /**
-   * Returns whether an ability is currently playing.
-   */
   isPlaying() {
     return !!this.currentPlaying;
   }
 
-  /**
-   * Clears queue and stops current playback.
-   */
   clear() {
     this.queue = [];
     if (this.timerId) {
