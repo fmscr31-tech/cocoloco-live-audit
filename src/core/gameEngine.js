@@ -15,15 +15,11 @@ let roundWinners = new Set();
 eventBus.subscribe("round:started", () => { roundWinners.clear(); });
 eventBus.subscribe("ROUND_STARTED", () => { roundWinners.clear(); });
 
-// When registration is explicitly cleared, the canonical player roster must
-// also be cleared in EVERY browser context.
 eventBus.subscribe("registration:cleared", () => {
   const previousPlayers = [...players];
-
   previousPlayers.forEach(player => {
     if (player?.id) removePlayer(player.id);
   });
-
   gameState.players.length = 0;
   gameState.teams = getTeams();
   setPlayers(gameState.players);
@@ -50,7 +46,7 @@ import {
 } from "./battleManager";
 
 import { createEvent } from "./eventManager";
-import { getTeams, removePlayerFromAllTeams } from "./TeamManager";
+import { getTeams, removePlayerFromAllTeams, addPointsToTeam } from "./TeamManager";
 import {
   setPlayers,
   setRound,
@@ -86,7 +82,6 @@ function syncFromStorage() {
     gameState.round = data.round || null;
     gameState.battle = data.battle || null;
   }
-
   gameState.teams = getTeams();
   setPlayers(gameState.players);
   setRound(gameState.round);
@@ -117,10 +112,6 @@ export function removeGamePlayer(playerId) {
 }
 
 export function playerWin(id) {
-  // Resolve the identity FIRST. Win Limpia can arrive with a TikTok userId,
-  // username, registration id, or the local UUID. Scoring must always operate
-  // on the canonical local player identity so the overlay/state store receives
-  // the exact same player record that is displayed there.
   const canonicalPlayer = getPlayer(id);
   if (!canonicalPlayer) {
     console.error("[WIN LIMPIA FATAL] Cannot resolve player before scoring", { id });
@@ -128,14 +119,11 @@ export function playerWin(id) {
   }
 
   const canonicalId = canonicalPlayer.id;
-
   if (roundWinners.has(canonicalId)) {
     console.log("[GameEngine] Player already won this round, ignoring duplicate win:", canonicalId);
     return canonicalPlayer;
   }
 
-  // Reserve the canonical local identity only AFTER the player has been
-  // resolved. addWin() is the single scoring operation: +1 point +1 win.
   const player = addWin(canonicalId);
   if (!player) {
     console.error("[WIN LIMPIA FATAL] addWin failed after identity resolution", {
@@ -149,6 +137,15 @@ export function playerWin(id) {
   roundWinners.add(player.id);
   if (getBattle()) battlePlayerWin(player.id);
 
+  // WIN LIMPIA must also increment the persisted team scoreboard when the
+  // winner belongs to a team. TeamPanel reads team.points, not player.points.
+  let teamSnapshot = null;
+  if (player.teamId) {
+    teamSnapshot = addPointsToTeam(player.teamId, 1);
+    gameState.teams = getTeams();
+    setTeams(gameState.teams);
+  }
+
   setPlayers(gameState.players);
   createEvent("PLAYER_WIN", {
     playerId: player.id,
@@ -157,42 +154,53 @@ export function playerWin(id) {
     wins: player.wins
   });
 
-  // Authoritative score event for admin + overlay contexts.
   eventBus.publish("game:score_updated", {
     playerId: player.id,
     tiktokId: player.tiktokId,
     username: player.username || player.name,
+    teamId: player.teamId || null,
     pointsAdded: 1,
     newTotal: player.points,
     wins: player.wins,
     wordsFound: player.wordsFound,
+    teamPointsAdded: player.teamId ? 1 : 0,
+    newTeamTotal: teamSnapshot?.points ?? null,
     source: "WIN_LIMPIA",
     timestamp: Date.now(),
-    playerSnapshot: { ...player }
+    playerSnapshot: { ...player },
+    teamSnapshot: teamSnapshot ? { ...teamSnapshot } : null
   });
 
-  eventBus.emit("win:correct", {
+  const winPayload = {
     winId: `win_${Date.now()}_${player.id}`,
     playerId: player.id,
     tiktokId: player.tiktokId,
     id: player.id,
     name: player.name,
     username: player.username || player.name,
+    teamId: player.teamId || null,
     points: player.points,
     wins: player.wins,
     wordsFound: player.wordsFound,
+    teamPoints: teamSnapshot?.points ?? null,
     timestamp: Date.now()
-  });
+  };
+
+  eventBus.emit("win:correct", winPayload);
+  eventBus.emit("overlay:win", { ...winPayload, source: "WIN_LIMPIA" });
 
   console.log("[WIN LIMPIA POINT APPLIED]", {
     inputId: id,
     canonicalId: player.id,
     tiktokId: player.tiktokId,
     player: player.name,
+    teamId: player.teamId || null,
     points: player.points,
     wins: player.wins,
+    teamPoints: teamSnapshot?.points ?? null,
     wordsFound: player.wordsFound,
-    pointsAdded: 1
+    pointsAdded: 1,
+    teamPointsAdded: player.teamId ? 1 : 0
   });
 
   saveState();
@@ -214,7 +222,6 @@ export function setPlayerTeam(playerId, teamId) {
 
 export function beginRound(data) {
   registrationManager.closeRegistration();
-
   const regState = registrationManager.getRegistrationState();
   if (regState && regState.players) {
     regState.players.forEach(p => {
@@ -229,14 +236,12 @@ export function beginRound(data) {
       if (added && p.teamId) assignTeam(added.id, p.teamId);
     });
   }
-
   setPlayers(gameState.players);
   gameState.teams = getTeams();
   setTeams(gameState.teams);
   gameState.round = startRound(data);
   gameState.timer = startTimer(data.duration);
   setRound(gameState.round);
-
   createEvent("ROUND_STARTED", { round: gameState.round });
   saveState();
   return gameState;
