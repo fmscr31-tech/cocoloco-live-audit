@@ -8,18 +8,20 @@ if (!fs.existsSync(file)) {
 }
 
 const source = fs.readFileSync(file, 'utf8');
+
 const checks = [
   ['useRef imported for stable selector state', /import \{[^}]*useRef[^}]*\} from ["']react["']/.test(source)],
-  ['selectedTeamIdRef exists', /selectedTeamIdRef/.test(source)],
-  ['selector writes ref immediately', /selectedTeamIdRef\.current\s*=\s*value/.test(source)],
-  ['refresh reads ref instead of stale selectedTeamId', /const currentTeamId = selectedTeamIdRef\.current/.test(source)],
-  ['valid selected team is preserved', /hasCurrentTeam\s*=\s*currentTeamId/.test(source)],
-  ['fallback only occurs when current team is invalid', /if \(!hasCurrentTeam\)/.test(source)],
-  ['team action resolves from selectedTeamId', /teams\.find\(t => String\(t\.id\) === String\(selectedTeamId\)\)/.test(source)],
-  ['manual points use TeamManager', /addTeamPoints\(team\.id, actualDelta\)/.test(source)],
-  ['manual wins use TeamManager', /adjustTeamWins\(team\.id, actualDelta\)/.test(source)],
-  ['score event carries exact selected team id', /teamId:\s*team\.id/.test(source)],
-  ['no unconditional first-team reset remains', !/\(!selectedTeamId \|\| !nextTeams\.some/.test(source)]
+  ['selectedTeamIdRef exists', /const selectedTeamIdRef\s*=\s*useRef\(""\)/.test(source)],
+  ['selector writes ref synchronously', /selectedTeamIdRef\.current\s*=\s*normalized/.test(source)],
+  ['refresh reads the stable team ref', /const currentTeamId\s*=\s*selectedTeamIdRef\.current/.test(source)],
+  ['refresh validates current team before fallback', /selectedStillExists\s*=\s*currentTeamId\s*&&\s*nextTeams\.some/.test(source)],
+  ['fallback only occurs when selected team is invalid', /if \(!selectedStillExists\)/.test(source)],
+  ['team action resolves from stable selected team id', /const currentTeamId\s*=\s*selectedTeamIdRef\.current/.test(source) && /teams\.find\(t => String\(t\.id\) === currentTeamId\)/.test(source)],
+  ['manual points use TeamManager', /addTeamPoints\(currentTeamId, actualDelta\)/.test(source)],
+  ['manual wins use TeamManager', /adjustTeamWins\(currentTeamId, actualDelta\)/.test(source)],
+  ['score event carries exact selected team id', /teamId:\s*currentTeamId/.test(source)],
+  ['score event cannot silently change selected team', /selectedTeamIdRef\.current\s*=\s*currentTeamId/.test(source)],
+  ['no stale selectedTeamId decision remains in refreshData', !/if \(nextTeams\.length && \(!selectedTeamId \|\| !nextTeams\.some/.test(source)]
 ];
 
 let failures = 0;
@@ -32,6 +34,8 @@ if (failures) {
   console.log(`=== MANUAL TEAM SELECTOR V2 AUDIT: FAIL (${failures}) ===`);
   process.exit(1);
 }
+
 console.log('=== MANUAL TEAM SELECTOR V2 AUDIT: PASS ===');
-console.log('Selector state is protected from stale refresh callbacks.');
-console.log('Next: npm run build, then manually test A/B +/− points and wins.');
+console.log('Manual team selector is protected against stale EventBus refresh callbacks.');
+console.log('The selected team remains authoritative across manual point/win updates.');
+console.log('Next: npm run build, then manually test Team A and Team B +1/+5/+10 and -1/-5/-10.');
