@@ -3,9 +3,12 @@ import { eventBus } from "./eventBus";
 const STORAGE_KEY_COMMAND_CONFIG = "cocoloco_command_config_v3";
 
 /**
- * Command Configuration Manager v3
- * Stores configuration used by chat and gift parsers for player registration,
- * team assignment, and Win Limpia correct-answer detection.
+ * Command Configuration Manager v4
+ * Registration/team configuration only.
+ *
+ * WIN LIMPIA is NOT a word/answer configuration. The winning result belongs to
+ * the external Contexto/TikFinity event source. This manager only stores whether
+ * WIN LIMPIA is enabled and how many points a detected win awards.
  */
 class CommandConfigManager {
   constructor() {
@@ -17,7 +20,6 @@ class CommandConfigManager {
       maxPlayers: 100,
       winLimpia: {
         enabled: true,
-        correctAnswer: "clase",
         points: 1
       },
       teams: [
@@ -42,14 +44,13 @@ class CommandConfigManager {
       ]
     };
 
-    // Cross-window synchronization: BroadcastChannel is the primary path,
-    // but the browser storage event is also required when Admin and LIVE are
-    // separate tabs/windows and a configuration write happens outside the
-    // current module instance.
+    this._sanitizeWinConfig();
+
     eventBus.subscribe("config:command_updated", (payload = {}) => {
       const incoming = payload?.config;
       if (!incoming || typeof incoming !== "object") return;
       this.config = JSON.parse(JSON.stringify(incoming));
+      this._sanitizeWinConfig();
       this.saveToStorage();
       console.log("[CommandConfigManager] Remote configuration synchronized.", {
         winLimpia: this.config.winLimpia,
@@ -64,6 +65,8 @@ class CommandConfigManager {
           const parsed = JSON.parse(event.newValue);
           if (!parsed || typeof parsed !== "object") return;
           this.config = JSON.parse(JSON.stringify(parsed));
+          this._sanitizeWinConfig();
+          this.saveToStorage();
           console.log("[CommandConfigManager] Storage configuration synchronized.", {
             winLimpia: this.config.winLimpia,
             source: "STORAGE_EVENT"
@@ -77,6 +80,22 @@ class CommandConfigManager {
         }
       });
     }
+  }
+
+  _sanitizeWinConfig() {
+    const current = this.config?.winLimpia || {};
+    this.config.winLimpia = {
+      enabled: current.enabled !== false,
+      points: Number(current.points) || 1
+    };
+
+    // Remove the obsolete answer field from any configuration persisted by an
+    // older build. This prevents stale values such as "clase" from returning.
+    if (Object.prototype.hasOwnProperty.call(this.config.winLimpia, "correctAnswer")) {
+      delete this.config.winLimpia.correctAnswer;
+    }
+
+    this.saveToStorage();
   }
 
   loadFromStorage() {
@@ -95,13 +114,11 @@ class CommandConfigManager {
     return null;
   }
 
-  // Re-read the persisted configuration immediately. LIVE chat processing
-  // calls this before evaluating a winning word so an old in-memory snapshot
-  // can never survive a context/tab synchronization failure.
   refreshFromStorage() {
     const persisted = this.loadFromStorage();
     if (persisted && typeof persisted === "object") {
       this.config = JSON.parse(JSON.stringify(persisted));
+      this._sanitizeWinConfig();
     }
     return this.getConfig();
   }
@@ -143,13 +160,14 @@ class CommandConfigManager {
     if (newConfig.individualCommand !== undefined) this.config.individualCommand = newConfig.individualCommand.trim().toLowerCase();
     if (newConfig.minPlayers !== undefined) this.config.minPlayers = Number(newConfig.minPlayers) || 1;
     if (newConfig.maxPlayers !== undefined) this.config.maxPlayers = Number(newConfig.maxPlayers) || 100;
+
     if (newConfig.winLimpia !== undefined) {
       this.config.winLimpia = {
         enabled: newConfig.winLimpia.enabled !== false,
-        correctAnswer: (newConfig.winLimpia.correctAnswer || "").trim().toLowerCase(),
         points: Number(newConfig.winLimpia.points) || 1
       };
     }
+
     if (Array.isArray(newConfig.teams)) {
       this.config.teams = newConfig.teams.map((t, idx) => ({
         id: t.id || `team_${idx + 1}`,
@@ -162,6 +180,7 @@ class CommandConfigManager {
       }));
     }
 
+    this._sanitizeWinConfig();
     this.saveToStorage();
     console.log("[CommandConfigManager] Full configuration updated successfully.", this.config);
     this._publishUpdate();
@@ -200,7 +219,6 @@ class CommandConfigManager {
         cmds.forEach(cmd => {
           if (allCommands.has(cmd)) errors.push(`El comando "${cmd}" está duplicado.`);
           allCommands.add(cmd);
-          if (mode === "INDIVIDUAL" && cmd === indCmd) errors.push(`El comando "${cmd}" entra en conflicto con el comando individual.`);
         });
         if (tMin < 1) errors.push(`El equipo ${name} tiene un mínimo inválido (debe ser >= 1).`);
         if (tMax < tMin) errors.push(`El equipo ${name} tiene un máximo menor que su mínimo.`);
