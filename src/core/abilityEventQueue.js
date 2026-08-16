@@ -60,6 +60,17 @@ class AbilityEventQueue {
     console.log(`[AbilityEventQueue] Starting ability: ${item.abilityId} (Duration: ${item.duration || 3000}ms)`);
     eventBus.publish("ability:started", item);
 
+    // Cocazo is a visual/audio reaction owned by CocoDanceZone. The raw
+    // normalized:gift event must not be broadcast because it would re-run the
+    // entire gift pipeline in the overlay. Instead broadcast this post-resolution
+    // trigger so the overlay reacts exactly once to the already-resolved ability.
+    if (item.abilityId === "cocazo") {
+      eventBus.publish("cocazo:trigger", {
+        ...item,
+        source: "COCAZO"
+      });
+    }
+
     const duration = item.duration || 3000;
     this.timerId = setTimeout(() => {
       this.finishCurrent();
