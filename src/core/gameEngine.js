@@ -15,10 +15,7 @@ eventBus.subscribe("round:started", () => { roundWinners.clear(); });
 eventBus.subscribe("ROUND_STARTED", () => { roundWinners.clear(); });
 
 // When registration is explicitly cleared, the canonical player roster must
-// also be cleared in EVERY browser context. RegistrationManager already emits
-// this event through the cross-window EventBus/BroadcastChannel. Clearing only
-// the registration Map was insufficient because playerManager kept the old
-// players alive, so the Overlay continued rendering them from getLeaderboard().
+// also be cleared in EVERY browser context.
 eventBus.subscribe("registration:cleared", () => {
   const previousPlayers = [...players];
 
@@ -71,9 +68,6 @@ export const gameState = {
   teams: []
 };
 
-// Team-level manual controls mutate the canonical TeamManager. Mirror the
-// latest team snapshot into gameState so DashboardAPI/Overlay receive the
-// selected team's new points/wins immediately without requiring a reload.
 eventBus.subscribe("game:score_updated", payload => {
   if (!payload?.teamId) return;
   gameState.teams = getTeams();
@@ -124,13 +118,18 @@ export function removeGamePlayer(playerId) {
 export function playerWin(id) {
   if (roundWinners.has(id)) {
     console.log("[GameEngine] Player already won this round, ignoring duplicate win:", id);
-    return players.find(p => p.id === id) || null;
+    return players.find(p => p.id === id || p.tiktokId === id || p.playerId === id) || null;
   }
-  roundWinners.add(id);
 
+  // IMPORTANT: do not reserve the winner identity until addWin actually
+  // resolves the player. Previously the ID was inserted into roundWinners
+  // before addWin(), so one failed identity resolution permanently consumed
+  // the player's only win for the round.
   const player = addWin(id);
   if (!player) return null;
-  if (getBattle()) battlePlayerWin(id);
+
+  roundWinners.add(player.id);
+  if (getBattle()) battlePlayerWin(player.id);
 
   setPlayers(gameState.players);
   createEvent("PLAYER_WIN", {
