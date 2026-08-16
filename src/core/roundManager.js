@@ -18,9 +18,11 @@ function normalizeAnswer(value) {
 }
 
 // WIN LIMPIA AUTHORITY:
-// The active round owns the answer snapshot. Configuration changes during an
-// active round are synchronized into that snapshot so chat matching cannot
-// remain stuck on an older answer.
+// The active round owns a snapshot of the answer. The live Win Limpia
+// configuration is the authoritative source when a round starts. This is
+// intentional: beginRound() can receive legacy/stale answer fields from old
+// UI state, and those fields must NEVER overwrite the answer currently stored
+// in the Win Limpia configuration.
 eventBus.subscribe("config:command_updated", ({ config } = {}) => {
   if (!currentRound || currentRound.status !== "active") return;
 
@@ -49,29 +51,30 @@ eventBus.subscribe("config:command_updated", ({ config } = {}) => {
 });
 
 export function startRound(data = {}) {
+  // Always refresh the persisted LIVE configuration at the exact moment the
+  // round starts. This prevents a stale React/UI round object from becoming
+  // the canonical answer snapshot.
   const config = commandConfigManager.refreshFromStorage();
   const configuredAnswer = normalizeAnswer(config?.winLimpia?.correctAnswer || "");
 
-  // Accept every answer field used by the round/game layers. In particular,
-  // targetAnswer/roundAnswer were previously ignored, causing a valid word
-  // supplied by the round controller to be silently replaced by stale config.
+  // Only accept explicit answer fields that are deliberately named as round
+  // answer sources. Legacy generic fields such as data.correctAnswer,
+  // data.answer and data.word are intentionally ignored because those were
+  // the source of the stale-answer overwrite observed in LIVE.
   const explicitAnswer = normalizeAnswer(
-    data.correctAnswer ??
-    data.answer ??
-    data.word ??
     data.targetAnswer ??
     data.roundAnswer ??
     data.winLimpiaAnswer ??
     ""
   );
 
-  // An explicitly supplied round answer wins. Otherwise the current LIVE
-  // Win Limpia configuration becomes the answer for this round.
-  const roundAnswer = explicitAnswer || configuredAnswer;
-  const answerSource = explicitAnswer
-    ? "ROUND_START_DATA"
-    : configuredAnswer
-      ? "COMMAND_CONFIG_WIN_LIMPIA"
+  // CURRENT LIVE CONFIGURATION HAS PRIORITY. The explicit round answer is
+  // used only when no Win Limpia answer is configured at all.
+  const roundAnswer = configuredAnswer || explicitAnswer;
+  const answerSource = configuredAnswer
+    ? "COMMAND_CONFIG_WIN_LIMPIA"
+    : explicitAnswer
+      ? "ROUND_START_DATA"
       : "EMPTY";
 
   currentRound = {
@@ -96,7 +99,12 @@ export function startRound(data = {}) {
     correctAnswer: currentRound.correctAnswer,
     explicitAnswer,
     configuredAnswer,
-    source: answerSource
+    source: answerSource,
+    ignoredLegacyFields: {
+      correctAnswer: Boolean(data.correctAnswer),
+      answer: Boolean(data.answer),
+      word: Boolean(data.word)
+    }
   });
 
   eventBus.publish("round:answer_snapshot", {
