@@ -67,8 +67,6 @@ class ChatCommandParser {
         winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
       );
 
-      // ACTIVE ROUND is the source of truth. The persisted Win Limpia config is
-      // only a fallback for legacy rounds that contain no answer snapshot.
       const roundAnswer = this.normalize(
         currentRound?.correctAnswer ??
         currentRound?.answer ??
@@ -79,8 +77,15 @@ class ChatCommandParser {
         ""
       );
 
-      const targetAnswer = roundAnswer || configuredAnswer;
-      const answerSource = roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG_FALLBACK";
+      // LIVE operator configuration is authoritative. The previous fix made
+      // the immutable round snapshot win over the live configuration, which
+      // caused a real winning word (for example "paradoja") to be rejected
+      // because an older round snapshot still contained "clase".
+      //
+      // roundAnswer remains the fallback for legacy rounds where no current
+      // Win Limpia answer is persisted in command configuration.
+      const targetAnswer = configuredAnswer || roundAnswer;
+      const answerSource = configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND_FALLBACK";
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
@@ -115,9 +120,6 @@ class ChatCommandParser {
 
           console.log("[WIN LIMPIA MATCH]", { matchedRegPlayer, scoringId });
 
-          // Materialize the registered participant into playerManager before
-          // scoring. This is required when LIVE/admin/overlay are separate
-          // browser contexts with independent in-memory player arrays.
           const scoringPlayer = addPlayer({
             name: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
             displayName: matchedRegPlayer.displayName || matchedRegPlayer.username || scoringId,
