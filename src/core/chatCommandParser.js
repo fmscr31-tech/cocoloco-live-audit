@@ -20,13 +20,6 @@ class ChatCommandParser {
     eventBus.subscribe("win:detected", (event) => this.processWinSignal(event));
   }
 
-  /**
-   * Contexto is sometimes rendered inside a same-origin iframe/window while
-   * CocoLoco's chat parser runs in the parent document. `window.Contexto` then
-   * exists in DevTools when inspecting the Contexto frame, but not on the
-   * parent window where this module executes. Resolve the actual Contexto
-   * window instead of assuming a single global window.
-   */
   findContextoWindow(root = window, visited = new Set()) {
     if (typeof window === "undefined" || !root || visited.has(root)) return null;
     visited.add(root);
@@ -55,6 +48,37 @@ class ChatCommandParser {
     return null;
   }
 
+  findGameManagerWindow(root = window, visited = new Set()) {
+    if (typeof window === "undefined" || !root || visited.has(root)) return null;
+    visited.add(root);
+
+    try {
+      if (
+        root.GameManager &&
+        typeof root.GameManager.handleRealComment === "function"
+      ) {
+        return root;
+      }
+    } catch {}
+
+    const candidates = [];
+    try { if (root.parent && root.parent !== root) candidates.push(root.parent); } catch {}
+    try { if (root.opener && root.opener !== root) candidates.push(root.opener); } catch {}
+
+    try {
+      for (let i = 0; i < root.frames.length; i += 1) {
+        try { candidates.push(root.frames[i]); } catch {}
+      }
+    } catch {}
+
+    for (const candidate of candidates) {
+      const found = this.findGameManagerWindow(candidate, visited);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
   initContextoBridge() {
     if (typeof window === "undefined") return;
     if (window.__COCOLOCO_CONTEXTO_BRIDGE__) return;
@@ -62,7 +86,8 @@ class ChatCommandParser {
 
     const install = () => {
       const contextoWindow = this.findContextoWindow();
-      const gameManager = contextoWindow?.GameManager;
+      const gameManagerWindow = contextoWindow || this.findGameManagerWindow();
+      const gameManager = gameManagerWindow?.GameManager;
 
       if (!gameManager || typeof gameManager.endRound !== "function") {
         window.setTimeout(install, 250);
@@ -106,7 +131,9 @@ class ChatCommandParser {
 
       gameManager.__COCOLOCO_WIN_BRIDGE__ = true;
       console.log("[WIN LIMPIA CONTEXTO BRIDGE INSTALLED]", {
-        transport: contextoWindow === window ? "same-window" : "nested-window"
+        transport: contextoWindow
+          ? (contextoWindow === window ? "same-window" : "nested-window")
+          : (gameManagerWindow === window ? "game-manager-same-window" : "game-manager-nested-window")
       });
     };
 
@@ -232,8 +259,6 @@ class ChatCommandParser {
         photoUrl: event.photoUrl || event.profilePictureUrl || event.avatar || ""
       };
 
-      // Contexto may live in a same-origin frame. Resolve that actual window
-      // before falling back to the legacy wrapper.
       const contextoWindow = this.findContextoWindow();
       const submitWord =
         contextoWindow && typeof contextoWindow.Contexto?.submitWord === "function"
@@ -258,6 +283,32 @@ class ChatCommandParser {
         }
       }
 
+      // Contexto's public wrapper is exposed through GameManager in the live
+      // Contexto runtime. This is the authoritative fallback discovered in
+      // the live environment: GameManager.handleRealComment(user).
+      const gameManagerWindow = contextoWindow || this.findGameManagerWindow();
+      const handleRealComment =
+        typeof gameManagerWindow?.GameManager?.handleRealComment === "function"
+          ? gameManagerWindow.GameManager.handleRealComment.bind(gameManagerWindow.GameManager)
+          : null;
+
+      if (handleRealComment) {
+        console.log("[WIN LIMPIA CHAT -> GameManager.handleRealComment]", {
+          transport: gameManagerWindow === window ? "game-manager-same-window" : "game-manager-nested-window",
+          playerId: contextoUser.playerId,
+          username: contextoUser.username,
+          comment: contextoUser.comment
+        });
+        try {
+          handleRealComment(contextoUser);
+          return { accepted: true, forwardedToContexto: true, transport: "GameManager.handleRealComment" };
+        } catch (error) {
+          console.error("[WIN LIMPIA GameManager.handleRealComment ERROR]", error);
+          return { accepted: false, reason: "CONTEXTO_FORWARD_FAILED" };
+        }
+      }
+
+      // Preserve legacy direct wrapper support for older Contexto builds.
       if (typeof window !== "undefined" && typeof window.handleRealComment === "function") {
         console.log("[WIN LIMPIA CHAT -> handleRealComment]", {
           playerId: contextoUser.playerId,
@@ -277,6 +328,8 @@ class ChatCommandParser {
         hasContextoOnParserWindow: Boolean(typeof window !== "undefined" && window.Contexto),
         hasContextoSubmitWordOnParserWindow: Boolean(typeof window !== "undefined" && typeof window.Contexto?.submitWord === "function"),
         nestedContextoFound: Boolean(contextoWindow),
+        gameManagerFound: Boolean(gameManagerWindow?.GameManager),
+        hasGameManagerHandleRealComment: Boolean(typeof gameManagerWindow?.GameManager?.handleRealComment === "function"),
         hasHandleRealComment: Boolean(typeof window !== "undefined" && typeof window.handleRealComment === "function")
       });
       eventBus.publish("chat:command_rejected", { event, reason: "CONTEXTO_UNAVAILABLE" });
