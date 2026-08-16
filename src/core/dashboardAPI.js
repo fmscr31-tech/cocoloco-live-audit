@@ -47,15 +47,10 @@ class DashboardAPI {
       this.invalidateCache();
       const data = this.getLiveDashboard();
 
-      // The overlay runs in a separate browser context. Its local gameEngine is
-      // not the authoritative game state from the admin/panel context. When a
-      // score event arrives remotely, apply the authoritative player snapshot
-      // carried by the event before notifying overlay subscribers.
       if (eventName === "game:score_updated" && payload?.playerSnapshot) {
         const snapshot = payload.playerSnapshot;
         const snapshotId = snapshot.id || snapshot.playerId || snapshot.tiktokId;
         const currentPlayers = Array.isArray(data?.game?.players) ? [...data.game.players] : [];
-
         const index = currentPlayers.findIndex(player => {
           const playerId = player?.id || player?.playerId || player?.tiktokId;
           const playerUsername = String(player?.username || "").trim().toLowerCase();
@@ -65,19 +60,30 @@ class DashboardAPI {
             (snapshotUsername && playerUsername && snapshotUsername === playerUsername)
           );
         });
-
-        if (index >= 0) {
-          currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
-        } else {
-          currentPlayers.push({ ...snapshot });
-        }
+        if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
+        else currentPlayers.push({ ...snapshot });
 
         data.game = { ...data.game, players: currentPlayers };
+
+        // Team mode also reads team.points from the dashboard snapshot.
+        // Carry the authoritative team snapshot across the same transport.
+        if (payload.teamSnapshot) {
+          const teamSnapshot = payload.teamSnapshot;
+          const teamId = teamSnapshot.id || teamSnapshot.teamId;
+          const currentTeams = Array.isArray(data?.game?.teams) ? [...data.game.teams] : [];
+          const teamIndex = currentTeams.findIndex(team => String(team?.id || team?.teamId) === String(teamId));
+          if (teamIndex >= 0) currentTeams[teamIndex] = { ...currentTeams[teamIndex], ...teamSnapshot };
+          else currentTeams.push({ ...teamSnapshot });
+          data.game = { ...data.game, teams: currentTeams };
+        }
+
         data.timestamp = Date.now();
         console.log("[DASHBOARD SCORE SNAPSHOT APPLIED]", {
           playerId: snapshotId,
           points: snapshot.points,
-          wins: snapshot.wins
+          wins: snapshot.wins,
+          teamId: payload.teamId || null,
+          teamPoints: payload.newTeamTotal ?? null
         });
       }
 
