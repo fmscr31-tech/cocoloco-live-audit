@@ -32,10 +32,6 @@ class ChatCommandParser {
     const eventDisplayName = this.normalize(event.displayName || event.nickname);
 
     const regState = registrationManager.getRegistrationState();
-
-    // Always refresh the persisted command configuration for LIVE chat.
-    // This prevents an old in-memory answer (for example "clase") from
-    // surviving after the operator changed the active Win Limpia word.
     const config = commandConfigManager.refreshFromStorage();
 
     let gameState = null;
@@ -79,13 +75,14 @@ class ChatCommandParser {
         ""
       );
 
-      // The canonical ACTIVE ROUND answer has priority. The round is the
-      // immutable source of truth for what players must guess during this
-      // round. The command configuration is only the fallback when the round
-      // does not carry an answer. This fixes stale-config answers overriding a
-      // newly started round (e.g. active word "programa" while config still
-      // contains the previous word "clase").
-      const targetAnswer = roundAnswer || configuredAnswer;
+      // The operator's current Win Limpia configuration is the live source of
+      // truth. A stale explicit answer inside an already-created round must not
+      // block the configured word from being recognized. roundManager also
+      // snapshots the configured answer at round start, but this final guard
+      // makes LIVE chat resilient to old round-start payloads and guarantees
+      // that the word currently configured in the Admin UI is what chat tests.
+      const targetAnswer = configuredAnswer || roundAnswer;
+      const answerSource = configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND";
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
@@ -98,7 +95,7 @@ class ChatCommandParser {
         eventDisplayName,
         roundAnswer: roundAnswer || null,
         configuredAnswer: configuredAnswer || null,
-        answerSource: roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG"
+        answerSource
       });
 
       if (winConfig.enabled !== false && targetAnswer && cleanMessage === targetAnswer) {
