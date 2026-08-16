@@ -23,20 +23,14 @@ eventBus.subscribe("registration:cleared", () => {
   const previousPlayers = [...players];
 
   previousPlayers.forEach(player => {
-    if (player?.id) {
-      removePlayer(player.id);
-    }
+    if (player?.id) removePlayer(player.id);
   });
 
-  // removePlayer() normally handles persistence, but explicitly synchronize
-  // the shared game state after the entire roster has been cleared.
   gameState.players.length = 0;
   gameState.teams = getTeams();
   setPlayers(gameState.players);
   setTeams(gameState.teams);
   saveState();
-
-  // Force any overlay-local visual state to release immediately as well.
   eventBus.emit("overlay:reset");
 });
 
@@ -76,6 +70,16 @@ export const gameState = {
   battle: null,
   teams: []
 };
+
+// Team-level manual controls mutate the canonical TeamManager. Mirror the
+// latest team snapshot into gameState so DashboardAPI/Overlay receive the
+// selected team's new points/wins immediately without requiring a reload.
+eventBus.subscribe("game:score_updated", payload => {
+  if (!payload?.teamId) return;
+  gameState.teams = getTeams();
+  setTeams(gameState.teams);
+  saveState();
+});
 
 function syncFromStorage() {
   const data = loadData();
@@ -207,11 +211,7 @@ export function beginRound(data) {
 export function finishActiveRound() {
   const finished = endRound();
   if (gameState.round && finished) gameState.round = { ...finished };
-
-  // A finished round is no longer protected. Reopen registration so the
-  // operator can clean the roster and prepare the next round.
   registrationManager.openRegistration();
-
   saveState();
   return finished;
 }
