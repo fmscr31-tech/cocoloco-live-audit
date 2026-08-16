@@ -142,9 +142,11 @@ export class TikTokConnector extends BaseConnector {
       adapted = {
         ...adaptedBase,
         type: this._standardizeEventType(eventType),
-        username: innerData.username || innerData.nickname || innerData.uniqueId || innerData.tikfinityUsername || adaptedBase.username,
-        userId: innerData.userId || innerData.secUid || adaptedBase.userId,
-        payload: rawPayload
+        username: innerData.username || innerData.nickname || innerData.uniqueId || innerData.tikfinityUsername || rawPayload?.username || rawPayload?.uniqueId || adaptedBase.username,
+        userId: innerData.userId || innerData.secUid || innerData.uniqueId || rawPayload?.playerId || rawPayload?.userId || rawPayload?.uniqueId || adaptedBase.userId,
+        payload: rawPayload,
+        playerId: rawPayload?.playerId || innerData?.playerId || innerData?.userId || adaptedBase.userId,
+        displayName: rawPayload?.displayName || innerData?.displayName || innerData?.nickname || rawPayload?.username || adaptedBase.username
       };
     }
 
@@ -192,21 +194,76 @@ export class TikTokConnector extends BaseConnector {
 
   _dispatchToEventBus(adapted) {
     if (!adapted) return;
+
+    const payload = adapted.payload || {};
+    const nested = payload?.data || {};
+
+    // IMPORTANT FOR WIN LIMPIA:
+    // The bridge already provides the canonical TikTok identity as playerId.
+    // Do not replace it with adapted.userId/secUid during normalization.
+    // Registration stores playerId -> tiktokId, and playerWin() must receive
+    // that same identity to award the +1 point.
+    const playerId =
+      payload.playerId ||
+      payload.userId ||
+      payload.uniqueId ||
+      nested.playerId ||
+      nested.userId ||
+      nested.uniqueId ||
+      adapted.playerId ||
+      adapted.userId ||
+      adapted.username;
+
+    const username =
+      payload.username ||
+      payload.uniqueId ||
+      nested.username ||
+      nested.uniqueId ||
+      adapted.username;
+
+    const displayName =
+      payload.displayName ||
+      payload.nickname ||
+      nested.displayName ||
+      nested.nickname ||
+      username;
+
+    const message =
+      payload.message ||
+      payload.comment ||
+      payload.chat ||
+      nested.message ||
+      nested.comment ||
+      nested.chat ||
+      "";
+
     if (adapted.type === "CHAT") {
-      eventBus.publish("normalized:chat", {
+      const normalizedChat = {
         type: "CHAT",
-        playerId: adapted.userId,
-        displayName: adapted.username,
-        username: adapted.username,
-        message: adapted.payload.comment || adapted.payload.message || adapted.payload.chat || adapted.payload.data?.comment || adapted.payload.data?.message || "",
-        timestamp: adapted.timestamp
-      });
+        playerId,
+        userId: payload.userId || nested.userId || playerId,
+        displayName,
+        username,
+        nickname: displayName,
+        avatar:
+          payload.avatar ||
+          payload.profilePictureUrl ||
+          nested.avatar ||
+          nested.profilePictureUrl ||
+          "",
+        message,
+        comment: message,
+        timestamp: adapted.timestamp || Date.now()
+      };
+
+      console.log("[WIN LIMPIA CHAT DISPATCH]", normalizedChat);
+      eventBus.publish("normalized:chat", normalizedChat);
     } else if (adapted.type === "JOIN") {
       eventBus.publish("normalized:join", {
         type: "JOIN",
-        playerId: adapted.userId,
-        displayName: adapted.username,
-        username: adapted.username,
+        playerId,
+        displayName,
+        username,
         timestamp: adapted.timestamp
       });
     }
