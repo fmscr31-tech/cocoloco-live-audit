@@ -54,10 +54,31 @@ patchFile('src/core/audioManager.js', source => {
   return next;
 }, 'pre-live-win-audio-fix');
 
+patchFile('src/App.jsx', source => {
+  if (source.includes('const unsubLiveWinDiagnostics = eventBus.subscribe("win:correct"')) return source;
+
+  const importAnchor = 'import { ManualScoreControl } from "./components/admin/ManualScoreControl";\n';
+  if (!source.includes(importAnchor)) throw new Error('App import anchor not found.');
+  let next = source.replace(importAnchor, importAnchor + 'import { eventBus } from "./core/eventBus";\n');
+
+  const effectAnchor = '  useEffect(()=>{\n\n\n    loadGame();\n';
+  if (!next.includes(effectAnchor)) throw new Error('Admin useEffect anchor not found.');
+
+  const diagnostics = `  useEffect(()=>{\n\n    const unsubLiveWinDiagnostics = eventBus.subscribe("win:correct", (payload) => {\n      console.log("[ADMIN F12] WIN LIMPIA", payload);\n    });\n\n    const unsubLiveScoreDiagnostics = eventBus.subscribe("game:score_updated", (payload) => {\n      console.log("[ADMIN F12] SCORE UPDATE", payload);\n    });\n\n    loadGame();\n`;
+  next = next.replace(effectAnchor, diagnostics);
+
+  const cleanupAnchor = '    return ()=>{\n      unsubMode && unsubMode();\n      unsubscribe && unsubscribe();\n    };';
+  if (!next.includes(cleanupAnchor)) throw new Error('Admin useEffect cleanup anchor not found.');
+  next = next.replace(cleanupAnchor, '    return ()=>{\n      unsubLiveWinDiagnostics && unsubLiveWinDiagnostics();\n      unsubLiveScoreDiagnostics && unsubLiveScoreDiagnostics();\n      unsubMode && unsubMode();\n      unsubscribe && unsubscribe();\n    };');
+
+  return next;
+}, 'pre-live-win-admin-fix');
+
 console.log('=== LIVE WIN PIPELINE REPAIR APPLIED ===');
 console.log('[PASS] Overlay listens to cross-window win:correct.');
 console.log('[PASS] Overlay logs live Win Limpia and score events to F12.');
+console.log('[PASS] Admin Panel logs Win Limpia and score events to F12.');
 console.log('[PASS] AudioManager listens to win:correct.');
 console.log('[PASS] Win Limpia uses /Sounds/NBA punto.mp3.');
 console.log('[PASS] Existing gift/ability listeners were preserved.');
-console.log('[NEXT] Vite should HMR the changes; if not, refresh ONLY the overlay window.');
+console.log('[NEXT] Vite should HMR the changes; refresh ONLY the overlay if required.');
