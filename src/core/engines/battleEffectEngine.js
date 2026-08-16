@@ -2,6 +2,7 @@ import { eventBus } from "../eventBus";
 import { configManager } from "../configManager";
 import { players } from "../playerManager";
 import { getTeams } from "../TeamManager";
+import "../freezeAudioBridge";
 
 /**
  * Battle Effect Engine: Manages temporary competitive battle effects (e.g. FREEZE)
