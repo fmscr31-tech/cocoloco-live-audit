@@ -13,10 +13,7 @@ class EventBus {
       if (window.BroadcastChannel) {
         try {
           this.bc = new BroadcastChannel("cocoloco_live_bus_v2");
-          this.bc.onmessage = (event) => {
-            const message = event.data || {};
-            this._receiveRemote(message);
-          };
+          this.bc.onmessage = (event) => this._receiveRemote(event.data || {});
         } catch (e) {
           console.warn("[EventBus] BroadcastChannel not available:", e);
         }
@@ -25,11 +22,8 @@ class EventBus {
       try {
         window.addEventListener("storage", (event) => {
           if (event.key !== this.storageKey || !event.newValue) return;
-          try {
-            this._receiveRemote(JSON.parse(event.newValue));
-          } catch (error) {
-            console.warn("[EventBus] Invalid storage message:", error);
-          }
+          try { this._receiveRemote(JSON.parse(event.newValue)); }
+          catch (error) { console.warn("[EventBus] Invalid storage message:", error); }
         });
       } catch (e) {
         console.warn("[EventBus] Storage event fallback unavailable:", e);
@@ -38,17 +32,16 @@ class EventBus {
   }
 
   isCrossWindowEvent(eventName) {
-    // Authoritative live-overlay state/effect events. Raw normalized:gift is
-    // intentionally NOT transported because GiftEventBridge would execute the
-    // same gift again in the overlay context. Cocazo has its own visual-only
-    // trigger emitted after the ability has already been resolved/executed.
     return (
       eventName === "game:score_updated" ||
       eventName === "win:correct" ||
+      eventName === "win:detected" ||
       eventName === "overlay:win" ||
       eventName === "ability:started" ||
       eventName === "ability:finished" ||
+      eventName === "gift:received" ||
       eventName === "gift:action_dispatched" ||
+      eventName === "gift:points_awarded" ||
       eventName === "effect:activated" ||
       eventName === "effect:updated" ||
       eventName === "effect:removed" ||
@@ -105,15 +98,9 @@ class EventBus {
 
   subscribe(eventName, callback) {
     if (!eventName || typeof callback !== "function") return;
-    if (!this.listeners.has(eventName)) {
-      this.listeners.set(eventName, new Set());
-    }
+    if (!this.listeners.has(eventName)) this.listeners.set(eventName, new Set());
     const subSet = this.listeners.get(eventName);
-
-    if (!subSet.has(callback)) {
-      subSet.add(callback);
-    }
-
+    if (!subSet.has(callback)) subSet.add(callback);
     return () => this.unsubscribe(eventName, callback);
   }
 
@@ -121,52 +108,35 @@ class EventBus {
     if (!eventName || !this.listeners.has(eventName)) return;
     const subSet = this.listeners.get(eventName);
     subSet.delete(callback);
-    if (subSet.size === 0) {
-      this.listeners.delete(eventName);
-    }
+    if (subSet.size === 0) this.listeners.delete(eventName);
   }
 
   emit(eventName, payload, isRemote = false) {
     this._emitLocal(eventName, payload, isRemote);
-
-    if (isRemote || typeof window === "undefined" || !this.isCrossWindowEvent(eventName)) {
-      return;
-    }
+    if (isRemote || typeof window === "undefined" || !this.isCrossWindowEvent(eventName)) return;
 
     const messageId = this.createMessageId(eventName);
     this.seenMessages.add(messageId);
     const message = { eventName, payload, messageId, timestamp: Date.now() };
 
     if (this.bc) {
-      try {
-        this.bc.postMessage(message);
-      } catch (e) {
-        console.warn("[EventBus] BroadcastChannel send failed:", e);
-      }
+      try { this.bc.postMessage(message); }
+      catch (e) { console.warn("[EventBus] BroadcastChannel send failed:", e); }
     }
 
-    try {
-      window.localStorage.setItem(this.storageKey, JSON.stringify(message));
-    } catch (e) {
-      console.warn("[EventBus] Storage fallback send failed:", e);
-    }
+    try { window.localStorage.setItem(this.storageKey, JSON.stringify(message)); }
+    catch (e) { console.warn("[EventBus] Storage fallback send failed:", e); }
   }
 
   _emitLocal(eventName, payload, isRemote) {
     if (!eventName || !this.listeners.has(eventName)) return;
-    const subSet = this.listeners.get(eventName);
-    subSet.forEach(callback => {
-      try {
-        callback(payload);
-      } catch (error) {
-        console.error(`Error in event listener for [${eventName}]:`, error);
-      }
+    this.listeners.get(eventName).forEach(callback => {
+      try { callback(payload); }
+      catch (error) { console.error(`Error in event listener for [${eventName}]:`, error); }
     });
   }
 
-  publish(eventName, payload) {
-    return this.emit(eventName, payload);
-  }
+  publish(eventName, payload) { return this.emit(eventName, payload); }
 
   once(eventName, callback) {
     const wrapper = (payload) => {
@@ -177,11 +147,8 @@ class EventBus {
   }
 
   clear(eventName) {
-    if (eventName) {
-      this.listeners.delete(eventName);
-    } else {
-      this.listeners.clear();
-    }
+    if (eventName) this.listeners.delete(eventName);
+    else this.listeners.clear();
   }
 }
 
