@@ -61,10 +61,6 @@ class ChatCommandParser {
     });
     console.log("[CHAT LIVE 05] COMMAND CONFIG", config);
 
-    // REGISTRATION HAS PRIORITY WHEN THE REGISTRATION MANAGER IS OPEN.
-    // Do not let a stale/legacy active-round flag steal registration messages.
-    // The registration lifecycle is authoritative: OPEN means chat commands
-    // are registration commands; CLOSED/LOCKED means Win Limpia may be tested.
     if (regState.status === "OPEN") {
       if (config.registrationMode !== "CHAT" && config.registrationMode !== "MIXED") {
         eventBus.publish("chat:command_rejected", { event, reason: "CHAT_REGISTRATION_DISABLED" });
@@ -116,11 +112,13 @@ class ChatCommandParser {
       return { accepted: false, reason: "INVALID_COMMAND" };
     }
 
-    // Win Limpia is evaluated only after registration is closed/locked and an
-    // actual active round exists. This prevents registration and answer
-    // matching from competing for the same TikTok chat message.
     if (activeRound) {
       const winConfig = config.winLimpia || {};
+
+      // The active round is the authoritative snapshot. The old implementation
+      // preferred Win Limpia config over the round snapshot, which could make a
+      // valid answer lose to a stale value such as "clase". Only fall back to
+      // current configuration when the active round has no answer of its own.
       const configuredAnswer = this.normalize(
         winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
       );
@@ -129,14 +127,16 @@ class ChatCommandParser {
         currentRound?.correctAnswer ??
         currentRound?.answer ??
         currentRound?.word ??
+        currentRound?.targetAnswer ??
         gameState?.round?.correctAnswer ??
         gameState?.round?.answer ??
         gameState?.round?.word ??
+        gameState?.round?.targetAnswer ??
         ""
       );
 
-      const targetAnswer = configuredAnswer || roundAnswer;
-      const answerSource = configuredAnswer ? "WIN_LIMPIA_CONFIG" : "ACTIVE_ROUND";
+      const targetAnswer = roundAnswer || configuredAnswer;
+      const answerSource = roundAnswer ? "ACTIVE_ROUND" : "WIN_LIMPIA_CONFIG";
 
       console.log("[WIN LIMPIA CHECK]", {
         enabled: winConfig.enabled !== false,
