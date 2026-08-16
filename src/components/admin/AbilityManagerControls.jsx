@@ -16,9 +16,6 @@ const DEFAULT_FREEZE = {
   rescueCount: 2
 };
 
-// Sound catalog entries can be strings or objects depending on how the
-// catalog/runtime supplied them. The UI and audio manager both require the
-// actual playable path, never the catalog object itself.
 function normalizeSound(sound) {
   if (!sound) return "";
   if (typeof sound === "string") return sound;
@@ -26,6 +23,12 @@ function normalizeSound(sound) {
     return sound.path || sound.url || sound.src || sound.file || sound.value || sound.name || "";
   }
   return String(sound);
+}
+
+function soundLabel(sound) {
+  const value = normalizeSound(sound);
+  if (!value) return "— Sin sonido —";
+  return value.split(/[\\/]/).pop() || value;
 }
 
 function loadAbilities() {
@@ -64,8 +67,46 @@ function loadFreeze() {
   return { ...merged, sound: normalizeSound(merged.sound) };
 }
 
-const inputStyle = { background: "#120f1d", color: "#fff", border: "1px solid rgba(255,255,255,.2)", borderRadius: "4px", padding: "4px 7px", fontSize: "11px" };
-const selectStyle = { ...inputStyle, minWidth: "150px" };
+const inputStyle = {
+  background: "#100d18",
+  color: "#fff",
+  border: "1px solid rgba(255,255,255,.14)",
+  borderRadius: "7px",
+  padding: "7px 9px",
+  fontSize: "11px",
+  width: "100%",
+  boxSizing: "border-box"
+};
+
+const selectStyle = { ...inputStyle, cursor: "pointer" };
+
+const buttonStyle = {
+  background: "rgba(255,255,255,.07)",
+  color: "#fff",
+  border: "1px solid rgba(255,255,255,.14)",
+  borderRadius: "7px",
+  padding: "6px 9px",
+  fontSize: "10px",
+  fontWeight: 800,
+  cursor: "pointer"
+};
+
+const labelStyle = {
+  display: "block",
+  color: "#8f9bb3",
+  fontSize: "9px",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: ".06em",
+  marginBottom: "5px"
+};
+
+const sectionStyle = {
+  background: "rgba(12,10,20,.72)",
+  border: "1px solid rgba(255,255,255,.09)",
+  borderRadius: "12px",
+  padding: "14px"
+};
 
 export function AbilityManagerControls() {
   const [abilities, setAbilities] = useState(loadAbilities);
@@ -82,8 +123,6 @@ export function AbilityManagerControls() {
     return [...new Set(values.filter(Boolean))];
   }, [abilities, freezeConfig.sound]);
 
-  // IMPORTANT: never persist the whole stale abilities object after editing one
-  // field. Each edit reads the latest persisted ability and writes only that ID.
   const saveAbility = (id, patch) => {
     const latestAbilities = configManager.get("abilities") || {};
     const current = latestAbilities[id] || abilities[id] || ABILITY_REGISTRY[id];
@@ -97,15 +136,17 @@ export function AbilityManagerControls() {
     };
 
     configManager.set(`abilities.${id}`, nextAbility);
-    setAbilities({
-      ...abilities,
-      [id]: { ...abilities[id], ...nextAbility }
-    });
+    setAbilities({ ...abilities, [id]: { ...abilities[id], ...nextAbility } });
   };
 
   const saveFreeze = patch => {
     const latest = configManager.get("battleEffects.freeze") || {};
-    const next = { ...DEFAULT_FREEZE, ...latest, ...patch, sound: normalizeSound(patch.sound !== undefined ? patch.sound : (latest.sound ?? freezeConfig.sound)) };
+    const next = {
+      ...DEFAULT_FREEZE,
+      ...latest,
+      ...patch,
+      sound: normalizeSound(patch.sound !== undefined ? patch.sound : (latest.sound ?? freezeConfig.sound))
+    };
     setFreezeConfig(next);
     configManager.set("battleEffects.freeze", next);
   };
@@ -172,54 +213,151 @@ export function AbilityManagerControls() {
     });
   };
 
+  const abilityAccent = ability => {
+    const color = String(ability.display?.color || "#00f5ff");
+    const map = {
+      cyan: "#00f5ff",
+      orange: "#ff9f43",
+      blue_gold: "#ffd166",
+      red: "#ff5c5c",
+      purple: "#c084fc"
+    };
+    return map[color] || color;
+  };
+
   return (
-    <div style={{ background: "rgba(25,20,38,.9)", border: "1px solid rgba(255,255,255,.15)", borderRadius: "10px", padding: "16px", display: "flex", flexDirection: "column", gap: "18px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,.1)", paddingBottom: "12px" }}>
-        <h3 style={{ margin: 0, fontSize: "15px", color: "#00f5ff", textTransform: "uppercase" }}>⚡ Ability & Gift Sound Manager v4.0</h3>
-        <span style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 700 }}>{Object.keys(abilities).length} Abilities | {giftSounds.length} Gift Sounds</span>
-      </div>
-
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-          <thead><tr style={{ color: "#a0aec0", fontSize: "10px", textTransform: "uppercase" }}><th>Ability / ID</th><th>Display</th><th>Action</th><th>Duration & Score</th><th>TikTok Gift</th><th>🎵 Ability Sound</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>{Object.values(abilities).map(ability => {
-            const mapping = abilityGiftMap.find(item => item.abilityId === ability.abilityId) || { giftName: "Gift", aliases: [] };
-            return <tr key={ability.abilityId} style={{ borderTop: "1px solid rgba(255,255,255,.06)", opacity: ability.enabled === false ? .5 : 1 }}>
-              <td><input value={ability.display?.name || ""} onChange={e => saveAbility(ability.abilityId, { display: { ...ability.display, name: e.target.value } })} style={{ ...inputStyle, width: "110px" }} /><div style={{ fontSize: "9px", color: "#a0aec0" }}>{ability.abilityId}</div></td>
-              <td><input value={ability.display?.icon || ""} onChange={e => saveAbility(ability.abilityId, { display: { ...ability.display, icon: e.target.value } })} style={{ ...inputStyle, width: "32px" }} /><input value={ability.display?.color || ""} onChange={e => saveAbility(ability.abilityId, { display: { ...ability.display, color: e.target.value } })} style={{ ...inputStyle, width: "70px", marginLeft: "4px" }} /></td>
-              <td><input value={ability.gameAction?.type || ""} onChange={e => saveAbility(ability.abilityId, { gameAction: { ...ability.gameAction, type: e.target.value } })} style={{ ...inputStyle, width: "95px", display: "block", marginBottom: "3px" }} /><input value={ability.gameAction?.value || ""} onChange={e => saveAbility(ability.abilityId, { gameAction: { ...ability.gameAction, value: e.target.value } })} style={{ ...inputStyle, width: "95px" }} /></td>
-              <td><input type="number" min="1000" step="500" value={ability.duration || 10000} onChange={e => saveAbility(ability.abilityId, { duration: Math.max(1000, Number(e.target.value) || 10000) })} style={{ ...inputStyle, width: "70px", display: "block", marginBottom: "3px" }} /><input type="number" value={ability.scoreAction?.value ?? 0} onChange={e => saveAbility(ability.abilityId, { scoreAction: { ...ability.scoreAction, value: Number(e.target.value) || 0 } })} style={{ ...inputStyle, width: "70px" }} /></td>
-              <td><select value={mapping.giftName} onChange={e => changeGift(ability.abilityId, e.target.value)} style={selectStyle}><option>Doughnut</option><option>Hat and Mustache</option><option>Galaxy</option><option>Money Gun</option><option>Amped Up</option><option>Twinkling Star</option><option>Coconut</option></select><input value={(mapping.aliases || []).join(", ")} onChange={e => changeAliases(ability.abilityId, e.target.value)} style={{ ...inputStyle, width: "145px", marginTop: "3px" }} /></td>
-              <td><select value={normalizeSound(ability.sound)} onChange={e => saveAbility(ability.abilityId, { sound: e.target.value || null })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{sound.split("/").pop()}</option>)}</select><button onClick={() => preview(ability.sound)} style={{ display: "block", marginTop: "3px" }}>🔊 Test Sound</button></td>
-              <td>{ability.enabled === false ? "Disabled" : "Active"}</td>
-              <td><button onClick={() => saveAbility(ability.abilityId, { enabled: ability.enabled === false })}>{ability.enabled === false ? "Enable" : "Disable"}</button><button onClick={() => runPreview(ability)} style={{ marginLeft: "4px" }}>▶ Preview</button></td>
-            </tr>;
-          })}</tbody>
-        </table>
-      </div>
-
-      <div style={{ background: "rgba(0,140,220,.1)", border: "1px solid rgba(0,245,255,.3)", borderRadius: "8px", padding: "12px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 900, color: "#00f5ff", textTransform: "uppercase", marginBottom: "10px" }}>❄️ Freeze Effect Parameters</div>
-        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center", fontSize: "11px" }}>
-          <label>🎁 TikTok Gift <select value={freezeConfig.activationGiftId} onChange={e => { const gift = FREEZE_GIFTS.find(g => g.id === e.target.value); if (gift) saveFreeze({ activationGiftId: gift.id, activationGift: gift.name }); }} style={selectStyle}>{FREEZE_GIFTS.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
-          <label>🔊 Sound <select value={normalizeSound(freezeConfig.sound)} onChange={e => saveFreeze({ sound: e.target.value })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{sound.split("/").pop()}</option>)}</select></label>
-          <button onClick={() => preview(freezeConfig.sound)}>🔊 Test Sound</button>
-          <label>Duration (Seconds) <input type="number" min="5" max="600" value={freezeConfig.duration} onChange={e => saveFreeze({ duration: Math.max(5, Number(e.target.value) || 300) })} style={{ ...inputStyle, width: "65px" }} /></label>
-          <label>Scope / Target <select value={freezeConfig.scope} onChange={e => saveFreeze({ scope: e.target.value })} style={selectStyle}><option value="TEAM">TEAM (Opposing Team)</option><option value="GLOBAL">GLOBAL (Everyone)</option></select></label>
-          <label>Rescue Gift Count <input type="number" min="0" max="10" value={freezeConfig.rescueCount} onChange={e => saveFreeze({ rescueCount: Math.max(0, Number(e.target.value) || 0) })} style={{ ...inputStyle, width: "55px" }} /></label>
+    <div style={{ background: "rgba(18,14,28,.96)", border: "1px solid rgba(255,255,255,.12)", borderRadius: "14px", padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", paddingBottom: "13px", borderBottom: "1px solid rgba(255,255,255,.09)" }}>
+        <div>
+          <div style={{ color: "#00f5ff", fontSize: "16px", fontWeight: 950, letterSpacing: ".02em" }}>⚡ ABILITY MANAGER</div>
+          <div style={{ color: "#77839a", fontSize: "10px", marginTop: "3px" }}>Abilities, activadores, sonidos y efectos especiales</div>
         </div>
-        <div style={{ color: "#48bb78", fontSize: "10px", fontWeight: 700, marginTop: "8px" }}>✓ Persistido automáticamente. El activador es el regalo real de TikTok, no un emoji.</div>
+        <div style={{ display: "flex", gap: "7px" }}>
+          <span style={{ background: "rgba(0,245,255,.08)", border: "1px solid rgba(0,245,255,.18)", color: "#8cefff", borderRadius: "999px", padding: "5px 9px", fontSize: "10px", fontWeight: 900 }}>{Object.keys(abilities).length} ABILITIES</span>
+          <span style={{ background: "rgba(255,193,7,.08)", border: "1px solid rgba(255,193,7,.18)", color: "#ffd66b", borderRadius: "999px", padding: "5px 9px", fontSize: "10px", fontWeight: 900 }}>{giftSounds.length} GIFT SOUNDS</span>
+        </div>
       </div>
 
-      <div style={{ background: "rgba(255,180,0,.06)", border: "1px solid rgba(255,200,0,.2)", borderRadius: "8px", padding: "12px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}><strong>🎁 Gift Sound Configuration</strong><button onClick={addGiftSound}>+ Add Gift Sound</button></div>
-        {giftSounds.map((item, index) => <div key={`${item.giftId || item.giftName}-${index}`} style={{ display: "flex", gap: "7px", alignItems: "center", marginBottom: "6px", flexWrap: "wrap" }}>
-          <input value={item.giftName || ""} onChange={e => changeGiftSound(index, "giftName", e.target.value)} placeholder="Gift Name" style={{ ...inputStyle, width: "140px" }} />
-          <input value={item.giftId || ""} onChange={e => changeGiftSound(index, "giftId", e.target.value)} placeholder="TikTok Gift ID" style={{ ...inputStyle, width: "120px" }} />
-          <input value={item.sound || ""} onChange={e => changeGiftSound(index, "sound", e.target.value)} placeholder="/Sounds/file.mp3" style={{ ...inputStyle, width: "210px" }} />
-          <button onClick={() => preview(item.sound)}>🔊 Test Sound</button><button onClick={() => changeGiftSound(index, "enabled", item.enabled === false)}>{item.enabled === false ? "Disabled" : "Enabled"}</button><button onClick={() => deleteGiftSound(index)}>Delete</button>
-        </div>)}
-      </div>
+      <section style={sectionStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div>
+            <div style={{ color: "#fff", fontSize: "13px", fontWeight: 900 }}>⚡ ABILITIES</div>
+            <div style={{ color: "#6f7b91", fontSize: "10px", marginTop: "2px" }}>Cada tarjeta muestra todo lo necesario de una habilidad.</div>
+          </div>
+          <span style={{ color: "#48bb78", fontSize: "9px", fontWeight: 900 }}>● CONFIGURACIÓN ACTIVA</span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "10px" }}>
+          {Object.values(abilities).map(ability => {
+            const mapping = abilityGiftMap.find(item => item.abilityId === ability.abilityId) || { giftName: "Gift", aliases: [] };
+            const accent = abilityAccent(ability);
+            const disabled = ability.enabled === false;
+            return (
+              <article key={ability.abilityId} style={{ background: "linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.015))", border: `1px solid ${accent}33`, borderLeft: `3px solid ${accent}`, borderRadius: "10px", padding: "12px", opacity: disabled ? .55 : 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "11px" }}>
+                  <div style={{ display: "flex", gap: "9px", alignItems: "center", minWidth: 0 }}>
+                    <div style={{ width: "38px", height: "38px", flex: "0 0 38px", display: "grid", placeItems: "center", borderRadius: "10px", background: `${accent}18`, border: `1px solid ${accent}45`, fontSize: "20px" }}>{ability.display?.icon || "⚡"}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <input value={ability.display?.name || ""} onChange={e => saveAbility(ability.abilityId, { display: { ...ability.display, name: e.target.value } })} style={{ ...inputStyle, fontSize: "13px", fontWeight: 900, border: "none", background: "transparent", padding: "0", marginBottom: "3px" }} />
+                      <div style={{ color: "#68758b", fontSize: "9px", fontFamily: "monospace" }}>{ability.abilityId}</div>
+                    </div>
+                  </div>
+                  <span style={{ color: disabled ? "#f56565" : "#48bb78", fontSize: "9px", fontWeight: 900, whiteSpace: "nowrap" }}>{disabled ? "● DISABLED" : "● ACTIVE"}</span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "9px" }}>
+                  <div><label style={labelStyle}>Display Color</label><input value={ability.display?.color || ""} onChange={e => saveAbility(ability.abilityId, { display: { ...ability.display, color: e.target.value } })} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Action Type</label><input value={ability.gameAction?.type || ""} onChange={e => saveAbility(ability.abilityId, { gameAction: { ...ability.gameAction, type: e.target.value } })} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Action</label><input value={ability.gameAction?.value || ""} onChange={e => saveAbility(ability.abilityId, { gameAction: { ...ability.gameAction, value: e.target.value } })} style={inputStyle} /></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                    <div><label style={labelStyle}>Seconds</label><input type="number" min="1000" step="500" value={ability.duration || 10000} onChange={e => saveAbility(ability.abilityId, { duration: Math.max(1000, Number(e.target.value) || 10000) })} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Score</label><input type="number" value={ability.scoreAction?.value ?? 0} onChange={e => saveAbility(ability.abilityId, { scoreAction: { ...ability.scoreAction, value: Number(e.target.value) || 0 } })} style={inputStyle} /></div>
+                  </div>
+                </div>
+
+                <div style={{ padding: "9px", borderRadius: "8px", background: "rgba(0,0,0,.18)", border: "1px solid rgba(255,255,255,.06)", marginBottom: "8px" }}>
+                  <div style={{ color: "#78859b", fontSize: "9px", fontWeight: 900, textTransform: "uppercase", marginBottom: "6px" }}>🎁 TikTok Gift</div>
+                  <select value={mapping.giftName} onChange={e => changeGift(ability.abilityId, e.target.value)} style={selectStyle}>
+                    <option>Doughnut</option><option>Hat and Mustache</option><option>Galaxy</option><option>Money Gun</option><option>Amped Up</option><option>Twinkling Star</option><option>Coconut</option>
+                  </select>
+                  <input value={(mapping.aliases || []).join(", ")} onChange={e => changeAliases(ability.abilityId, e.target.value)} placeholder="Aliases separados por coma" style={{ ...inputStyle, marginTop: "6px" }} />
+                </div>
+
+                <div style={{ padding: "9px", borderRadius: "8px", background: `${accent}0b`, border: `1px solid ${accent}22` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <span style={{ color: "#b5bfd0", fontSize: "9px", fontWeight: 900, textTransform: "uppercase" }}>🎵 Ability Sound</span>
+                    <span style={{ color: accent, fontSize: "9px", fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{soundLabel(ability.sound)}</span>
+                  </div>
+                  <select value={normalizeSound(ability.sound)} onChange={e => saveAbility(ability.abilityId, { sound: e.target.value || null })} style={selectStyle}>
+                    <option value="">— Sin sonido —</option>
+                    {soundOptions.map(sound => <option key={sound} value={sound}>{soundLabel(sound)}</option>)}
+                  </select>
+                  <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                    <button onClick={() => preview(ability.sound)} style={buttonStyle}>🔊 Test Sound</button>
+                    <button onClick={() => saveAbility(ability.abilityId, { enabled: disabled })} style={{ ...buttonStyle, color: disabled ? "#48bb78" : "#f6ad55" }}>{disabled ? "Enable" : "Disable"}</button>
+                    <button onClick={() => runPreview(ability)} style={{ ...buttonStyle, color: accent }}>▶ Preview</button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ ...sectionStyle, background: "linear-gradient(145deg, rgba(0,140,220,.10), rgba(0,70,110,.04))", border: "1px solid rgba(0,245,255,.18)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+          <div>
+            <div style={{ color: "#00f5ff", fontSize: "13px", fontWeight: 950 }}>❄️ FREEZE EFFECT</div>
+            <div style={{ color: "#708096", fontSize: "10px", marginTop: "2px" }}>Efecto especial independiente de las 5 abilities.</div>
+          </div>
+          <span style={{ color: "#48bb78", fontSize: "9px", fontWeight: 900 }}>✓ AUTO-SAVED</span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "9px" }}>
+          <div><label style={labelStyle}>🎁 Activador TikTok</label><select value={freezeConfig.activationGiftId} onChange={e => { const gift = FREEZE_GIFTS.find(g => g.id === e.target.value); if (gift) saveFreeze({ activationGiftId: gift.id, activationGift: gift.name }); }} style={selectStyle}>{FREEZE_GIFTS.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+          <div><label style={labelStyle}>🔊 Freeze Sound</label><select value={normalizeSound(freezeConfig.sound)} onChange={e => saveFreeze({ sound: e.target.value })} style={selectStyle}><option value="">— Sin sonido —</option>{soundOptions.map(sound => <option key={sound} value={sound}>{soundLabel(sound)}</option>)}</select></div>
+          <div><label style={labelStyle}>⏱ Duration (Seconds)</label><input type="number" min="5" max="600" value={freezeConfig.duration} onChange={e => saveFreeze({ duration: Math.max(5, Number(e.target.value) || 300) })} style={inputStyle} /></div>
+          <div><label style={labelStyle}>🎯 Scope / Target</label><select value={freezeConfig.scope} onChange={e => saveFreeze({ scope: e.target.value })} style={selectStyle}><option value="TEAM">TEAM — Opposing Team</option><option value="GLOBAL">GLOBAL — Everyone</option></select></div>
+          <div><label style={labelStyle}>🛟 Rescue Gift Count</label><input type="number" min="0" max="10" value={freezeConfig.rescueCount} onChange={e => saveFreeze({ rescueCount: Math.max(0, Number(e.target.value) || 0) })} style={inputStyle} /></div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
+          <button onClick={() => preview(freezeConfig.sound)} style={{ ...buttonStyle, color: "#00f5ff" }}>🔊 Test Freeze Sound</button>
+          <span style={{ color: "#6f7d92", fontSize: "9px" }}>El activador es el regalo real de TikTok, no un emoji.</span>
+        </div>
+      </section>
+
+      <section style={{ ...sectionStyle, background: "linear-gradient(145deg, rgba(255,180,0,.065), rgba(80,55,0,.025))", border: "1px solid rgba(255,193,7,.17)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+          <div>
+            <div style={{ color: "#ffd166", fontSize: "13px", fontWeight: 950 }}>🎁 GIFT SOUND OVERRIDES</div>
+            <div style={{ color: "#756d5d", fontSize: "10px", marginTop: "2px" }}>Sonidos independientes por regalo. Estos sobrescriben el sonido de una ability cuando corresponde.</div>
+          </div>
+          <button onClick={addGiftSound} style={{ ...buttonStyle, color: "#ffd166", borderColor: "rgba(255,193,7,.25)" }}>＋ Add Gift Sound</button>
+        </div>
+
+        {giftSounds.length === 0 ? (
+          <div style={{ color: "#70798a", fontSize: "10px", padding: "14px", textAlign: "center", border: "1px dashed rgba(255,255,255,.09)", borderRadius: "8px" }}>No hay Gift Sound Overrides configurados.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: "9px" }}>
+            {giftSounds.map((item, index) => (
+              <div key={`${item.giftId || item.giftName}-${index}`} style={{ background: "rgba(0,0,0,.18)", border: "1px solid rgba(255,193,7,.11)", borderRadius: "9px", padding: "10px", opacity: item.enabled === false ? .55 : 1 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr .8fr", gap: "7px", marginBottom: "7px" }}>
+                  <div><label style={labelStyle}>Gift Name</label><input value={item.giftName || ""} onChange={e => changeGiftSound(index, "giftName", e.target.value)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>TikTok Gift ID</label><input value={item.giftId || ""} onChange={e => changeGiftSound(index, "giftId", e.target.value)} style={inputStyle} /></div>
+                </div>
+                <label style={labelStyle}>Assigned Sound</label>
+                <input value={item.sound || ""} onChange={e => changeGiftSound(index, "sound", e.target.value)} placeholder="/Sounds/file.mp3" style={inputStyle} />
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "7px", flexWrap: "wrap" }}>
+                  <span style={{ color: "#ffd166", fontSize: "9px", fontWeight: 900, marginRight: "auto" }}>🎵 {soundLabel(item.sound)}</span>
+                  <button onClick={() => preview(item.sound)} style={buttonStyle}>🔊 Test</button>
+                  <button onClick={() => changeGiftSound(index, "enabled", item.enabled === false)} style={{ ...buttonStyle, color: item.enabled === false ? "#48bb78" : "#ffd166" }}>{item.enabled === false ? "Enable" : "Enabled"}</button>
+                  <button onClick={() => deleteGiftSound(index)} style={{ ...buttonStyle, color: "#f56565" }}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
