@@ -2,25 +2,71 @@
   box-sizing: border-box;
 }
 
-
 html,
 body,
 #root {
-
   margin: 0;
-
   padding: 0;
-
   width: 100%;
-
   min-height: 100vh;
   background-color: #7FA8B8;
-
 }
 
-
 body {
-
   font-family: Arial, sans-serif;
+}
 
+/* CocoLoco overlay visual refresh: slightly more room for readable names,
+   while keeping the HUD compact enough to avoid covering the gameplay area. */
+.hud-container {
+  width: 520px !important;
+  max-width: calc(100vw - 20px);
+  position: relative;
+  isolation: isolate;
+}
+
+/* Cheerful tropical background accents. They stay behind the HUD content and
+   never intercept input or alter the protected timer/feed geometry. */
+.hud-container::before,
+.hud-container::after {
+  content: "🥥";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.45));
+  animation: cocoloco-coconut-float 7s ease-in-out infinite;
+}
+
+.hud-container::before {
+  top: 8%;
+  left: 3%;
+  font-size: 30px;
+  animation-delay: -1.8s;
+}
+
+.hud-container::after {
+  right: 3%;
+  bottom: 10%;
+  font-size: 24px;
+  animation-delay: -4.2s;
+}
+
+@keyframes cocoloco-coconut-float {
+  0%, 100% {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) rotate(-8deg) scale(0.82);
+  }
+  18%, 68% {
+    opacity: 0.28;
+  }
+  45% {
+    opacity: 0.16;
+    transform: translate3d(8px, -6px, 0) rotate(8deg) scale(1);
+  }
+  82% {
+    opacity: 0.08;
+    transform: translate3d(-5px, 3px, 0) rotate(-4deg) scale(0.9);
+  }
 }
