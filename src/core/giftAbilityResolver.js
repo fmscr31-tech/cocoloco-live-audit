@@ -14,7 +14,48 @@ class GiftAbilityResolver {
 
   getMap() {
     const dynamic = configManager.get("abilityGiftMap");
-    return dynamic || this.defaultMap;
+
+    // Runtime configuration is allowed to override a mapping, but it must not
+    // delete canonical/default mappings that were added to the application
+    // after an older localStorage config was created. This is especially
+    // important for LIVE gifts such as Go Popular -> Cocazo.
+    if (!Array.isArray(dynamic)) return this.defaultMap;
+
+    const merged = [...this.defaultMap];
+    dynamic.forEach(runtimeMapping => {
+      if (!runtimeMapping) return;
+
+      const runtimeId = String(runtimeMapping.giftId ?? "").trim().toLowerCase();
+      const runtimeName = String(runtimeMapping.giftName ?? "").trim().toLowerCase();
+      const runtimeAbility = String(runtimeMapping.abilityId ?? "").trim().toLowerCase();
+
+      const existingIndex = merged.findIndex(defaultMapping => {
+        const defaultId = String(defaultMapping?.giftId ?? "").trim().toLowerCase();
+        const defaultName = String(defaultMapping?.giftName ?? "").trim().toLowerCase();
+        const defaultAbility = String(defaultMapping?.abilityId ?? "").trim().toLowerCase();
+
+        return (
+          (runtimeId && defaultId === runtimeId) ||
+          (runtimeName && defaultName === runtimeName) ||
+          (runtimeAbility && defaultAbility === runtimeAbility)
+        );
+      });
+
+      if (existingIndex >= 0) {
+        merged[existingIndex] = {
+          ...merged[existingIndex],
+          ...runtimeMapping,
+          aliases: Array.from(new Set([
+            ...(merged[existingIndex].aliases || []),
+            ...(runtimeMapping.aliases || [])
+          ]))
+        };
+      } else {
+        merged.push(runtimeMapping);
+      }
+    });
+
+    return merged;
   }
 
   resolveGiftToAbility(event) {
