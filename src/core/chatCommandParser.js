@@ -2,24 +2,13 @@ import { eventBus } from "./eventBus";
 import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
 import { getState, playerWin } from "./gameEngine";
+import { getCurrentRound } from "./roundManager";
 
-/**
- * Chat Command Parser v5
- *
- * Registration remains unchanged when the registration window is OPEN.
- * During an active round, the configured Win Limpia answer is evaluated first
- * so a correct answer cannot accidentally fall through to registration logic.
- * Identity matching accepts TikTok/player id, username, or display name.
- */
 class ChatCommandParser {
-  constructor() {
-    this.initListener();
-  }
+  constructor() { this.initListener(); }
 
   initListener() {
-    eventBus.subscribe("normalized:chat", (event) => {
-      this.parseChatEvent(event);
-    });
+    eventBus.subscribe("normalized:chat", (event) => this.parseChatEvent(event));
   }
 
   normalize(value) {
@@ -34,9 +23,7 @@ class ChatCommandParser {
 
   parseChatEvent(event) {
     console.log("[CHAT LIVE 01] RAW EVENT RECEIVED", event);
-    if (!event || event.type !== "CHAT") {
-      return { accepted: false, reason: "INVALID_EVENT" };
-    }
+    if (!event || event.type !== "CHAT") return { accepted: false, reason: "INVALID_EVENT" };
 
     const rawMessage = String(event.message || event.comment || event.text || "").trim();
     const cleanMessage = this.normalize(rawMessage);
@@ -55,37 +42,49 @@ class ChatCommandParser {
     const config = commandConfigManager.getConfig();
 
     let gameState = null;
-    try {
-      gameState = getState();
-    } catch (error) {
-      console.warn("[CHAT LIVE] Could not read game state for Win Limpia:", error);
-    }
+    try { gameState = getState(); }
+    catch (error) { console.warn("[CHAT LIVE] Could not read game state:", error); }
 
-    const activeRound = Boolean(gameState?.round?.active);
+    let currentRound = null;
+    try { currentRound = getCurrentRound(); }
+    catch (error) { console.warn("[CHAT LIVE] Could not read canonical round:", error); }
+
+    // roundManager is authoritative: startRound() creates status="active".
+    // Keep the old gameState.round.active check as compatibility fallback.
+    const activeRound = Boolean(
+      currentRound?.status === "active" ||
+      gameState?.round?.status === "active" ||
+      gameState?.round?.active === true
+    );
 
     console.log("[CHAT LIVE 03] REGISTRATION STATE", regState);
-    console.log("[CHAT LIVE 04] ACTIVE ROUND", activeRound);
+    console.log("[CHAT LIVE 04] ACTIVE ROUND", activeRound, {
+      canonicalStatus: currentRound?.status,
+      stateStatus: gameState?.round?.status,
+      legacyActive: gameState?.round?.active
+    });
     console.log("[CHAT LIVE 05] COMMAND CONFIG", config);
 
-    // ================================================================
-    // WIN LIMPIA — ALWAYS FIRST DURING AN ACTIVE ROUND
-    // ================================================================
-    // Do not depend solely on registration.status here. The round lifecycle
-    // is the authoritative signal that answers should be scored. This prevents
-    // a stale OPEN registration state from swallowing the correct-answer chat.
+    // WIN LIMPIA: answer checking happens before registration/rejection.
     if (activeRound || regState.status !== "OPEN") {
       const winConfig = config.winLimpia || {};
       const targetAnswer = this.normalize(
         winConfig.correctAnswer ?? winConfig.answer ?? winConfig.word ?? ""
       );
 
-      if (
-        winConfig.enabled !== false &&
-        targetAnswer &&
-        cleanMessage === targetAnswer
-      ) {
-        const registeredPlayers = registrationManager.getRegisteredPlayers();
+      console.log("[WIN LIMPIA CHECK]", {
+        enabled: winConfig.enabled !== false,
+        activeRound,
+        targetAnswer,
+        receivedAnswer: cleanMessage,
+        matches: Boolean(targetAnswer && cleanMessage === targetAnswer),
+        eventPlayerId,
+        eventUsername,
+        eventDisplayName
+      });
 
+      if (winConfig.enabled !== false && targetAnswer && cleanMessage === targetAnswer) {
+        const registeredPlayers = registrationManager.getRegisteredPlayers();
         const matchedRegPlayer = registeredPlayers.find((p) => {
           const registeredId = p?.playerId || p?.id || p?.tiktokId;
           const registeredUsername = this.normalize(p?.username || p?.uniqueId);
@@ -100,10 +99,13 @@ class ChatCommandParser {
 
         if (matchedRegPlayer) {
           const scoringId = matchedRegPlayer.playerId || matchedRegPlayer.id || matchedRegPlayer.tiktokId || matchedRegPlayer.username;
-          const player = playerWin(scoringId);
+          console.log("[WIN LIMPIA MATCH]", { matchedRegPlayer, scoringId });
 
+          const player = playerWin(scoringId);
           if (player) {
-            console.log("[WIN LIMPIA MATCHED] Correct answer awarded:", {
+            console.log("[WIN LIMPIA SUCCESS] +1 POINT", {
+              playerId: player.id,
+              tiktokId: player.tiktokId,
               player: player.name,
               points: player.points,
               wins: player.wins,
@@ -121,37 +123,24 @@ class ChatCommandParser {
             return { accepted: true, win: true, player };
           }
 
-          console.warn("[WIN LIMPIA] Registered player matched but could not be materialized for scoring:", matchedRegPlayer);
+          console.warn("[WIN LIMPIA] Identity matched but playerWin could not resolve player", matchedRegPlayer);
         } else {
-          console.log("[WIN LIMPIA] Correct answer detected from unregistered viewer; ignored.");
+          console.log("[WIN LIMPIA] Correct answer from unregistered viewer; ignored.");
         }
       }
 
-      // During an active round, a non-winning message must continue through the
-      // normal chat rejection path and must never register a new player.
       if (activeRound) {
-        eventBus.publish("chat:command_rejected", {
-          event,
-          reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER"
-        });
+        eventBus.publish("chat:command_rejected", { event, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" });
         return { accepted: false, reason: "ACTIVE_ROUND_NOT_CORRECT_ANSWER" };
       }
 
-      eventBus.publish("chat:command_rejected", {
-        event,
-        reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER"
-      });
+      eventBus.publish("chat:command_rejected", { event, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" });
       return { accepted: false, reason: "REGISTRATION_CLOSED_OR_NOT_ANSWER" };
     }
 
-    // ================================================================
-    // REGISTRATION — registration must be OPEN
-    // ================================================================
+    // REGISTRATION: only OPEN registration reaches this path.
     if (config.registrationMode !== "CHAT" && config.registrationMode !== "MIXED") {
-      eventBus.publish("chat:command_rejected", {
-        event,
-        reason: "CHAT_REGISTRATION_DISABLED"
-      });
+      eventBus.publish("chat:command_rejected", { event, reason: "CHAT_REGISTRATION_DISABLED" });
       return { accepted: false, reason: "CHAT_REGISTRATION_DISABLED" };
     }
 
@@ -169,18 +158,15 @@ class ChatCommandParser {
 
       if (validCommands.has(cleanMessage)) {
         const result = registrationManager.registerPlayer(playerPayload);
-
         if (result.success) {
           eventBus.publish("chat:command_accepted", { event, player: result.player });
           return { accepted: true, player: result.player };
         }
-
         eventBus.publish("chat:command_rejected", { event, reason: result.reason });
         return { accepted: false, reason: result.reason };
       }
     } else if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM") {
       let matchedTeam = null;
-
       for (const team of config.teams || []) {
         if (team.commands && team.commands.some(cmd => this.normalize(cmd) === cleanMessage)) {
           matchedTeam = team;
@@ -189,20 +175,11 @@ class ChatCommandParser {
       }
 
       if (matchedTeam) {
-        const result = registrationManager.registerPlayer({
-          ...playerPayload,
-          teamId: matchedTeam.id
-        });
-
+        const result = registrationManager.registerPlayer({ ...playerPayload, teamId: matchedTeam.id });
         if (result.success) {
-          eventBus.publish("chat:command_accepted", {
-            event,
-            player: result.player,
-            teamId: matchedTeam.id
-          });
+          eventBus.publish("chat:command_accepted", { event, player: result.player, teamId: matchedTeam.id });
           return { accepted: true, player: result.player, teamId: matchedTeam.id };
         }
-
         eventBus.publish("chat:command_rejected", { event, reason: result.reason });
         return { accepted: false, reason: result.reason };
       }
