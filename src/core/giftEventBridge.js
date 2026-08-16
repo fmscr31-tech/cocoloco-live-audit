@@ -6,11 +6,13 @@ import { abilityEventQueue } from "./abilityEventQueue";
 import { resolveCanonicalGiftId } from "../config/canonicalGifts";
 
 /**
- * Gift Event Bridge v4
+ * Gift Event Bridge v5
  * Authoritative event-driven pipeline:
  * TikFinity notification -> canonical gift -> ability/action -> score/effect -> overlay.
- * The incoming gift notification is the trigger; no answer comparison or other
- * unrelated game condition is allowed to block a valid mapped gift.
+ *
+ * Streak rule: TikTok can emit several events while a streak is in progress.
+ * Intermediate streak events must never execute an ability, sound, animation or
+ * score. Only the final repeatEnd event is authoritative for a streakable gift.
  */
 class GiftEventBridge {
   constructor() {
@@ -36,6 +38,35 @@ class GiftEventBridge {
     if (this.processedEvents.size <= this.maxCacheSize) return;
     const keys = Array.from(this.processedEvents.keys());
     for (let i = 0; i < 200; i++) this.processedEvents.delete(keys[i]);
+  }
+
+  _isStreakIntermediate(rawPayload, data, giftObj) {
+    const repeatEnd =
+      rawPayload.repeatEnd ?? rawPayload.repeat_end ??
+      data.repeatEnd ?? data.repeat_end ??
+      giftObj.repeatEnd ?? giftObj.repeat_end;
+
+    const streaking =
+      rawPayload.streaking ?? rawPayload.isRepeating ?? rawPayload.is_repeating ??
+      data.streaking ?? data.isRepeating ?? data.is_repeating ??
+      giftObj.streaking ?? giftObj.isRepeating ?? giftObj.is_repeating;
+
+    const giftType = Number(
+      rawPayload.giftType ?? rawPayload.gift_type ??
+      data.giftType ?? data.gift_type ??
+      giftObj.type ?? giftObj.giftType ?? giftObj.gift_type
+    );
+
+    // Explicit streaking=true is authoritative.
+    if (streaking === true || streaking === 1 || streaking === "1") return true;
+
+    // TikTok's streakable gifts are type 1. When repeatEnd is explicitly false,
+    // the event is an intermediate streak update and must not execute yet.
+    if (giftType === 1 && (repeatEnd === false || repeatEnd === 0 || repeatEnd === "0")) {
+      return true;
+    }
+
+    return false;
   }
 
   initPipelineListener() {
@@ -125,6 +156,27 @@ class GiftEventBridge {
       return null;
     }
 
+    // IMPORTANT: do this before canonical resolution. A streak-in-progress
+    // notification is a real TikTok event, but it is not yet a game trigger.
+    if (!this._isStreakIntermediate(rawPayload, data, giftObj)) {
+      // no-op; continue to authoritative processing below
+    } else {
+      const progressQuantity = Math.max(1, Number(
+        rawPayload.quantity || data.repeatCount || data.count || data.quantity || giftObj.repeatCount || 1
+      ));
+      eventBus.emit("gift:streak_progress", {
+        type: "GIFT_STREAK_PROGRESS",
+        giftId: rawPayload.giftId || rawPayload.gift_id || data.giftId || data.gift_id || giftObj.id || null,
+        giftName: rawPayload.giftName || rawPayload.gift_name || data.giftName || data.gift_name || giftObj.name || null,
+        quantity: progressQuantity,
+        username: rawPayload.username || rawPayload.uniqueId || data.uniqueId || data.username || "Viewer",
+        source,
+        timestamp: Date.now()
+      });
+      console.log("[GiftEventBridge] Streak in progress; visual/action execution deferred until repeatEnd.");
+      return null;
+    }
+
     const nativeId =
       rawPayload.eventId || rawPayload.eventID ||
       rawPayload.msgId || rawPayload.messageID ||
@@ -191,8 +243,6 @@ class GiftEventBridge {
 
     console.log("[Canonical Gift Normalized]", normalized);
 
-    // This is the authoritative live trigger. The overlay does not need to
-    // inspect raw TikFinity data; it receives the resolved ability/effect events.
     eventBus.emit("gift:received", normalized);
     eventBus.publish("normalized:gift", normalized);
 
