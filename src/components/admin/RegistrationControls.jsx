@@ -22,6 +22,12 @@ export function RegistrationControls() {
   const [teams, setTeams] = useState(config.teams || []);
   const [roundDuration, setRoundDuration] = useState(20); // INCIDENT 023: Configurable round duration in minutes
 
+  // CRITICAL LIVE WIN FIX:
+  // This value belongs to the round currently being started. It must not be
+  // inherited from the old global Win Limpia configuration (for example
+  // "clase"). The exact word entered here is snapshotted into the active round.
+  const [roundAnswer, setRoundAnswer] = useState("");
+
   // Manual player input state
   const [manualPlayerName, setManualPlayerName] = useState("");
   const [manualTeamId, setManualTeamId] = useState("");
@@ -223,6 +229,17 @@ export function RegistrationControls() {
       return;
     }
 
+    const normalizedRoundAnswer = String(roundAnswer || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+    if (!normalizedRoundAnswer) {
+      alert("Debes indicar la PALABRA GANADORA DE ESTA RONDA antes de iniciar.");
+      return;
+    }
+
     try {
       registrationManager.lockRegistration();
       const durMinutes = Number(roundDuration) || 20;
@@ -230,11 +247,13 @@ export function RegistrationControls() {
         name: "Ronda Principal",
         duration: durMinutes,
         entryGift: "Regalo",
-        prize: "Premio"
+        prize: "Premio",
+        targetAnswer: normalizedRoundAnswer
       });
       startGameTimer(durMinutes);
-      notify(`🚀 ¡Ronda iniciada con éxito (${durMinutes} min)! Registro bloqueado.`);
+      notify(`🚀 ¡Ronda iniciada! Win Limpia activa para: "${normalizedRoundAnswer}".`);
     } catch (e) {
+      console.error("[WIN LIMPIA] Error al iniciar ronda:", e);
       notify("❌ Error al iniciar la ronda.");
     }
   };
@@ -334,6 +353,31 @@ export function RegistrationControls() {
               <option value="TEAMS">TEAMS (EQUIPOS)</option>
               <option value="TOURNAMENT">TOURNAMENT</option>
             </select>
+          </div>
+
+          {/* WIN LIMPIA — ROUND-SCOPED ANSWER */}
+          <div style={{
+            marginBottom: "12px",
+            padding: "10px",
+            background: "rgba(255,215,0,0.08)",
+            border: "1px solid rgba(255,215,0,0.35)",
+            borderRadius: "8px"
+          }}>
+            <label style={{ display: "block", fontSize: "11px", color: "#ffd700", marginBottom: "5px", fontWeight: 900, textTransform: "uppercase" }}>
+              🏆 Palabra ganadora de ESTA RONDA
+            </label>
+            <input
+              type="text"
+              value={roundAnswer}
+              onChange={(e) => setRoundAnswer(e.target.value)}
+              placeholder="Ej: saxofon"
+              autoComplete="off"
+              spellCheck="false"
+              style={{ width: "100%", boxSizing: "border-box", background: "#0c091a", color: "white", border: "1px solid rgba(255,215,0,0.45)", borderRadius: "6px", padding: "9px 10px", fontSize: "13px", fontWeight: 800 }}
+            />
+            <div style={{ marginTop: "5px", fontSize: "10px", color: "#a0aec0" }}>
+              Esta palabra queda congelada en la ronda activa. No usa el valor viejo "Win Limpia".
+            </div>
           </div>
 
           {/* INCIDENT 023: Configurable Round Duration Control */}
