@@ -12,24 +12,22 @@ function normalizeAnswer(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 }
 
-// Keep the active round synchronized with the Win Limpia configuration.
-// This prevents an old answer snapshot from remaining active after the
-// operator changes the correct answer during LIVE.
+// Keep the active round synchronized when the operator changes Win Limpia.
 eventBus.subscribe("config:command_updated", ({ config } = {}) => {
   if (!currentRound || currentRound.status !== "active") return;
 
   const configuredAnswer = config?.winLimpia?.correctAnswer;
-  if (!configuredAnswer) return;
+  if (configuredAnswer === undefined || configuredAnswer === null) return;
+
+  const nextAnswer = normalizeAnswer(configuredAnswer);
+  if (!nextAnswer || currentRound.correctAnswer === nextAnswer) return;
 
   const previousAnswer = currentRound.correctAnswer;
-  const nextAnswer = normalizeAnswer(configuredAnswer);
-
-  if (!nextAnswer || previousAnswer === nextAnswer) return;
-
   currentRound.correctAnswer = nextAnswer;
 
   console.log("[ROUND ANSWER LIVE SYNC]", {
@@ -48,14 +46,14 @@ eventBus.subscribe("config:command_updated", ({ config } = {}) => {
 });
 
 export function startRound(data = {}) {
-  const config = commandConfigManager.getConfig();
+  // Explicit round data is the strongest source because it represents the
+  // answer selected for THIS round. Only fall back to Win Limpia config when
+  // the round start did not provide an answer. This prevents the default/stale
+  // "clase" value from overriding an active round whose answer is "programa".
+  const config = commandConfigManager.refreshFromStorage();
   const configuredAnswer = config?.winLimpia?.correctAnswer || "";
   const explicitAnswer = data.correctAnswer ?? data.answer ?? data.word ?? "";
-
-  // Win Limpia configuration is authoritative when present. This prevents
-  // stale/default answer data from another control from overriding the answer
-  // selected by the operator.
-  const roundAnswer = configuredAnswer || explicitAnswer;
+  const roundAnswer = explicitAnswer || configuredAnswer;
 
   currentRound = {
     id: data.id || Date.now(),
@@ -77,10 +75,10 @@ export function startRound(data = {}) {
   console.log("[ROUND ANSWER SNAPSHOT]", {
     roundId: currentRound.id,
     correctAnswer: currentRound.correctAnswer,
-    source: configuredAnswer
-      ? "COMMAND_CONFIG_WIN_LIMPIA"
-      : explicitAnswer
-        ? "ROUND_START_DATA"
+    source: explicitAnswer
+      ? "ROUND_START_DATA"
+      : configuredAnswer
+        ? "COMMAND_CONFIG_WIN_LIMPIA"
         : "EMPTY"
   });
 
