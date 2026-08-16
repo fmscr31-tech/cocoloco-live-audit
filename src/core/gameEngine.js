@@ -242,7 +242,15 @@ export function beginRound(data) {
   gameState.round = startRound(data);
   gameState.timer = startTimer(data.duration);
   setRound(gameState.round);
+
+  // eventManager is the historical local event log, but it is NOT the
+  // cross-window transport. Publish the same round-start fact through EventBus
+  // so the live overlay updates immediately without F5.
+  const roundPayload = { round: { ...gameState.round }, timestamp: Date.now() };
+  eventBus.publish("round:started", roundPayload);
+  eventBus.publish("ROUND_STARTED", roundPayload);
   createEvent("ROUND_STARTED", { round: gameState.round });
+
   saveState();
   return gameState;
 }
