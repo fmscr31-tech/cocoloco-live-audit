@@ -47,27 +47,54 @@ class DashboardAPI {
       this.invalidateCache();
       const data = this.getLiveDashboard();
 
-      if (eventName === "game:score_updated" && payload?.playerSnapshot) {
-        const snapshot = payload.playerSnapshot;
+      // SCORE/OVERLAY WIN IS AN AUTHORITATIVE CROSS-WINDOW STATE UPDATE.
+      // Do not depend on eventManager/getNewEvent() for the live overlay score.
+      // The browser-source overlay must receive the complete player snapshot
+      // even when its local event history is empty or out of order.
+      const isScoreEvent = eventName === "game:score_updated";
+      const isWinEvent = eventName === "overlay:win";
+      const snapshot = isScoreEvent
+        ? payload?.playerSnapshot
+        : (isWinEvent ? {
+            id: payload?.id || payload?.playerId,
+            playerId: payload?.playerId || payload?.id,
+            tiktokId: payload?.tiktokId || "",
+            name: payload?.name || payload?.username || "Jugador",
+            displayName: payload?.name || payload?.username || "Jugador",
+            username: payload?.username || payload?.name || "Jugador",
+            teamId: payload?.teamId || null,
+            points: Number(payload?.points) || 0,
+            wins: Number(payload?.wins) || 0,
+            wordsFound: Number(payload?.wordsFound) || 0
+          } : null);
+
+      if (snapshot && (isScoreEvent || isWinEvent)) {
         const snapshotId = snapshot.id || snapshot.playerId || snapshot.tiktokId;
         const currentPlayers = Array.isArray(data?.game?.players) ? [...data.game.players] : [];
         const index = currentPlayers.findIndex(player => {
           const playerId = player?.id || player?.playerId || player?.tiktokId;
           const playerUsername = String(player?.username || "").trim().toLowerCase();
           const snapshotUsername = String(snapshot?.username || "").trim().toLowerCase();
+          const playerTikTokId = String(player?.tiktokId || player?.playerId || "");
+          const snapshotTikTokId = String(snapshot?.tiktokId || snapshot?.playerId || "");
           return (
             (snapshotId && playerId && String(snapshotId) === String(playerId)) ||
-            (snapshotUsername && playerUsername && snapshotUsername === playerUsername)
+            (snapshotUsername && playerUsername && snapshotUsername === playerUsername) ||
+            (snapshotTikTokId && playerTikTokId && snapshotTikTokId === playerTikTokId)
           );
         });
-        if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
-        else currentPlayers.push({ ...snapshot });
+
+        if (index >= 0) {
+          currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
+        } else {
+          currentPlayers.push({ ...snapshot });
+        }
 
         data.game = { ...data.game, players: currentPlayers };
 
         // Team mode also reads team.points from the dashboard snapshot.
         // Carry the authoritative team snapshot across the same transport.
-        if (payload.teamSnapshot) {
+        if (payload?.teamSnapshot) {
           const teamSnapshot = payload.teamSnapshot;
           const teamId = teamSnapshot.id || teamSnapshot.teamId;
           const currentTeams = Array.isArray(data?.game?.teams) ? [...data.game.teams] : [];
@@ -78,12 +105,13 @@ class DashboardAPI {
         }
 
         data.timestamp = Date.now();
-        console.log("[DASHBOARD SCORE SNAPSHOT APPLIED]", {
+        console.log("[DASHBOARD LIVE SCORE APPLIED]", {
+          eventName,
           playerId: snapshotId,
           points: snapshot.points,
           wins: snapshot.wins,
-          teamId: payload.teamId || null,
-          teamPoints: payload.newTeamTotal ?? null
+          teamId: payload?.teamId || snapshot.teamId || null,
+          teamPoints: payload?.newTeamTotal ?? payload?.teamPoints ?? null
         });
       }
 
@@ -104,8 +132,9 @@ class DashboardAPI {
     eventBus.subscribe("session:started", notifySubscribers);
     eventBus.subscribe("session:ended", notifySubscribers);
     eventBus.subscribe("game:score_updated", (payload) => notifySubscribers(payload, "game:score_updated"));
-    eventBus.subscribe("game:objective_completed", notifySubscribers);
+    eventBus.subscribe("overlay:win", (payload) => notifySubscribers(payload, "overlay:win"));
     eventBus.subscribe("game:winner_detected", notifySubscribers);
+    eventBus.subscribe("game:objective_completed", notifySubscribers);
     eventBus.subscribe("mission:created", notifySubscribers);
     eventBus.subscribe("mission:updated", notifySubscribers);
     eventBus.subscribe("mission:completed", notifySubscribers);
