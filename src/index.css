@@ -70,3 +70,53 @@ body {
     transform: translate3d(-5px, 3px, 0) rotate(-4deg) scale(0.9);
   }
 }
+
+/* ================================================================
+   PLAYER LISTS — FIXED HUD / INTERNAL SCROLL
+   More than 8 players must never increase the overlay height.
+   The scrollbar belongs only to the player-list area.
+   ================================================================ */
+
+/* Individual Mode player list. The selector targets the existing list
+   container without changing the protected timer/sidebar or HUD geometry. */
+.scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"] {
+  max-height: 184px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(72, 202, 228, 0.9) rgba(255, 255, 255, 0.08);
+  padding-right: 3px;
+}
+
+/* Team Mode MVP/player lists. Eight players remain visible; additional
+   players are available by scrolling inside the existing players box. */
+.players-box {
+  max-height: 184px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(72, 202, 228, 0.9) rgba(255, 255, 255, 0.08);
+}
+
+.scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar,
+.players-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar-track,
+.players-box::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+}
+
+.scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar-thumb,
+.players-box::-webkit-scrollbar-thumb {
+  background: rgba(72, 202, 228, 0.9);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar-thumb:hover,
+.players-box::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 209, 102, 0.95);
+}
