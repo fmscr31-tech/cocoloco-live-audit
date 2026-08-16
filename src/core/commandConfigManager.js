@@ -4,14 +4,14 @@ const STORAGE_KEY_COMMAND_CONFIG = "cocoloco_command_config_v3";
 
 /**
  * Command Configuration Manager v3
- * Stores configuration used by chat and gift parsers for player registration, team assignment,
- * and Win Limpia correct answer detection during active rounds.
+ * Stores configuration used by chat and gift parsers for player registration,
+ * team assignment, and Win Limpia correct-answer detection.
  */
 class CommandConfigManager {
   constructor() {
     this.config = this.loadFromStorage() || {
-      registrationMode: "MIXED", // CHAT, GIFT, MANUAL, MIXED
-      gameRegistrationMode: "INDIVIDUAL", // "INDIVIDUAL" or "TEAMS"
+      registrationMode: "MIXED",
+      gameRegistrationMode: "INDIVIDUAL",
       individualCommand: "entrar",
       minPlayers: 1,
       maxPlayers: 100,
@@ -42,25 +42,41 @@ class CommandConfigManager {
       ]
     };
 
-    // IMPORTANT: the Admin panel and the LIVE connector/overlay can run in
-    // different browser contexts. localStorage is persistent but does not
-    // update an already-instantiated module in another tab/window. The
-    // BroadcastChannel-backed EventBus therefore has to update this manager's
-    // in-memory config when the operator changes Win Limpia from another
-    // context. Without this listener, the LIVE parser can keep using an old
-    // answer such as "clase" even after the Admin panel saves "programa".
+    // Cross-window synchronization: BroadcastChannel is the primary path,
+    // but the browser storage event is also required when Admin and LIVE are
+    // separate tabs/windows and a configuration write happens outside the
+    // current module instance.
     eventBus.subscribe("config:command_updated", (payload = {}) => {
       const incoming = payload?.config;
       if (!incoming || typeof incoming !== "object") return;
-
       this.config = JSON.parse(JSON.stringify(incoming));
       this.saveToStorage();
-
       console.log("[CommandConfigManager] Remote configuration synchronized.", {
         winLimpia: this.config.winLimpia,
-        source: "BROADCAST_CHANNEL"
+        source: "EVENT_BUS"
       });
     });
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", (event) => {
+        if (event.key !== STORAGE_KEY_COMMAND_CONFIG || !event.newValue) return;
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (!parsed || typeof parsed !== "object") return;
+          this.config = JSON.parse(JSON.stringify(parsed));
+          console.log("[CommandConfigManager] Storage configuration synchronized.", {
+            winLimpia: this.config.winLimpia,
+            source: "STORAGE_EVENT"
+          });
+          eventBus.emit("config:command_updated", {
+            config: this.getConfig(),
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          console.warn("[CommandConfigManager] Failed to process storage update:", error);
+        }
+      });
+    }
   }
 
   loadFromStorage() {
@@ -79,6 +95,17 @@ class CommandConfigManager {
     return null;
   }
 
+  // Re-read the persisted configuration immediately. LIVE chat processing
+  // calls this before evaluating a winning word so an old in-memory snapshot
+  // can never survive a context/tab synchronization failure.
+  refreshFromStorage() {
+    const persisted = this.loadFromStorage();
+    if (persisted && typeof persisted === "object") {
+      this.config = JSON.parse(JSON.stringify(persisted));
+    }
+    return this.getConfig();
+  }
+
   saveToStorage() {
     try {
       localStorage.setItem(STORAGE_KEY_COMMAND_CONFIG, JSON.stringify(this.config));
@@ -87,23 +114,16 @@ class CommandConfigManager {
     }
   }
 
-  /**
-   * Returns current configuration snapshot.
-   */
   getConfig() {
     return JSON.parse(JSON.stringify(this.config));
   }
 
-  /**
-   * Updates registration mode (CHAT, GIFT, MANUAL, MIXED).
-   */
   setRegistrationMode(mode) {
     const validModes = ["CHAT", "GIFT", "MANUAL", "MIXED"];
     if (!validModes.includes(mode)) {
       console.warn(`[CommandConfigManager] Invalid registration mode: ${mode}`);
       return false;
     }
-
     this.config.registrationMode = mode;
     this.saveToStorage();
     console.log(`[CommandConfigManager] Registration mode set to: ${mode}`);
@@ -111,9 +131,6 @@ class CommandConfigManager {
     return true;
   }
 
-  /**
-   * Updates full configuration with validation.
-   */
   updateFullConfig(newConfig) {
     const validation = this.validateConfig(newConfig);
     if (!validation.valid) {
@@ -129,7 +146,7 @@ class CommandConfigManager {
     if (newConfig.winLimpia !== undefined) {
       this.config.winLimpia = {
         enabled: newConfig.winLimpia.enabled !== false,
-        correctAnswer: (newConfig.winLimpia.correctAnswer || "clase").trim().toLowerCase(),
+        correctAnswer: (newConfig.winLimpia.correctAnswer || "").trim().toLowerCase(),
         points: Number(newConfig.winLimpia.points) || 1
       };
     }
@@ -151,9 +168,6 @@ class CommandConfigManager {
     return { success: true };
   }
 
-  /**
-   * Validates configuration rules: unique commands, valid numbers, non-empty names.
-   */
   validateConfig(cfg) {
     const errors = [];
     const mode = cfg.gameRegistrationMode || this.config.gameRegistrationMode;
@@ -173,7 +187,6 @@ class CommandConfigManager {
 
       const allCommands = new Set();
       const allNames = new Set();
-
       teams.forEach((t, idx) => {
         const name = (t.name || "").trim();
         const cmds = Array.isArray(t.commands) ? t.commands.map(c => c.trim().toLowerCase()) : [];
@@ -183,25 +196,18 @@ class CommandConfigManager {
         if (!name) errors.push(`El equipo ${idx + 1} no tiene nombre.`);
         if (allNames.has(name.toLowerCase())) errors.push(`El nombre de equipo "${name}" está duplicado.`);
         allNames.add(name.toLowerCase());
-
         if (cmds.length === 0) errors.push(`El equipo ${name || idx + 1} no tiene comandos definidos.`);
         cmds.forEach(cmd => {
           if (allCommands.has(cmd)) errors.push(`El comando "${cmd}" está duplicado.`);
           allCommands.add(cmd);
-          if (mode === "INDIVIDUAL" && cmd === indCmd) {
-            errors.push(`El comando "${cmd}" entra en conflicto con el comando individual.`);
-          }
+          if (mode === "INDIVIDUAL" && cmd === indCmd) errors.push(`El comando "${cmd}" entra en conflicto con el comando individual.`);
         });
-
         if (tMin < 1) errors.push(`El equipo ${name} tiene un mínimo inválido (debe ser >= 1).`);
         if (tMax < tMin) errors.push(`El equipo ${name} tiene un máximo menor que su mínimo.`);
       });
     }
 
-    return {
-      valid: errors.length === 0,
-      errors
-    };
+    return { valid: errors.length === 0, errors };
   }
 
   _publishUpdate() {
