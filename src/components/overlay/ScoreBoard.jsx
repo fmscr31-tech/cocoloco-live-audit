@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { TeamPanel } from "./TeamPanel";
 import { GameTimer } from "./GameTimer";
 import { IndividualPanel } from "./IndividualPanel";
+import { IndividualJoinPrompt } from "./IndividualJoinPrompt";
 import { InformationRotationPanel } from "./InformationRotationPanel";
 import { CocoDanceZone } from "./CocoDanceZone";
 import { eventBus } from "../../core/eventBus";
@@ -54,7 +55,12 @@ export function ScoreBoard({ teams, players, timer, round, frozenTeamId, roundMv
   const handleTestWinnerClick = () => { setInternalShowWin(true); onTestWin?.(); setTimeout(() => setInternalShowWin(false), 5000); };
 
   if (mode === "individual") {
-    return <IndividualPanel players={players} timer={timer} round={round} roundMvpTitle={roundMvpTitle} donutTeamId={donutTeamId} hatTeamId={hatTeamId} galaxyTeamId={galaxyTeamId} galaxyPopup={galaxyPopup} moneyGunTeamId={moneyGunTeamId} frozenTeamId={frozenTeamId} frozenDetails={frozenDetails} highlightedPlayerId={highlightedPlayerId} showWin={effectiveShowWin} winner={effectiveWinner} onTestWin={handleTestWinnerClick} battleEffects={battleEffects} />;
+    return (
+      <div className="scoreboard individual-scoreboard-shell" style={{ position: "relative" }}>
+        <IndividualJoinPrompt />
+        <IndividualPanel players={players} timer={timer} round={round} roundMvpTitle={roundMvpTitle} donutTeamId={donutTeamId} hatTeamId={hatTeamId} galaxyTeamId={galaxyTeamId} galaxyPopup={galaxyPopup} moneyGunTeamId={moneyGunTeamId} frozenTeamId={frozenTeamId} frozenDetails={frozenDetails} highlightedPlayerId={highlightedPlayerId} showWin={effectiveShowWin} winner={effectiveWinner} onTestWin={handleTestWinnerClick} battleEffects={battleEffects} />
+      </div>
+    );
   }
 
   const matchesTeam = (targetTeamId, actualTeamId, defaultIndex) => {
@@ -79,19 +85,20 @@ export function ScoreBoard({ teams, players, timer, round, frozenTeamId, roundMv
     return (players || []).filter(p => p.teamId === teamId).reduce((total, p) => total + (p.points || p.wins || 0), 0);
   };
 
-  // The parent Overlay currently normalizes CHICOS_VS_CHICAS to "team".
-  // Recover the authoritative raw mode here so TeamPanel can activate its visual gender theme.
+  // Preserve the authoritative raw mode so gender styling remains isolated to Chicos vs Chicas.
   const rawGameMode = String(dashboardAPI.getGameMode?.() || mode || "").toUpperCase();
   const isGenderMode = rawGameMode.includes("GENDER") || rawGameMode.includes("CHICOS") || rawGameMode.includes("CHICAS") || rawGameMode.includes("HOMBRES") || rawGameMode.includes("MUJERES");
   const overlayTeam = (team, index) => {
-    if (!isGenderMode) return team;
     const configuredCommands = Array.isArray(team.commands) ? team.commands.filter(Boolean) : [];
+    const command = configuredCommands[0] || team.command || team.joinCommand || team.registrationCommand || team.entryCommand || "";
+    if (!isGenderMode) return command ? { ...team, command, commands: configuredCommands.length ? configuredCommands : [command] } : team;
     return {
       ...team,
       mode: "GENDER_TEAMS",
       gameMode: "GENDER_TEAMS",
       gender: index === 0 ? "male" : "female",
-      commands: configuredCommands.length ? configuredCommands : [index === 0 ? "CHICOS" : "CHICAS"]
+      command,
+      commands: configuredCommands.length ? configuredCommands : [command || (index === 0 ? "CHICOS" : "CHICAS")]
     };
   };
 
