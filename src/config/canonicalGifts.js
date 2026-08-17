@@ -12,7 +12,7 @@ export const CANONICAL_GIFTS = {
   ice_cream: {
     canonicalId: "ice_cream", displayName: "Ice Cream Cone 🍦",
     aliases: ["ice cream", "ice_cream", "helado", "cono", "heladito", "5827"],
-    defaultPoints: 0, action: "Give clue", sound: "pop", animation: "none", abilityId: null, supported: true, image: iceCreamImg,
+    defaultPoints: 0, action: "Give clue", sound: "/Sounds/coconut-sfx.mp3", animation: "none", abilityId: null, supported: true, image: iceCreamImg,
     display: { icon: "🍦", name: "Ice Cream" }
   },
   quiereme: {
@@ -82,7 +82,6 @@ export function resolveCanonicalGiftId(input) {
     giftName = input.giftName ? String(input.giftName).trim().toLowerCase() : null;
     rawInput = input.rawInput ? String(input.rawInput).trim().toLowerCase() : null;
   } else rawInput = String(input).trim().toLowerCase();
-
   const matchText = (text) => {
     if (!text || /^\d+$/.test(text)) return null;
     const clean = text.replace(/[^\w\sáéíóúüñ]/gi, " ").replace(/x\d+/gi, "").trim();
@@ -91,12 +90,8 @@ export function resolveCanonicalGiftId(input) {
     }
     return null;
   };
-
-  // Names/aliases are authoritative for operator-facing gift identity.
   const byName = matchText(giftName) || matchText(rawInput);
   if (byName) return byName;
-
-  // Numeric TikTok IDs are supported when explicitly registered on the canonical record.
   if (giftId) {
     for (const gift of Object.values(CANONICAL_GIFTS)) {
       if (gift.tiktokGiftId && String(gift.tiktokGiftId).toLowerCase() === giftId) return gift;
