@@ -10,10 +10,27 @@
         try {
           var raw = localStorage.getItem('cocoloco_command_config_v3');
           var cfg = raw ? JSON.parse(raw) : null;
+          var teams = Array.isArray(cfg && cfg.teams) ? cfg.teams : [];
           var mode = String((cfg && cfg.gameRegistrationMode) || localStorage.getItem('cocoloco_game_mode') || '').toUpperCase();
-          if (mode === 'GENDER_TEAMS' || mode === 'GENDER-TEAMS' || mode.indexOf('CHICOS') >= 0 || mode.indexOf('CHICAS') >= 0) {
-            document.documentElement.classList.add('cocoloco-gender-teams');
+          var names = teams.map(function (t) { return String((t && t.name) || '').trim(); });
+          var hasGenderNames = names.some(function (n) { return /^(chicos|chico|hombres|hombre)$/i.test(n); }) && names.some(function (n) { return /^(chicas|chica|mujeres|mujer)$/i.test(n); });
+          var isGender = mode === 'GENDER_TEAMS' || mode === 'GENDER-TEAMS' || mode.indexOf('CHICOS') >= 0 || mode.indexOf('CHICAS') >= 0 || hasGenderNames;
+          var root = document.documentElement;
+          if (isGender) root.classList.add('cocoloco-gender-teams');
+          if (teams.length >= 2 && names[0] && names[1]) {
+            root.classList.add('cocoloco-configured-teams');
+            root.style.setProperty('--coco-team-one-name', JSON.stringify(names[0]));
+            root.style.setProperty('--coco-team-two-name', JSON.stringify(names[1]));
+            var command = function (team) {
+              var commands = Array.isArray(team && team.commands) ? team.commands.filter(Boolean) : [];
+              return String(commands[0] || (team && (team.command || team.joinCommand || team.registrationCommand || team.entryCommand)) || '').trim();
+            };
+            var cmd1 = command(teams[0]);
+            var cmd2 = command(teams[1]);
+            if (cmd1) root.style.setProperty('--coco-team-one-command', JSON.stringify(cmd1));
+            if (cmd2) root.style.setProperty('--coco-team-two-command', JSON.stringify(cmd2));
           }
+          if (mode === 'INDIVIDUAL' || mode === 'INDIVIDUAL_MODE' || mode === 'SOLO') root.classList.add('cocoloco-individual-mode');
         } catch (_) {}
       })();
     </script>
