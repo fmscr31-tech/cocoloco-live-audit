@@ -1,0 +1,129 @@
+/* FINAL TEAM LABEL RENDER FIX
+   The previous visual overrides were scoped through .hud-container. The
+   ScoreBoard is not guaranteed to be a descendant of that node, so those
+   selectors could never affect the actual rendered TeamPanel.
+
+   This file targets the real ScoreBoard -> TeamPanel DOM directly.
+   Visual-only: no game state, score, timer, registration or gift logic. */
+
+.scoreboard .team-name {
+  position: relative !important;
+  z-index: 100 !important;
+  min-height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  overflow: visible !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.scoreboard .team-name > span {
+  position: relative !important;
+  z-index: 101 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* GENDER_TEAMS: authoritative visual labels independent of team-object name
+   propagation. The real TeamPanel remains untouched. */
+.scoreboard .gender-team-wrapper.team-one .team-name > span,
+.scoreboard .gender-team-wrapper.team-two .team-name > span {
+  min-height: 22px !important;
+}
+
+.scoreboard .gender-team-wrapper.team-one .team-name > span:not([style*="text-transform"]),
+.scoreboard .gender-team-wrapper.team-two .team-name > span:not([style*="text-transform"]) {
+  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
+  font-size: 20px !important;
+  font-weight: 950 !important;
+  letter-spacing: 1px !important;
+  white-space: nowrap !important;
+}
+
+.scoreboard .gender-team-wrapper.team-one .team-name > span:not([style*="text-transform"]) {
+  color: #a7efff !important;
+  -webkit-text-stroke: 1.25px #06375f !important;
+  text-shadow: 0 2px 0 #021b30, 0 0 8px rgba(112,229,255,.9), 0 0 15px rgba(41,178,230,.45) !important;
+}
+
+.scoreboard .gender-team-wrapper.team-two .team-name > span:not([style*="text-transform"]) {
+  color: #ff69b2 !important;
+  -webkit-text-stroke: 1.25px #68103c !important;
+  text-shadow: 0 2px 0 #430820, 0 0 8px rgba(255,180,220,.95), 0 0 15px rgba(255,74,165,.45) !important;
+}
+
+/* If the underlying team object loses its display name, the visual identity
+   remains guaranteed by the wrapper position. */
+.scoreboard .gender-team-wrapper.team-one .team-name:has(> span:not([style*="text-transform"]))::before,
+.scoreboard .gender-team-wrapper.team-two .team-name:has(> span:not([style*="text-transform"]))::before {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 102 !important;
+  pointer-events: none !important;
+  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
+  font-size: 20px !important;
+  font-weight: 950 !important;
+  letter-spacing: 1px !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+}
+
+.scoreboard .gender-team-wrapper.team-one .team-name::after,
+.scoreboard .gender-team-wrapper.team-two .team-name::after {
+  pointer-events: none !important;
+}
+
+/* Hard visual fallback if a global rule hides the actual text. */
+.scoreboard .gender-team-wrapper.team-one .team-name > span:not([style*="text-transform"])::after,
+.scoreboard .gender-team-wrapper.team-two .team-name > span:not([style*="text-transform"])::after {
+  pointer-events: none !important;
+}
+
+/* Keep the command badge above every decorative/background layer. */
+.scoreboard .gender-team-wrapper.team-one .team-name > span[style*="text-transform"],
+.scoreboard .gender-team-wrapper.team-two .team-name > span[style*="text-transform"] {
+  z-index: 103 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: #050505 !important;
+  background: rgba(255,255,255,.97) !important;
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  font-size: 8.5px !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+}
+
+.scoreboard .gender-team-wrapper.team-one .team-name > span[style*="text-transform"] strong {
+  color: #075985 !important;
+  background: #dff8ff !important;
+  border: 2px solid #4ed2ff !important;
+  border-radius: 5px !important;
+  padding: 2px 7px !important;
+}
+
+.scoreboard .gender-team-wrapper.team-two .team-name > span[style*="text-transform"] strong {
+  color: #c21875 !important;
+  background: #fff0f8 !important;
+  border: 2px solid #ff6ab5 !important;
+  border-radius: 5px !important;
+  padding: 2px 7px !important;
+}
+
+/* Never let the animated card backgrounds cover identity text. */
+.scoreboard .team-card::before,
+.scoreboard .team-card::after {
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+.scoreboard .team-card > .team-name {
+  z-index: 100 !important;
+}
