@@ -137,8 +137,6 @@ export function playerWin(id) {
   roundWinners.add(player.id);
   if (getBattle()) battlePlayerWin(player.id);
 
-  // WIN LIMPIA must also increment the persisted team scoreboard when the
-  // winner belongs to a team. TeamPanel reads team.points, not player.points.
   let teamSnapshot = null;
   if (player.teamId) {
     teamSnapshot = addPointsToTeam(player.teamId, 1);
@@ -221,6 +219,8 @@ export function setPlayerTeam(playerId, teamId) {
 }
 
 export function beginRound(data) {
+  // In CHICOS VS CHICAS closeRegistration() is a no-op and keeps OPEN.
+  // Other modes retain their existing per-round registration lifecycle.
   registrationManager.closeRegistration();
   const regState = registrationManager.getRegistrationState();
   if (regState && regState.players) {
@@ -243,9 +243,6 @@ export function beginRound(data) {
   gameState.timer = startTimer(data.duration);
   setRound(gameState.round);
 
-  // Keep the historical event log and the live cross-window transport in the
-  // same causal order. The overlay must see PLAYER/ROUND state after the round
-  // event is created, otherwise getNewEvent() can consume a stale event.
   createEvent("ROUND_STARTED", { round: gameState.round });
   const roundPayload = { round: { ...gameState.round }, timestamp: Date.now() };
   eventBus.publish("ROUND_STARTED", roundPayload);
@@ -258,14 +255,24 @@ export function finishActiveRound() {
   const finished = endRound();
   if (gameState.round && finished) gameState.round = { ...finished };
   registrationManager.openRegistration();
+  gameState.teams = getTeams();
+  setTeams(gameState.teams);
+  setRound(gameState.round);
   saveState();
   return finished;
 }
 
-eventBus.subscribe("ROUND_TIME_EXPIRED", () => {
-  console.log("[GameEngine] Round time expired event received. Auto-finishing round.");
+// The timer emits both ROUND_TIME_EXPIRED and timer:completed. Subscribe to
+// both so the round cannot remain active if one transport path is missed.
+const autoFinishRound = () => {
+  if (!gameState.round || gameState.round.status === "finished") return;
+  console.log("[GameEngine] Timer completed. Auto-finishing active round.");
   finishActiveRound();
-});
+};
+
+eventBus.subscribe("ROUND_TIME_EXPIRED", autoFinishRound);
+eventBus.subscribe("timer:completed", autoFinishRound);
+eventBus.subscribe("TIMER_COMPLETED", autoFinishRound);
 
 export function startGameTimer(minutes = 20) {
   gameState.timer = startTimer(minutes);
