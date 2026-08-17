@@ -1,4 +1,5 @@
 import { eventBus } from "./eventBus";
+import { getDefaultGenderTeams, isGenderTeamsMode } from "./genderTeamsMode";
 
 const STORAGE_KEY_COMMAND_CONFIG = "cocoloco_command_config_v3";
 
@@ -18,44 +19,26 @@ class CommandConfigManager {
       individualCommand: "entrar",
       minPlayers: 1,
       maxPlayers: 100,
-      winLimpia: {
-        enabled: true,
-        points: 1
-      },
+      winLimpia: { enabled: true, points: 1 },
       teams: [
-        {
-          id: "team1",
-          name: "Espartanos",
-          color: "#ff3366",
-          commands: ["!esp"],
-          minPlayers: 1,
-          maxPlayers: 50,
-          gifts: []
-        },
-        {
-          id: "team2",
-          name: "Princesas",
-          color: "#00bfff",
-          commands: ["!prin"],
-          minPlayers: 1,
-          maxPlayers: 50,
-          gifts: []
-        }
+        { id: "team1", name: "Espartanos", color: "#ff3366", commands: ["!esp"], minPlayers: 1, maxPlayers: 50, gifts: [] },
+        { id: "team2", name: "Princesas", color: "#00bfff", commands: ["!prin"], minPlayers: 1, maxPlayers: 50, gifts: [] }
       ]
     };
 
     this._sanitizeWinConfig();
+    this._ensureGenderTeamsConfig();
+    this._installGenderModeOption();
 
     eventBus.subscribe("config:command_updated", (payload = {}) => {
       const incoming = payload?.config;
       if (!incoming || typeof incoming !== "object") return;
       this.config = JSON.parse(JSON.stringify(incoming));
       this._sanitizeWinConfig();
+      this._ensureGenderTeamsConfig();
       this.saveToStorage();
-      console.log("[CommandConfigManager] Remote configuration synchronized.", {
-        winLimpia: this.config.winLimpia,
-        source: "EVENT_BUS"
-      });
+      this._installGenderModeOption();
+      console.log("[CommandConfigManager] Remote configuration synchronized.");
     });
 
     if (typeof window !== "undefined") {
@@ -66,15 +49,9 @@ class CommandConfigManager {
           if (!parsed || typeof parsed !== "object") return;
           this.config = JSON.parse(JSON.stringify(parsed));
           this._sanitizeWinConfig();
+          this._ensureGenderTeamsConfig();
           this.saveToStorage();
-          console.log("[CommandConfigManager] Storage configuration synchronized.", {
-            winLimpia: this.config.winLimpia,
-            source: "STORAGE_EVENT"
-          });
-          eventBus.emit("config:command_updated", {
-            config: this.getConfig(),
-            timestamp: Date.now()
-          });
+          eventBus.emit("config:command_updated", { config: this.getConfig(), timestamp: Date.now() });
         } catch (error) {
           console.warn("[CommandConfigManager] Failed to process storage update:", error);
         }
@@ -82,19 +59,37 @@ class CommandConfigManager {
     }
   }
 
+  _installGenderModeOption() {
+    if (typeof document === "undefined") return;
+    const install = () => {
+      document.querySelectorAll("select").forEach((select) => {
+        const options = Array.from(select.options);
+        const isModeSelector = options.some(o => o.value === "INDIVIDUAL") && options.some(o => o.value === "TEAMS");
+        if (!isModeSelector || options.some(o => o.value === "GENDER_TEAMS")) return;
+        const option = document.createElement("option");
+        option.value = "GENDER_TEAMS";
+        option.textContent = "CHICOS VS CHICAS";
+        select.appendChild(option);
+      });
+    };
+    install();
+    if (typeof MutationObserver !== "undefined" && !this._genderModeObserver) {
+      this._genderModeObserver = new MutationObserver(install);
+      this._genderModeObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
+
+  _ensureGenderTeamsConfig() {
+    if (!Array.isArray(this.config.teams)) this.config.teams = [];
+    if (isGenderTeamsMode(this.config.gameRegistrationMode) && this.config.teams.length < 2) {
+      this.config.teams = getDefaultGenderTeams();
+    }
+  }
+
   _sanitizeWinConfig() {
     const current = this.config?.winLimpia || {};
-    this.config.winLimpia = {
-      enabled: current.enabled !== false,
-      points: Number(current.points) || 1
-    };
-
-    // Remove the obsolete answer field from any configuration persisted by an
-    // older build. This prevents stale values such as "clase" from returning.
-    if (Object.prototype.hasOwnProperty.call(this.config.winLimpia, "correctAnswer")) {
-      delete this.config.winLimpia.correctAnswer;
-    }
-
+    this.config.winLimpia = { enabled: current.enabled !== false, points: Number(current.points) || 1 };
+    if (Object.prototype.hasOwnProperty.call(this.config.winLimpia, "correctAnswer")) delete this.config.winLimpia.correctAnswer;
     this.saveToStorage();
   }
 
@@ -103,9 +98,7 @@ class CommandConfigManager {
       const raw = localStorage.getItem(STORAGE_KEY_COMMAND_CONFIG);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (!parsed.individualCommand || parsed.individualCommand === "a") {
-          parsed.individualCommand = "entrar";
-        }
+        if (!parsed.individualCommand || parsed.individualCommand === "a") parsed.individualCommand = "entrar";
         return parsed;
       }
     } catch (e) {
@@ -119,41 +112,30 @@ class CommandConfigManager {
     if (persisted && typeof persisted === "object") {
       this.config = JSON.parse(JSON.stringify(persisted));
       this._sanitizeWinConfig();
+      this._ensureGenderTeamsConfig();
     }
     return this.getConfig();
   }
 
   saveToStorage() {
-    try {
-      localStorage.setItem(STORAGE_KEY_COMMAND_CONFIG, JSON.stringify(this.config));
-    } catch (e) {
-      console.warn("[CommandConfigManager] Failed to save to storage:", e);
-    }
+    try { localStorage.setItem(STORAGE_KEY_COMMAND_CONFIG, JSON.stringify(this.config)); }
+    catch (e) { console.warn("[CommandConfigManager] Failed to save to storage:", e); }
   }
 
-  getConfig() {
-    return JSON.parse(JSON.stringify(this.config));
-  }
+  getConfig() { return JSON.parse(JSON.stringify(this.config)); }
 
   setRegistrationMode(mode) {
     const validModes = ["CHAT", "GIFT", "MANUAL", "MIXED"];
-    if (!validModes.includes(mode)) {
-      console.warn(`[CommandConfigManager] Invalid registration mode: ${mode}`);
-      return false;
-    }
+    if (!validModes.includes(mode)) return false;
     this.config.registrationMode = mode;
     this.saveToStorage();
-    console.log(`[CommandConfigManager] Registration mode set to: ${mode}`);
     this._publishUpdate();
     return true;
   }
 
   updateFullConfig(newConfig) {
     const validation = this.validateConfig(newConfig);
-    if (!validation.valid) {
-      console.warn(`[CommandConfigManager] Configuration validation failed:`, validation.errors);
-      return { success: false, errors: validation.errors };
-    }
+    if (!validation.valid) return { success: false, errors: validation.errors };
 
     if (newConfig.registrationMode !== undefined) this.config.registrationMode = newConfig.registrationMode;
     if (newConfig.gameRegistrationMode !== undefined) this.config.gameRegistrationMode = newConfig.gameRegistrationMode;
@@ -180,9 +162,10 @@ class CommandConfigManager {
       }));
     }
 
+    this._ensureGenderTeamsConfig();
     this._sanitizeWinConfig();
     this.saveToStorage();
-    console.log("[CommandConfigManager] Full configuration updated successfully.", this.config);
+    this._installGenderModeOption();
     this._publishUpdate();
     return { success: true };
   }
@@ -198,12 +181,9 @@ class CommandConfigManager {
       if (!indCmd) errors.push("El comando individual no puede estar vacío.");
       if (minP < 1) errors.push("El mínimo de jugadores debe ser al menos 1.");
       if (maxP < minP) errors.push("El máximo de jugadores debe ser mayor o igual al mínimo.");
-    } else if (mode === "TEAMS" || mode === "TEAM") {
-      const teams = cfg.teams || this.config.teams;
-      if (!Array.isArray(teams) || teams.length < 2) {
-        errors.push("Se requieren al menos 2 equipos para el modo equipos.");
-      }
-
+    } else if (mode === "TEAMS" || mode === "TEAM" || isGenderTeamsMode(mode)) {
+      const teams = cfg.teams || (isGenderTeamsMode(mode) ? getDefaultGenderTeams() : this.config.teams);
+      if (!Array.isArray(teams) || teams.length < 2) errors.push("Se requieren al menos 2 equipos para esta modalidad.");
       const allCommands = new Set();
       const allNames = new Set();
       teams.forEach((t, idx) => {
@@ -211,7 +191,6 @@ class CommandConfigManager {
         const cmds = Array.isArray(t.commands) ? t.commands.map(c => c.trim().toLowerCase()) : [];
         const tMin = Number(t.minPlayers) || 1;
         const tMax = Number(t.maxPlayers) || 50;
-
         if (!name) errors.push(`El equipo ${idx + 1} no tiene nombre.`);
         if (allNames.has(name.toLowerCase())) errors.push(`El nombre de equipo "${name}" está duplicado.`);
         allNames.add(name.toLowerCase());
@@ -228,9 +207,7 @@ class CommandConfigManager {
     return { valid: errors.length === 0, errors };
   }
 
-  _publishUpdate() {
-    eventBus.publish("config:command_updated", { config: this.getConfig(), timestamp: Date.now() });
-  }
+  _publishUpdate() { eventBus.publish("config:command_updated", { config: this.getConfig(), timestamp: Date.now() }); }
 }
 
 export const commandConfigManager = new CommandConfigManager();

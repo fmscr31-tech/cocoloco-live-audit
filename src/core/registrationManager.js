@@ -1,6 +1,7 @@
 import { eventBus } from "./eventBus";
 import { commandConfigManager } from "./commandConfigManager";
 import { addPlayer, removePlayer } from "./playerManager";
+import { isGenderTeamsMode } from "./genderTeamsMode";
 
 const STORAGE_KEY_PLAYERS = "cocoloco_registered_players_v2";
 const STORAGE_KEY_STATUS = "cocoloco_registration_status_v2";
@@ -61,6 +62,37 @@ class RegistrationManager {
         });
       }
     });
+
+    // Chicos vs Chicas owns the initial team assignment. Existing participants
+    // remain registered for the whole LIVE session and are never re-added at
+    // the beginning of another round.
+    eventBus.subscribe("normalized:chat", (event) => {
+      const config = commandConfigManager.getConfig();
+      if (!isGenderTeamsMode(config.gameRegistrationMode) || this.status !== "OPEN") return;
+
+      const message = String(event?.message || event?.comment || event?.text || "").trim().toLowerCase();
+      const team = (config.teams || []).find(t =>
+        Array.isArray(t.commands) && t.commands.some(command => String(command).trim().toLowerCase() === message)
+      );
+      if (!team) return;
+
+      const result = this.registerPlayer({
+        playerId: event.playerId || event.userId || event.uniqueId || event.username,
+        displayName: event.displayName || event.username || event.nickname || "Viewer",
+        username: event.username || event.uniqueId || event.displayName || "Viewer",
+        avatar: event.profilePictureUrl || event.avatar || event.profilePicture || "",
+        teamId: team.id,
+        source: "CHAT"
+      });
+
+      eventBus.publish(result.success ? "gender:registration_accepted" : "gender:registration_rejected", {
+        event,
+        player: result.player,
+        teamId: team.id,
+        alreadyRegistered: result.alreadyRegistered === true,
+        reason: result.reason
+      });
+    });
   }
 
   broadcastSync() {
@@ -76,7 +108,7 @@ class RegistrationManager {
     const readiness = this.checkRoundReadiness();
     const teamGroups = {};
 
-    if (config.gameRegistrationMode === "TEAMS") {
+    if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM" || isGenderTeamsMode(config.gameRegistrationMode)) {
       config.teams.forEach(t => {
         teamGroups[t.id] = {
           ...t,
@@ -114,19 +146,27 @@ class RegistrationManager {
   }
 
   registerPlayer(playerData) {
+    const config = commandConfigManager.getConfig();
+    const genderMode = isGenderTeamsMode(config.gameRegistrationMode);
+
+    // In gender mode a returning viewer is already a member of their team for
+    // the whole session. This is intentionally allowed even after round lock.
+    const playerId = playerData.playerId || playerData.id || playerData.username || playerData.uniqueId;
+    if (genderMode && playerId && this.registeredPlayers.has(playerId)) {
+      return { success: true, player: this.registeredPlayers.get(playerId), alreadyRegistered: true };
+    }
+
     if (this.status !== "OPEN") {
       eventBus.publish("registration:rejected", { playerData, reason: "REGISTRATION_CLOSED", timestamp: Date.now() });
       return { success: false, reason: "REGISTRATION_CLOSED" };
     }
 
-    const playerId = playerData.playerId || playerData.id || playerData.username || playerData.uniqueId;
     if (!playerId) {
       eventBus.publish("registration:rejected", { playerData, reason: "INVALID_PLAYER_ID", timestamp: Date.now() });
       return { success: false, reason: "INVALID_PLAYER_ID" };
     }
 
     const username = playerData.username || playerData.displayName || playerData.uniqueId || playerId;
-    const avatar = playerData.avatar || playerData.profilePictureUrl || playerData.profilePicture || playerData.payload?.profilePictureUrl || playerData.payload?.data?.profilePictureUrl || playerData.payload?.avatar || "";
 
     if (this.registeredPlayers.has(playerId)) {
       const existingPlayer = this.registeredPlayers.get(playerId);
@@ -137,14 +177,15 @@ class RegistrationManager {
     for (const p of this.registeredPlayers.values()) {
       if (p.username?.toLowerCase() === username.toLowerCase() || p.displayName?.toLowerCase() === username.toLowerCase()) {
         eventBus.publish("registration:duplicate_attempt", { playerId, player: p, timestamp: Date.now() });
-        return { success: false, reason: "ALREADY_REGISTERED" };
+        return genderMode
+          ? { success: true, player: p, alreadyRegistered: true }
+          : { success: false, reason: "ALREADY_REGISTERED" };
       }
     }
 
-    const config = commandConfigManager.getConfig();
     let assignedTeamId = playerData.teamId;
 
-    if (config.gameRegistrationMode === "TEAMS") {
+    if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM" || genderMode) {
       const team = config.teams.find(t => t.id === assignedTeamId);
       if (!team) return { success: false, reason: "INVALID_TEAM" };
       const currentTeamCount = Array.from(this.registeredPlayers.values()).filter(p => p.teamId === assignedTeamId).length;
@@ -156,6 +197,8 @@ class RegistrationManager {
       eventBus.publish("registration:rejected", { playerData, reason: "MAX_PLAYERS_REACHED", timestamp: Date.now() });
       return { success: false, reason: "MAX_PLAYERS_REACHED" };
     }
+
+    const avatar = playerData.avatar || playerData.profilePictureUrl || playerData.profilePicture || playerData.payload?.profilePictureUrl || playerData.payload?.data?.profilePictureUrl || playerData.payload?.avatar || "";
 
     const player = {
       playerId,
@@ -220,69 +263,50 @@ class RegistrationManager {
     return { success: true, player };
   }
 
-  getRegisteredPlayers() {
-    return Array.from(this.registeredPlayers.values());
-  }
+  getRegisteredPlayers() { return Array.from(this.registeredPlayers.values()); }
 
-  /**
-   * Clean-slate transition used after a round has definitively finished.
-   * This reset is broadcast separately because Admin and Overlay have their
-   * own playerManager instances. Historical round data remains archived in
-   * sessionManager; only the live participant list is cleared.
-   */
   prepareNextRoundRegistration() {
-    const previousPlayers = Array.from(this.registeredPlayers.values());
+    const config = commandConfigManager.getConfig();
 
-    // Clear the local playerManager identities first.
-    previousPlayers.forEach(player => {
-      removePlayer(player.playerId);
-    });
-
-    this.registeredPlayers.clear();
-    this.status = "OPEN";
-
-    // IMPORTANT: Broadcast a canonical live-player reset to every browser
-    // context. Without this, the overlay keeps its own stale playerManager
-    // array even though registrationManager is already empty.
-    eventBus.emit("players:reset", {
-      removedCount: previousPlayers.length,
-      reason: "ROUND_FINISHED",
-      timestamp: Date.now()
-    });
-
-    this.broadcastSync();
-
-    eventBus.publish("registration:cleared", {
-      timestamp: Date.now(),
-      removedCount: previousPlayers.length,
-      reason: "ROUND_FINISHED"
-    });
-    eventBus.publish("registration:opened", {
-      status: this.status,
-      timestamp: Date.now(),
-      reason: "ROUND_FINISHED"
-    });
-
-    return { success: true, removedCount: previousPlayers.length };
-  }
-
-  clearRegistration() {
-    if (this.status === "LOCKED") return { success: false, reason: "REGISTRATION_LOCKED" };
+    if (isGenderTeamsMode(config.gameRegistrationMode)) {
+      this.status = "OPEN";
+      this.broadcastSync();
+      eventBus.publish("registration:opened", { status: this.status, timestamp: Date.now(), reason: "ROUND_FINISHED_PERSISTENT_SESSION" });
+      return { success: true, removedCount: 0, preservedCount: this.registeredPlayers.size };
+    }
 
     const previousPlayers = Array.from(this.registeredPlayers.values());
     previousPlayers.forEach(player => removePlayer(player.playerId));
+    this.registeredPlayers.clear();
+    this.status = "OPEN";
 
+    eventBus.emit("players:reset", { removedCount: previousPlayers.length, reason: "ROUND_FINISHED", timestamp: Date.now() });
+    this.broadcastSync();
+    eventBus.publish("registration:cleared", { timestamp: Date.now(), removedCount: previousPlayers.length, reason: "ROUND_FINISHED" });
+    eventBus.publish("registration:opened", { status: this.status, timestamp: Date.now(), reason: "ROUND_FINISHED" });
+    return { success: true, removedCount: previousPlayers.length };
+  }
+
+  clearRegistration(options = {}) {
+    if (this.status === "LOCKED" && options.force !== true) return { success: false, reason: "REGISTRATION_LOCKED" };
+
+    const previousPlayers = Array.from(this.registeredPlayers.values());
+    previousPlayers.forEach(player => removePlayer(player.playerId));
     this.registeredPlayers.clear();
     this.status = "OPEN";
 
     eventBus.emit("players:reset", {
       removedCount: previousPlayers.length,
-      reason: "MANUAL_CLEAR",
+      reason: options.reason || "MANUAL_CLEAR",
       timestamp: Date.now()
     });
 
     this.broadcastSync();
-    eventBus.publish("registration:cleared", { timestamp: Date.now(), removedCount: previousPlayers.length });
+    eventBus.publish("registration:cleared", {
+      timestamp: Date.now(),
+      removedCount: previousPlayers.length,
+      reason: options.reason || "MANUAL_CLEAR"
+    });
     return { success: true, removedCount: previousPlayers.length };
   }
 }

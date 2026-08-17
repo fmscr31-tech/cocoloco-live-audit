@@ -1,4 +1,5 @@
 import { eventBus } from "./eventBus";
+import { registrationManager } from "./registrationManager";
 
 const SESSION_STORAGE_KEY = "cocoloco_active_session";
 
@@ -115,6 +116,10 @@ class SessionManager {
       totalLikes: 0
     };
 
+    // A new LIVE is the session boundary: clear any participant/team
+    // membership left from a previous LIVE before accepting registrations.
+    registrationManager.clearRegistration({ force: true, reason: "SESSION_STARTED" });
+
     this.persistSession();
     eventBus.emit("session:started", this.currentSession);
     return this.currentSession;
@@ -135,7 +140,10 @@ class SessionManager {
 
     this.persistSession();
     eventBus.emit("session:ended", this.currentSession);
-    
+
+    // A new LIVE must never inherit gender-team membership from this one.
+    registrationManager.clearRegistration({ force: true, reason: "SESSION_ENDED" });
+
     const ended = { ...this.currentSession };
     return ended;
   }
