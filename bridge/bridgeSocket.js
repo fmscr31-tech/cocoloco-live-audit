@@ -1,11 +1,13 @@
 import http from "http";
+import fs from "fs";
+import path from "path";
 import { WebSocketServer } from "ws";
 import { logger } from "./logger.js";
 import { tiktokBridge } from "./tiktokBridge.js";
 
 /**
  * Bridge WebSocket & Webhook Server: Professional server supporting HTTP webhooks (Tikfinity),
- * WebSocket clients, heartbeat (ping/pong), broadcast, and automatic cleanup.
+ * WebSocket clients, gift-asset discovery, heartbeat (ping/pong), broadcast, and automatic cleanup.
  */
 class BridgeSocketServer {
   constructor(port = 8080) {
@@ -16,8 +18,21 @@ class BridgeSocketServer {
     this.heartbeatTimer = null;
   }
 
+  getGiftFiles() {
+    try {
+      const giftsDir = path.resolve(process.cwd(), "public", "gifts");
+      if (!fs.existsSync(giftsDir)) return [];
+      return fs.readdirSync(giftsDir, { withFileTypes: true })
+        .filter(entry => entry.isFile() && /\.(gif|webp|png|jpe?g)$/i.test(entry.name))
+        .map(entry => entry.name)
+        .sort((a, b) => a.localeCompare(b));
+    } catch (error) {
+      logger.error(`[Gift Assets] Failed to scan public/gifts: ${error.message}`);
+      return [];
+    }
+  }
+
   start(intervalMs = 30000) {
-    // 1. Create HTTP Server for Webhooks (Tikfinity) and WebSocket upgrade
     this.server = http.createServer((req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
@@ -26,6 +41,13 @@ class BridgeSocketServer {
       if (req.method === "OPTIONS") {
         res.writeHead(204);
         res.end();
+        return;
+      }
+
+      if (req.method === "GET" && req.url === "/api/gifts") {
+        const files = this.getGiftFiles();
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+        res.end(JSON.stringify({ success: true, files, timestamp: Date.now() }));
         return;
       }
 
@@ -38,16 +60,7 @@ class BridgeSocketServer {
           try {
             const payload = JSON.parse(body || "{}");
             logger.connect(`[Tikfinity Webhook] Received payload: ${JSON.stringify(payload)}`);
-
-            // Broadcast structured event to connected CocoLoco frontend clients
-            const eventMessage = {
-              type: "event",
-              source: "tikfinity",
-              payload: payload
-            };
-
-            this.broadcast(eventMessage);
-
+            this.broadcast({ type: "event", source: "tikfinity", payload });
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ success: true, message: "Tikfinity event received and broadcasted" }));
           } catch (err) {
@@ -65,17 +78,13 @@ class BridgeSocketServer {
       }
     });
 
-    // 2. Attach WebSocket Server to HTTP Server
     this.wss = new WebSocketServer({ server: this.server });
 
     this.wss.on("connection", (ws) => {
       this.clients.add(ws);
       logger.connect(`WebSocket client connected. Total clients: ${this.clients.size}`);
-
       ws.isAlive = true;
-      ws.on("pong", () => {
-        ws.isAlive = true;
-      });
+      ws.on("pong", () => { ws.isAlive = true; });
 
       ws.on("message", (message) => {
         try {
@@ -85,12 +94,10 @@ class BridgeSocketServer {
           } else if (data.action === "setUniqueId" && data.uniqueId) {
             logger.connect(`Received setUniqueId request for username: ${data.uniqueId}`);
             tiktokBridge.setUsername(data.uniqueId);
-            tiktokBridge.reconnect().catch(err => {
-              logger.error(`Error reconnecting with new uniqueId: ${err.message}`, err);
-            });
+            tiktokBridge.reconnect().catch(err => logger.error(`Error reconnecting with new uniqueId: ${err.message}`, err));
             ws.send(JSON.stringify({ type: "STATUS", clientsCount: this.clients.size, username: data.uniqueId, status: tiktokBridge.getStatus().status }));
           }
-        } catch (e) {
+        } catch {
           // ignore non-json messages
         }
       });
@@ -99,13 +106,9 @@ class BridgeSocketServer {
         this.clients.delete(ws);
         logger.disconnect(`WebSocket client disconnected. Remaining clients: ${this.clients.size}`);
       });
-
-      ws.on("error", (err) => {
-        logger.error(`WebSocket client error: ${err.message}`, err);
-      });
+      ws.on("error", (err) => logger.error(`WebSocket client error: ${err.message}`, err));
     });
 
-    // Heartbeat check
     this.heartbeatTimer = setInterval(() => {
       this.clients.forEach((ws) => {
         if (ws.isAlive === false) {
@@ -117,7 +120,6 @@ class BridgeSocketServer {
       });
     }, intervalMs);
 
-    // 3. Start listening on port
     this.server.listen(this.port, () => {
       logger.connect(`Bridge HTTP Webhook & WebSocket Server running on port ${this.port}`);
     });
@@ -127,26 +129,14 @@ class BridgeSocketServer {
     const payload = JSON.stringify(data);
     logger.connect(`[Tikfinity OUTGOING TO FRONTEND] ${payload}`);
     this.clients.forEach((client) => {
-      if (client.readyState === 1) { // OPEN
-        client.send(payload);
-      }
+      if (client.readyState === 1) client.send(payload);
     });
   }
 
   stop() {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-    }
-    if (this.wss) {
-      this.wss.close(() => {
-        logger.disconnect("WebSocket Server closed.");
-      });
-    }
-    if (this.server) {
-      this.server.close(() => {
-        logger.disconnect("Bridge HTTP Server closed.");
-      });
-    }
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.wss) this.wss.close(() => logger.disconnect("WebSocket Server closed."));
+    if (this.server) this.server.close(() => logger.disconnect("Bridge HTTP Server closed."));
   }
 }
 
