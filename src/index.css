@@ -212,3 +212,78 @@ body {
 .players-box::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 209, 102, 0.95);
 }
+
+/* ================================================================
+   TEAM MARKER — FINAL DARK BROADCAST TREATMENT
+   The light card was being imposed here by index.css and therefore
+   overrode the darker team-card definition in overlay.css.
+   ================================================================ */
+
+.hud-container .team-card {
+  background: linear-gradient(145deg, #253447 0%, #182434 48%, #111a27 100%) !important;
+  border: 1px solid rgba(255,255,255,0.22) !important;
+  border-top-width: 3px !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.62), inset 0 1px 1px rgba(255,255,255,0.14) !important;
+}
+
+.hud-container .team-one .team-card {
+  border-top-color: #ff3366 !important;
+}
+
+.hud-container .team-two .team-card {
+  border-top-color: #00bfff !important;
+}
+
+.hud-container .team-name {
+  position: relative;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.7px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 7px rgba(255,255,255,0.20) !important;
+  animation: cocoloco-team-name-pulse 2.8s ease-in-out infinite;
+}
+
+.hud-container .team-score {
+  color: #ffffff !important;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.85) !important;
+}
+
+.hud-container .team-name::after {
+  content: "";
+  position: absolute;
+  left: -30%;
+  top: -20%;
+  width: 18%;
+  height: 140%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.42), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+  animation: cocoloco-team-name-sheen 4.5s ease-in-out infinite;
+}
+
+@keyframes cocoloco-team-name-pulse {
+  0%, 100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateY(-1px);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes cocoloco-team-name-sheen {
+  0%, 55% {
+    left: -30%;
+    opacity: 0;
+  }
+  65% {
+    opacity: 1;
+  }
+  82%, 100% {
+    left: 125%;
+    opacity: 0;
+  }
+}
