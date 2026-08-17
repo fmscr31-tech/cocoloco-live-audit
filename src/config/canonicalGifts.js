@@ -12,18 +12,13 @@ export const CANONICAL_GIFTS = {
   ice_cream: {
     canonicalId: "ice_cream", displayName: "Ice Cream Cone 🍦",
     aliases: ["ice cream", "ice_cream", "helado", "cono", "heladito", "5827"],
-    defaultPoints: 0, action: "Give clue", sound: "/Sounds/coconut-sfx.mp3", animation: "none", abilityId: null, supported: true, image: iceCreamImg,
-    display: { icon: "🍦", name: "Ice Cream" }
-  },
-  quiereme: {
-    canonicalId: "quiereme", displayName: "Quiéreme ❤️", aliases: ["quiereme", "quiéreme"], defaultPoints: 10,
-    action: "Add points", value: 10, sound: "/Sounds/Quiereme.mp3", animation: "none", abilityId: null, supported: true, image: null,
-    display: { icon: "❤️", name: "Quiéreme" }
+    defaultPoints: 0, action: "Give clue", sound: "/Sounds/Ahh cute.mp3", animation: "clue_hint", abilityId: "clue_hint", supported: true, image: iceCreamImg,
+    display: { icon: "🍦", name: "Ice Cream Cone" }
   },
   doughnut: {
     canonicalId: "doughnut", displayName: "Doughnut 🍩", aliases: ["donut", "doughnut", "donuts", "donas", "rosquilla"],
     defaultPoints: 1, value: 1, action: "Add points", sound: "/Sounds/mudo.mp3", animation: "silent_challenge", abilityId: "silent_challenge", supported: true, image: doughnutImg,
-    display: { icon: "🍩", name: "Donut" }
+    display: { icon: "🍩", name: "Doughnut" }
   },
   hat_and_mustache: {
     canonicalId: "hat_and_mustache", displayName: "Hat and Mustache 🤠", aliases: ["sombrero", "hat", "hat and mustache", "sombrero y bigote"],
@@ -32,12 +27,12 @@ export const CANONICAL_GIFTS = {
   },
   twinkling_star: {
     canonicalId: "twinkling_star", displayName: "Twinkling Star ⭐", aliases: ["twinkling star", "star", "estrella"], defaultPoints: 0,
-    action: "Special event", sound: null, animation: "freeze", abilityId: "freeze", supported: true, image: starImg,
+    action: "Special event", sound: "/Sounds/Castigados.mp3", animation: "freeze", abilityId: "freeze", supported: true, image: starImg,
     display: { icon: "⭐", name: "Twinkling Star" }
   },
   coconut: {
     canonicalId: "coconut", displayName: "Coconut 🥥", aliases: ["coconut", "coco"], defaultPoints: 0,
-    action: "Special event", sound: null, animation: "freeze", abilityId: "freeze", supported: true, image: coconutImg,
+    action: "Special event", sound: "/Sounds/Castigados.mp3", animation: "freeze", abilityId: "freeze", supported: true, image: coconutImg,
     display: { icon: "🥥", name: "Coconut" }
   },
   go_popular: {
@@ -60,18 +55,8 @@ export const CANONICAL_GIFTS = {
     action: "Special event", sound: "/Sounds/Kamehameha.mp3", animation: "ultimate_galaxy", abilityId: "ultimate_galaxy", supported: true, image: galaxyImg,
     display: { icon: "🌌", name: "Galaxy" }
   },
-  rose: {
-    canonicalId: "rose", displayName: "Rose 🌹", aliases: ["rose", "rosa"], defaultPoints: 1, value: 1, action: "Add points", sound: null, animation: "none", abilityId: null, supported: true, image: null,
-    display: { icon: "🌹", name: "Rose" }
-  },
-  lion: {
-    canonicalId: "lion", displayName: "Lion 🦁", aliases: ["lion", "león"], defaultPoints: 500, value: 500, action: "Add points", sound: "epic", animation: "none", abilityId: null, supported: true, image: null,
-    display: { icon: "🦁", name: "Lion" }
-  },
-  universe: {
-    canonicalId: "universe", displayName: "TikTok Universe 🌌", aliases: ["tiktok universe", "universe", "universo"], defaultPoints: 5000, value: 5000, action: "Add points", sound: "epic", animation: "none", abilityId: null, supported: true, image: null,
-    display: { icon: "🌌", name: "TikTok Universe" }
-  }
+  // Only gifts with a verified local gameplay asset/audio route are exposed here.
+  // Other TikTok gifts remain generic and are never shown as fake sound options.
 };
 
 export function resolveCanonicalGiftId(input) {
