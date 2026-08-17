@@ -25,12 +25,12 @@
 
 .scoreboard{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;z-index:2}.team-wrapper{flex:1;display:flex;flex-direction:column;align-items:center}
 
-/* TEAM MARKER CONTAINERS: muted dark slate, never white/yellow */
-.team-card{position:relative;overflow:hidden;width:100%;height:90px;padding:5px 6px;border-radius:6px;background:linear-gradient(145deg,#253447 0%,#182434 48%,#111a27 100%)!important;border:1px solid rgba(255,255,255,.22);text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.62),inset 0 1px 1px rgba(255,255,255,.14);backdrop-filter:blur(4px);box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;align-items:center;z-index:2}
-.team-card::before{content:"";position:absolute;inset:-45% -20%;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.09) 46%,rgba(255,255,255,.16) 50%,rgba(255,255,255,.06) 54%,transparent 65%);transform:translateX(-70%) rotate(2deg);animation:teamCardSheen 5.5s ease-in-out infinite;pointer-events:none;z-index:1}
-.team-card::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 18% 18%,rgba(255,255,255,.08),transparent 30%),radial-gradient(circle at 82% 82%,rgba(0,191,255,.08),transparent 34%);pointer-events:none;z-index:1}
+/* TEAM MARKER CONTAINERS: dark broadcast marker, never white */
+.team-card{position:relative;overflow:hidden;width:100%;height:90px;padding:5px 6px;border-radius:6px;background:linear-gradient(145deg,#1b2738 0%,#101a29 52%,#0a111c 100%)!important;border:1px solid rgba(255,255,255,.22);text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.72),inset 0 1px 1px rgba(255,255,255,.12);backdrop-filter:blur(4px);box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;align-items:center;z-index:2}
+.team-card::before{content:"";position:absolute;inset:-45% -20%;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.08) 46%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.06) 54%,transparent 65%);transform:translateX(-70%) rotate(2deg);animation:teamCardSheen 5.5s ease-in-out infinite;pointer-events:none;z-index:1}
+.team-card::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 18% 18%,rgba(255,255,255,.07),transparent 30%),radial-gradient(circle at 82% 82%,rgba(0,191,255,.08),transparent 34%);pointer-events:none;z-index:1}
 .team-one .team-card{border-top:3px solid #ff3366}.team-two .team-card{border-top:3px solid #00bfff}.team-card.punished{border-color:#ff3333;background:linear-gradient(145deg,#3b1c24,#24131a)!important}
-.team-name{position:relative;z-index:8;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#ffffff!important;margin:0;line-height:1.1;text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 7px rgba(255,255,255,.18);animation:teamNameGlow 2.8s ease-in-out infinite}
+.team-name{position:relative;z-index:8;font-size:13px;font-weight:950;text-transform:uppercase;letter-spacing:1.1px;color:#ffffff!important;margin:0;line-height:1.1;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 7px rgba(255,255,255,.16);animation:teamNameGlow 2.8s ease-in-out infinite}
 .team-score{position:relative;z-index:8;font-size:28px;font-weight:900;line-height:1;color:#ffffff!important;margin:1px 0;letter-spacing:-1px;text-shadow:0 2px 8px rgba(0,0,0,.8)}
 
 /* ROUND BADGE: dark marker with bright readable type */
@@ -48,3 +48,17 @@
 @keyframes teamCardSheen{0%,58%{transform:translateX(-85%) rotate(2deg);opacity:0}68%{opacity:1}82%,100%{transform:translateX(330%) rotate(2deg);opacity:0}}
 @keyframes teamNameGlow{0%,100%{transform:translateY(0);text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 6px rgba(255,255,255,.14)}50%{transform:translateY(-1px);text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 10px rgba(255,255,255,.34)}}
 @keyframes roundBadgeShimmer{0%,55%{left:-45%;opacity:0}65%{opacity:1}82%,100%{left:125%;opacity:0}}
+
+/* FINAL TEAM MARKER VISUAL: only the team marker is changed here. */
+.team-card:not(.punished){
+  background:linear-gradient(145deg,#172334 0%,#0d1725 55%,#080f19 100%)!important;
+}
+.team-name{
+  font-size:13px!important;
+  font-weight:950!important;
+  animation:teamNameBroadcastPulse 3s ease-in-out infinite!important;
+}
+@keyframes teamNameBroadcastPulse{
+  0%,100%{transform:translateY(0) scale(1);filter:brightness(1);text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 6px rgba(255,255,255,.12)}
+  50%{transform:translateY(-1px) scale(1.025);filter:brightness(1.12);text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 11px rgba(255,255,255,.38)}
+}
