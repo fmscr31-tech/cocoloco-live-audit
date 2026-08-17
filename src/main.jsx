@@ -6,16 +6,14 @@ import "./index.css";
 import "./components/individual-points.css";
 import { audioManager } from "./core/audioManager";
 
-// Initialize the Win Limpia chat listener before the application starts.
+// Initialize the live event listeners before the application starts.
 import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
+import "./core/roundContributionManager";
 
-// Initialize native audio manager layer
 window.__cocoAudioManager = audioManager;
 
-ReactDOM.createRoot(
-  document.getElementById("root")
-).render(
+ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <App />
