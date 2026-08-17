@@ -1,34 +1,39 @@
-/* SCOREBOARD IDENTITY HARD LOCK
-   Visual-only recovery for GENDER_TEAMS. The TeamPanel already owns the
-   real team name + command state; this layer guarantees that content remains
-   visible above animated card decoration. */
+/* SCOREBOARD IDENTITY RECOVERY
+   The TeamPanel already renders the real team identity, command, score and
+   rounds. Keep those four visual elements in the natural card flow and above
+   the decorative animation layers. No fixed scoreboard geometry is imposed. */
 
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card {
+.gender-team-wrapper > .team-card {
   position: relative !important;
   isolation: isolate !important;
   overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
 }
 
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card > .team-name {
+.gender-team-wrapper > .team-card > .team-name {
   position: relative !important;
-  z-index: 500 !important;
+  z-index: 50 !important;
   display: flex !important;
   visibility: visible !important;
   opacity: 1 !important;
+  flex: 0 0 28px !important;
   width: 100% !important;
   min-height: 28px !important;
-  height: auto !important;
+  height: 28px !important;
   align-items: center !important;
   justify-content: center !important;
   overflow: visible !important;
-  flex-shrink: 0 !important;
-  color: #fff !important;
+  margin: 0 !important;
+  padding: 0 !important;
   transform: none !important;
 }
 
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card > .team-name > span {
+.gender-team-wrapper > .team-card > .team-name > span {
   position: relative !important;
-  z-index: 501 !important;
+  z-index: 51 !important;
   display: inline-flex !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -36,34 +41,33 @@
   justify-content: center !important;
   overflow: visible !important;
   transform: none !important;
+  white-space: nowrap !important;
 }
 
-/* Normal state: team name is unmistakable. */
-.scoreboard > .team-wrapper.gender-team-wrapper.team-one > .team-card > .team-name > span:first-child,
-.scoreboard > .team-wrapper.gender-team-wrapper.team-two > .team-card > .team-name > span:first-child {
+/* Team identity. */
+.gender-team-wrapper > .team-card > .team-name > span:first-child {
   font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
   font-size: 21px !important;
   line-height: 1 !important;
   font-weight: 950 !important;
   letter-spacing: 1px !important;
-  white-space: nowrap !important;
   text-transform: uppercase !important;
 }
 
-.scoreboard > .team-wrapper.gender-team-wrapper.team-one > .team-card > .team-name > span:first-child {
+.gender-team-wrapper.team-one > .team-card > .team-name > span:first-child {
   color: #9beaff !important;
   -webkit-text-stroke: 1.25px #06385d !important;
   text-shadow: 0 2px 0 #031a2b, 0 0 8px rgba(90,220,255,.95), 0 0 18px rgba(20,160,235,.62) !important;
 }
 
-.scoreboard > .team-wrapper.gender-team-wrapper.team-two > .team-card > .team-name > span:first-child {
+.gender-team-wrapper.team-two > .team-card > .team-name > span:first-child {
   color: #ff72b8 !important;
   -webkit-text-stroke: 1.25px #68103e !important;
   text-shadow: 0 2px 0 #3e071f, 0 0 8px rgba(255,164,215,.98), 0 0 18px rgba(255,54,159,.62) !important;
 }
 
-/* Command state: black explanatory text + strongly highlighted command. */
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card > .team-name > span[style] {
+/* Command state. */
+.gender-team-wrapper > .team-card > .team-name > span[style] {
   color: #050505 !important;
   background: rgba(255,255,255,.97) !important;
   border: 2px solid rgba(255,255,255,.98) !important;
@@ -81,7 +85,7 @@
   box-shadow: 0 2px 9px rgba(0,0,0,.38) !important;
 }
 
-.scoreboard > .team-wrapper.gender-team-wrapper.team-one > .team-card > .team-name > span[style] strong {
+.gender-team-wrapper.team-one > .team-card > .team-name > span[style] strong {
   color: #075985 !important;
   background: #dff8ff !important;
   border: 2px solid #4ed2ff !important;
@@ -92,7 +96,7 @@
   text-shadow: none !important;
 }
 
-.scoreboard > .team-wrapper.gender-team-wrapper.team-two > .team-card > .team-name > span[style] strong {
+.gender-team-wrapper.team-two > .team-card > .team-name > span[style] strong {
   color: #b51772 !important;
   background: #fff0f8 !important;
   border: 2px solid #ff6ab5 !important;
@@ -103,17 +107,60 @@
   text-shadow: none !important;
 }
 
-/* Score stays immediately below identity. */
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card > .team-score {
+/* Score occupies its own natural row and cannot cover the identity. */
+.gender-team-wrapper > .team-card > .team-score {
   position: relative !important;
-  z-index: 500 !important;
+  z-index: 50 !important;
+  flex: 0 0 36px !important;
+  width: 100% !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
 
-/* Animated pseudo-elements never cover the identity layer. */
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card::before,
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card::after,
-.scoreboard > .team-wrapper.gender-team-wrapper > .team-card > *:not(.team-name):not(.team-score) {
-  /* Children keep their own stacking context; identity is explicitly above. */
+/* Rounds row remains visible directly below the score. */
+.gender-team-wrapper > .team-card > .team-score + div {
+  position: relative !important;
+  z-index: 50 !important;
+  flex: 0 0 20px !important;
+  width: 100% !important;
+  min-height: 20px !important;
+  height: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.gender-team-wrapper .team-rounds-container {
+  z-index: 51 !important;
+  min-height: 18px !important;
+  height: 18px !important;
+  padding: 2px 7px !important;
+}
+
+/* Decoration remains behind the real UI. */
+.gender-team-wrapper > .team-card::before,
+.gender-team-wrapper > .team-card::after,
+.gender-team-wrapper > .team-card > *:not(.team-name):not(.team-score) {
+  pointer-events: none;
+}
+
+.gender-team-wrapper > .team-card > .ability-layer {
+  z-index: 3 !important;
+}
+
+.gender-team-wrapper > .team-card > .team-name,
+.gender-team-wrapper > .team-card > .team-score,
+.gender-team-wrapper > .team-card > .team-score + div {
+  isolation: isolate !important;
 }
