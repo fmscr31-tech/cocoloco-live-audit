@@ -1,20 +1,22 @@
 import { useEffect, useState } from "react";
 import { dashboardAPI } from "../../core/dashboardAPI";
+import { commandConfigManager } from "../../core/commandConfigManager";
 
 const readEnrollment = (dashboard) => {
   const registration = dashboard?.registration || {};
-  const config = dashboard?.registrationConfig || dashboard?.commandConfig || dashboard?.game?.registration || {};
+  const config = dashboard?.registrationConfig || dashboard?.commandConfig || dashboard?.game?.registration || commandConfigManager.getConfig?.() || {};
   const command = String(
     registration.command || registration.joinCommand || registration.entryCommand ||
-    config.command || config.joinCommand || config.entryCommand || ""
+    config.individualCommand || config.command || config.joinCommand || config.entryCommand || ""
   ).trim();
   const giftName = String(
     registration.giftName || registration.entryGift || registration.registrationGift ||
-    config.giftName || config.entryGift || config.registrationGift || ""
+    config.individualRegistrationGift || config.individualGiftName || config.giftName || config.entryGift || ""
   ).trim();
-  const imageUrl = registration.giftImageUrl || registration.imageUrl || config.giftImageUrl || config.imageUrl || "";
-  const image = imageUrl || (giftName ? `/gifts/${giftName}.webp` : "");
-  const method = command ? "command" : giftName ? "gift" : "command";
+  const imageUrl = registration.giftImageUrl || registration.imageUrl || config.individualRegistrationGiftImage || config.giftImageUrl || config.imageUrl || "";
+  const giftAsset = String(config.individualRegistrationGiftAsset || "").trim();
+  const image = imageUrl || (giftAsset ? (giftAsset.startsWith("/") ? giftAsset : `/gifts/${giftAsset}`) : giftName ? `/gifts/${giftName}.gif` : "");
+  const method = String(config.individualRegistrationMethod || registration.method || (giftName ? "gift" : "command")).toLowerCase() === "gift" ? "gift" : "command";
   return { command, giftName, image, method };
 };
 
@@ -25,12 +27,15 @@ export function IndividualJoinPrompt() {
   useEffect(() => {
     const apply = (dashboard) => setEnrollment(readEnrollment(dashboard));
     const unsubscribe = dashboardAPI.subscribe?.(apply);
+    const onConfig = () => apply(dashboardAPI.getState?.() || dashboardAPI.getDashboard?.() || {});
     const refresh = () => apply(dashboardAPI.getState?.() || dashboardAPI.getDashboard?.() || {});
     refresh();
-    const timer = setInterval(refresh, 2500);
+    const interval = setInterval(refresh, 1500);
+    window.addEventListener("storage", onConfig);
     return () => {
       unsubscribe?.();
-      clearInterval(timer);
+      clearInterval(interval);
+      window.removeEventListener("storage", onConfig);
     };
   }, []);
 
@@ -48,30 +53,30 @@ export function IndividualJoinPrompt() {
       top: "-34px",
       right: "0",
       zIndex: 80,
-      width: "118px",
-      minHeight: "24px",
-      padding: "4px 7px",
+      width: "150px",
+      minHeight: "30px",
+      padding: "5px 8px",
       boxSizing: "border-box",
-      borderRadius: "7px",
-      background: "linear-gradient(135deg,rgba(255,255,255,.97),rgba(255,245,210,.96))",
-      border: "1.5px solid rgba(16,42,67,.72)",
-      boxShadow: "0 3px 10px rgba(0,0,0,.34),0 0 8px rgba(255,209,102,.28)",
+      borderRadius: "8px",
+      background: "linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,245,210,.97))",
+      border: "2px solid rgba(16,42,67,.78)",
+      boxShadow: "0 3px 12px rgba(0,0,0,.38),0 0 10px rgba(255,209,102,.32)",
       textAlign: "center",
       transform: show ? "translateY(0)" : "translateY(-1px)",
-      opacity: show ? 1 : .82,
+      opacity: show ? 1 : .86,
       transition: "all .45s ease"
     }}>
-      <div style={{ fontSize: "6.5px", lineHeight: 1.15, fontWeight: 900, color: "#111827", textTransform: "uppercase", letterSpacing: ".35px" }}>
-        {isCommand ? "✍️ ESCRIBE PARA UNIRTE" : "🎁 ENVÍA PARA UNIRTE"}
+      <div style={{ fontSize: "7px", lineHeight: 1.1, fontWeight: 1000, color: "#111827", textTransform: "uppercase", letterSpacing: ".35px" }}>
+        REGÍSTRATE CON:
       </div>
       {isCommand ? (
-        <div style={{ marginTop: "2px", fontSize: "9px", lineHeight: 1.05, fontWeight: 1000, color: "#075985", background: "#e0f2fe", border: "1px solid #38bdf8", borderRadius: "4px", padding: "2px 4px", textTransform: "uppercase", letterSpacing: ".4px", textShadow: "none" }}>
+        <div style={{ marginTop: "3px", fontSize: "11px", lineHeight: 1.05, fontWeight: 1000, color: "#ffffff", background: "#111111", border: "1px solid #000000", borderRadius: "5px", padding: "3px 6px", textTransform: "uppercase", letterSpacing: ".6px", textShadow: "none", boxShadow: "0 1px 0 #fff" }}>
           {enrollment.command}
         </div>
       ) : (
-        <div style={{ marginTop: "2px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-          {enrollment.image ? <img src={enrollment.image} alt="" style={{ width: "18px", height: "18px", objectFit: "contain" }} /> : <span style={{ fontSize: "13px" }}>🎁</span>}
-          <span style={{ fontSize: "7.5px", lineHeight: 1.05, fontWeight: 1000, color: "#a21caf", textTransform: "uppercase" }}>{enrollment.giftName}</span>
+        <div style={{ marginTop: "3px", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+          {enrollment.image ? <img src={enrollment.image} alt={enrollment.giftName || "Regalo"} style={{ width: "22px", height: "22px", objectFit: "contain" }} /> : <span style={{ fontSize: "15px" }}>🎁</span>}
+          <span style={{ fontSize: "8px", lineHeight: 1.05, fontWeight: 1000, color: "#a21caf", textTransform: "uppercase" }}>{enrollment.giftName || "REGALO"}</span>
         </div>
       )}
     </div>
