@@ -73,15 +73,37 @@ class AbilityActionDispatcher {
         teamId: targetTeam.id, teamSnapshot, abilityId: ability.abilityId, giftId: ability.giftId || null,
         canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY_FREEZE_REDIRECT"
       };
+
+      // Reuse the DashboardAPI's authoritative score transport so browser-source
+      // overlays receive the redirected team total as well.
+      eventBus.emit("game:score_updated", {
+        userId: player.id,
+        username: player.username || player.name,
+        pointsAdded: 0,
+        playerSnapshot: { ...player },
+        teamId: targetTeam.id,
+        teamSnapshot,
+        freezeRedirect: true,
+        redirectedFromTeamId: senderTeamId,
+        redirectedPoints: points,
+        timestamp: Date.now()
+      });
       eventBus.emit("game:score_redirected", { originalTeam: senderTeamId, redirectedTeam: targetTeam.id, player: player.username || player.name, points, reason: "FREEZE", source: "ABILITY", canonicalGiftId: ability.canonicalGiftId || null });
       eventBus.publish("ability:score_executed", result);
       eventBus.publish("gift:points_awarded", result);
       return result;
     }
 
+    // Update the team first so PlayerManager's score event observes the new
+    // team total and the dashboard snapshot is internally consistent.
+    let teamSnapshot = null;
+    if (player.teamId) teamSnapshot = addPointsToTeam(player.teamId, points);
     const updated = addPoints(player.id, points);
-    if (!updated) return { success: false, reason: "SCORE_UPDATE_FAILED" };
-    const teamSnapshot = updated.teamId ? addPointsToTeam(updated.teamId, points) : null;
+    if (!updated) {
+      if (player.teamId) addPointsToTeam(player.teamId, -points);
+      return { success: false, reason: "SCORE_UPDATE_FAILED" };
+    }
+
     const result = {
       success: true, type: "ADD_POINTS", points, unitPoints: baseValue, quantity, playerId: updated.id,
       tiktokId: updated.tiktokId || null, displayName: updated.displayName || updated.name,
