@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { dashboardAPI } from "../../core/dashboardAPI";
 import { commandConfigManager } from "../../core/commandConfigManager";
 import { eventBus } from "../../core/eventBus";
@@ -18,7 +18,6 @@ const toAssetUrl = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
   if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
-
   let clean = raw.replace(/^\.?\//, "").replace(/^public[\\/]/i, "");
   clean = clean.replace(/^gifts[\\/]/i, "");
   return encodeURI(`/Gifts/${clean}`);
@@ -26,30 +25,21 @@ const toAssetUrl = (value) => {
 
 const buildGiftCandidates = ({ imageUrl, giftAsset, giftName }) => {
   const candidates = [];
-  const add = (value) => {
-    const url = toAssetUrl(value);
-    if (url) candidates.push(url);
-  };
-
+  const add = (value) => { const url = toAssetUrl(value); if (url) candidates.push(url); };
   add(imageUrl);
   add(giftAsset);
-
   if (giftName) {
     const base = giftName.trim().replace(/\.(webp|png|jpg|jpeg|gif)$/i, "");
     [".webp", ".png", ".gif", ".jpg", ".jpeg"].forEach((ext) => add(`${base}${ext}`));
   }
-
   return [...new Set(candidates)];
 };
 
 function RegistrationAssetImage({ enrollment }) {
   const candidates = useMemo(() => buildGiftCandidates(enrollment), [enrollment]);
   const [index, setIndex] = useState(0);
-
   useEffect(() => setIndex(0), [candidates.join("|")]);
-
   if (!candidates.length || index >= candidates.length) return null;
-
   return (
     <img
       src={candidates[index]}
@@ -61,6 +51,7 @@ function RegistrationAssetImage({ enrollment }) {
 }
 
 export function IndividualJoinPrompt() {
+  const promptRef = useRef(null);
   const [dashboard, setDashboard] = useState(() => dashboardAPI.getLiveDashboard?.() || dashboardAPI.getState?.() || {});
   const [enrollment, setEnrollment] = useState(() => readEnrollment(dashboard));
   const [blink, setBlink] = useState(true);
@@ -70,9 +61,9 @@ export function IndividualJoinPrompt() {
   useEffect(() => {
     const markDuplicate = () => {
       const nodes = Array.from(document.querySelectorAll('[data-cocoloco-registration-prompt="true"]'));
+      const ownNode = promptRef.current;
       nodes.forEach((node, index) => { node.style.display = index === 0 ? "" : "none"; });
-      const ownNode = nodes[0];
-      setIsDuplicate(!ownNode || ownNode !== document.querySelector('[data-cocoloco-registration-prompt="true"]'));
+      setIsDuplicate(!!ownNode && ownNode !== nodes[0]);
     };
     const frame = window.requestAnimationFrame(markDuplicate);
     return () => window.cancelAnimationFrame(frame);
@@ -103,7 +94,6 @@ export function IndividualJoinPrompt() {
       setWinnerSuppressedUntil(until);
       window.setTimeout(() => setWinnerSuppressedUntil((current) => current === until ? 0 : current), duration + 100);
     };
-
     const subscriptions = [
       eventBus.subscribe("round:winner_popup", hideForWinner),
       eventBus.subscribe("PLAYER_WIN", hideForWinner),
@@ -112,7 +102,6 @@ export function IndividualJoinPrompt() {
       eventBus.subscribe("BATTLE_END", hideForWinner),
       eventBus.subscribe("EXTERNAL_BATTLE_END", hideForWinner)
     ];
-
     return () => subscriptions.forEach((unsubscribe) => unsubscribe?.());
   }, []);
 
@@ -128,37 +117,24 @@ export function IndividualJoinPrompt() {
   if (isDuplicate || !visible) return null;
 
   const isCommand = enrollment.method === "command";
-
   return (
     <div
+      ref={promptRef}
       data-cocoloco-registration-prompt="true"
       aria-live="polite"
       style={{
-        position: "absolute",
-        left: "calc(50% - 16px)",
-        top: "50%",
-        transform: "translate(-50%, -50%)",
-        zIndex: 5000,
-        width: isCommand ? "220px" : "250px",
-        minHeight: isCommand ? "74px" : "112px",
-        padding: isCommand ? "10px 18px" : "12px 20px",
-        boxSizing: "border-box",
-        borderRadius: "18px",
-        background: blink ? "rgba(8,18,30,.38)" : "rgba(8,18,30,.22)",
+        position: "absolute", left: "calc(50% - 16px)", top: "50%", transform: "translate(-50%, -50%)", zIndex: 5000,
+        width: isCommand ? "220px" : "250px", minHeight: isCommand ? "74px" : "112px", padding: isCommand ? "10px 18px" : "12px 20px",
+        boxSizing: "border-box", borderRadius: "18px", background: blink ? "rgba(8,18,30,.38)" : "rgba(8,18,30,.22)",
         border: blink ? "1px solid rgba(255,255,255,.72)" : "1px solid rgba(255,255,255,.38)",
         boxShadow: blink ? "0 0 26px rgba(255,255,255,.24), inset 0 0 22px rgba(255,255,255,.06)" : "0 0 12px rgba(255,255,255,.10), inset 0 0 18px rgba(255,255,255,.035)",
-        backdropFilter: "blur(2px)",
-        WebkitBackdropFilter: "blur(2px)",
-        textAlign: "center",
-        opacity: blink ? 1 : .78,
-        transition: "opacity .45s ease, border-color .45s ease, box-shadow .45s ease",
-        pointerEvents: "none"
+        backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", textAlign: "center", opacity: blink ? 1 : .78,
+        transition: "opacity .45s ease, border-color .45s ease, box-shadow .45s ease", pointerEvents: "none"
       }}
     >
       <div style={{ fontSize: "10px", lineHeight: 1.15, fontWeight: 950, color: "#fff", textTransform: "uppercase", letterSpacing: ".7px", textShadow: "0 2px 5px rgba(0,0,0,.95)" }}>
         {isCommand ? "INSCRÍBETE ESCRIBIENDO EN EL CHAT" : "INSCRÍBETE ENVIANDO"}
       </div>
-
       {isCommand ? (
         <div style={{ marginTop: "7px", display: "inline-block", maxWidth: "100%", padding: "4px 13px", borderRadius: "8px", background: "rgba(255,255,255,.90)", border: "2px solid #111827", color: "#e11d48", fontSize: "16px", lineHeight: 1, fontWeight: 1000, textTransform: "uppercase", letterSpacing: "1.2px", boxShadow: "0 2px 10px rgba(0,0,0,.45)" }}>
           {enrollment.command}
