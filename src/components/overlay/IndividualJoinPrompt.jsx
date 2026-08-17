@@ -20,7 +20,7 @@ const toAssetUrl = (value) => {
   if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
   let clean = raw.replace(/^\.?\//, "").replace(/^public[\\/]/i, "");
   clean = clean.replace(/^gifts[\\/]/i, "");
-  return encodeURI(`/Gifts/${clean}`);
+  return encodeURI(`/gifts/${clean}`);
 };
 
 const buildGiftCandidates = ({ imageUrl, giftAsset, giftName }) => {
@@ -41,7 +41,12 @@ function RegistrationAssetImage({ enrollment }) {
   useEffect(() => setIndex(0), [candidates.join("|")]);
   if (!candidates.length || index >= candidates.length) return null;
   return (
-    <img src={candidates[index]} alt={enrollment.giftName || "Método de inscripción"} onError={() => setIndex((value) => value + 1)} style={{ width: "54px", height: "54px", objectFit: "contain", display: "block", flex: "0 0 54px", filter: "drop-shadow(0 0 8px rgba(255,255,255,.65))" }} />
+    <img
+      src={candidates[index]}
+      alt={enrollment.giftName || "Método de inscripción"}
+      onError={() => setIndex((value) => value + 1)}
+      style={{ width: "54px", height: "54px", objectFit: "contain", display: "block", flex: "0 0 54px", filter: "drop-shadow(0 0 8px rgba(255,255,255,.65))" }}
+    />
   );
 }
 
@@ -57,11 +62,17 @@ export function IndividualJoinPrompt() {
     const markDuplicate = () => {
       const nodes = Array.from(document.querySelectorAll('[data-cocoloco-registration-prompt="true"]'));
       const ownNode = promptRef.current;
-      nodes.forEach((node, index) => { node.style.display = index === 0 ? "" : "none"; });
-      setIsDuplicate(!!ownNode && ownNode !== nodes[0]);
+      if (!ownNode || nodes.length <= 1) {
+        setIsDuplicate(false);
+        return;
+      }
+      const first = nodes[0];
+      nodes.forEach((node) => { node.style.display = node === first ? "" : "none"; });
+      setIsDuplicate(ownNode !== first);
     };
     const frame = window.requestAnimationFrame(markDuplicate);
-    return () => window.cancelAnimationFrame(frame);
+    const retry = window.setTimeout(markDuplicate, 80);
+    return () => { window.cancelAnimationFrame(frame); window.clearTimeout(retry); };
   }, []);
 
   useEffect(() => {
@@ -72,9 +83,24 @@ export function IndividualJoinPrompt() {
     };
     const unsubscribe = dashboardAPI.subscribe?.(apply);
     const refresh = () => apply();
+    const subscriptions = [
+      eventBus.subscribe("registration:opened", refresh),
+      eventBus.subscribe("registration:closed", refresh),
+      eventBus.subscribe("registration:locked", refresh),
+      eventBus.subscribe("registration:cleared", refresh),
+      eventBus.subscribe("individual:registration_cycle_opened", refresh),
+      eventBus.subscribe("round:started", refresh),
+      eventBus.subscribe("round:finished", refresh),
+      eventBus.subscribe("GAME_MODE_CHANGED", refresh)
+    ];
     const interval = setInterval(refresh, 700);
     window.addEventListener("storage", refresh);
-    return () => { unsubscribe?.(); clearInterval(interval); window.removeEventListener("storage", refresh); };
+    return () => {
+      unsubscribe?.();
+      subscriptions.forEach((unsubscribeEvent) => unsubscribeEvent?.());
+      clearInterval(interval);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
 
   useEffect(() => {
@@ -102,7 +128,8 @@ export function IndividualJoinPrompt() {
 
   const game = dashboard?.game || {};
   const registration = dashboard?.registration || {};
-  const mode = String(dashboard?.gameMode || dashboard?.gameRegistrationMode || "").toUpperCase();
+  const config = dashboard?.commandConfig || commandConfigManager.getConfig?.() || {};
+  const mode = String(dashboard?.gameMode || dashboard?.gameRegistrationMode || config.gameRegistrationMode || "").toUpperCase();
   const isIndividual = mode === "INDIVIDUAL" || mode === "INDIVIDUAL_MODE" || mode === "SOLO" || !mode;
   const roundActive = !!(game?.round?.active || game?.roundActive || game?.timer?.running);
   const registrationOpen = String(registration?.status || "").toUpperCase() === "OPEN";
