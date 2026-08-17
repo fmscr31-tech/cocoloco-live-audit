@@ -1,0 +1,78 @@
+/* FINAL VISUAL HARD-LOCK: team identity must remain visible in GENDER_TEAMS. */
+.scoreboard .gender-team-wrapper.team-one .team-card .team-name,
+.scoreboard .gender-team-wrapper.team-two .team-card .team-name {
+  position: relative !important;
+  z-index: 1000 !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 24px !important;
+  height: 24px !important;
+  overflow: visible !important;
+  isolation: isolate !important;
+}
+
+.scoreboard .gender-team-wrapper.team-one .team-card .team-name > span:not(:has(strong)),
+.scoreboard .gender-team-wrapper.team-two .team-card .team-name > span:not(:has(strong)) {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+.scoreboard .gender-team-wrapper.team-one .team-card .team-name:not(:has(strong))::before,
+.scoreboard .gender-team-wrapper.team-two .team-card .team-name:not(:has(strong))::before {
+  content: "CHICOS";
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 1001 !important;
+  pointer-events: none !important;
+  color: #a7efff !important;
+  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
+  font-size: 20px !important;
+  font-weight: 950 !important;
+  letter-spacing: 1.2px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  -webkit-text-stroke: 1.25px #06375f !important;
+  text-shadow: 0 2px 0 #021b30, 0 0 8px rgba(112,229,255,.9), 0 0 16px rgba(41,178,230,.45) !important;
+}
+
+.scoreboard .gender-team-wrapper.team-two .team-card .team-name:not(:has(strong))::before {
+  content: "CHICAS" !important;
+  color: #ff69b2 !important;
+  -webkit-text-stroke: 1.25px #68103c !important;
+  text-shadow: 0 2px 0 #430820, 0 0 8px rgba(255,180,220,.95), 0 0 16px rgba(255,74,165,.45) !important;
+}
+
+.scoreboard .gender-team-wrapper .team-card .team-name:has(strong) > span {
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 1002 !important;
+}
+
+.scoreboard .gender-team-wrapper .team-card .team-name:has(strong)::before {
+  display: none !important;
+  content: none !important;
+}
+
+.scoreboard .gender-team-wrapper .team-card .team-name::after {
+  pointer-events: none !important;
+  z-index: 1003 !important;
+}
+
+/* All decorative card layers stay behind identity. */
+.scoreboard .gender-team-wrapper .team-card::before,
+.scoreboard .gender-team-wrapper .team-card::after,
+.scoreboard .gender-team-wrapper .team-card > [aria-hidden="true"] {
+  z-index: 1 !important;
+}
+
+.scoreboard .gender-team-wrapper .team-card .team-score,
+.scoreboard .gender-team-wrapper .team-card .team-rounds-container {
+  position: relative !important;
+  z-index: 1000 !important;
+}
