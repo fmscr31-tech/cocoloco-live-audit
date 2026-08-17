@@ -6,18 +6,15 @@ import "./index.css";
 import { audioManager } from "./core/audioManager";
 
 // Initialize the Win Limpia chat listener before the application starts.
-// chatCommandParser subscribes to normalized:chat and routes the correct answer
-// to gameEngine.playerWin(). Without this import the parser module is never
-// instantiated, so LIVE chat answers cannot award the win point.
 import "./core/chatCommandParser";
+import "./core/winBridgeWatchdog";
 
 // Initialize native audio manager layer
 window.__cocoAudioManager = audioManager;
 
 ReactDOM.createRoot(
   document.getElementById("root")
-)
-.render(
+).render(
   <React.StrictMode>
     <BrowserRouter>
       <App />
