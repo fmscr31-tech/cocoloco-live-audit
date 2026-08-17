@@ -41,12 +41,7 @@ function RegistrationAssetImage({ enrollment }) {
   useEffect(() => setIndex(0), [candidates.join("|")]);
   if (!candidates.length || index >= candidates.length) return null;
   return (
-    <img
-      src={candidates[index]}
-      alt={enrollment.giftName || "Método de inscripción"}
-      onError={() => setIndex((value) => value + 1)}
-      style={{ width: "54px", height: "54px", objectFit: "contain", display: "block", flex: "0 0 54px", filter: "drop-shadow(0 0 8px rgba(255,255,255,.65))" }}
-    />
+    <img src={candidates[index]} alt={enrollment.giftName || "Método de inscripción"} onError={() => setIndex((value) => value + 1)} style={{ width: "54px", height: "54px", objectFit: "contain", display: "block", flex: "0 0 54px", filter: "drop-shadow(0 0 8px rgba(255,255,255,.65))" }} />
   );
 }
 
@@ -118,33 +113,22 @@ export function IndividualJoinPrompt() {
 
   const isCommand = enrollment.method === "command";
   return (
-    <div
-      ref={promptRef}
-      data-cocoloco-registration-prompt="true"
-      aria-live="polite"
-      style={{
-        position: "absolute", left: "calc(50% - 16px)", top: "50%", transform: "translate(-50%, -50%)", zIndex: 5000,
-        width: isCommand ? "220px" : "250px", minHeight: isCommand ? "74px" : "112px", padding: isCommand ? "10px 18px" : "12px 20px",
-        boxSizing: "border-box", borderRadius: "18px", background: blink ? "rgba(8,18,30,.38)" : "rgba(8,18,30,.22)",
-        border: blink ? "1px solid rgba(255,255,255,.72)" : "1px solid rgba(255,255,255,.38)",
-        boxShadow: blink ? "0 0 26px rgba(255,255,255,.24), inset 0 0 22px rgba(255,255,255,.06)" : "0 0 12px rgba(255,255,255,.10), inset 0 0 18px rgba(255,255,255,.035)",
-        backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", textAlign: "center", opacity: blink ? 1 : .78,
-        transition: "opacity .45s ease, border-color .45s ease, box-shadow .45s ease", pointerEvents: "none"
-      }}
-    >
-      <div style={{ fontSize: "10px", lineHeight: 1.15, fontWeight: 950, color: "#fff", textTransform: "uppercase", letterSpacing: ".7px", textShadow: "0 2px 5px rgba(0,0,0,.95)" }}>
-        {isCommand ? "INSCRÍBETE ESCRIBIENDO EN EL CHAT" : "INSCRÍBETE ENVIANDO"}
-      </div>
+    <div ref={promptRef} data-cocoloco-registration-prompt="true" aria-live="polite" style={{
+      position: "absolute", left: "calc(50% - 16px)", top: "50%", transform: "translate(-50%, -50%)", zIndex: 5000,
+      width: isCommand ? "220px" : "250px", minHeight: isCommand ? "74px" : "112px", padding: isCommand ? "10px 18px" : "12px 20px",
+      boxSizing: "border-box", borderRadius: "18px", background: blink ? "rgba(46, 125, 50, .18)" : "rgba(46, 125, 50, .10)",
+      border: blink ? "1px solid rgba(185, 255, 194, .70)" : "1px solid rgba(185, 255, 194, .38)",
+      boxShadow: blink ? "0 0 26px rgba(120, 255, 145, .18), inset 0 0 22px rgba(120, 255, 145, .06)" : "0 0 12px rgba(120, 255, 145, .08), inset 0 0 18px rgba(120, 255, 145, .025)",
+      backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", textAlign: "center", opacity: blink ? 1 : .82,
+      transition: "opacity .45s ease, border-color .45s ease, box-shadow .45s ease", pointerEvents: "none"
+    }}>
+      <div style={{ fontSize: "10px", lineHeight: 1.15, fontWeight: 950, color: "#fff", textTransform: "uppercase", letterSpacing: ".7px", textShadow: "0 2px 5px rgba(0,0,0,.95)" }}>{isCommand ? "INSCRÍBETE ESCRIBIENDO EN EL CHAT" : "INSCRÍBETE ENVIANDO"}</div>
       {isCommand ? (
-        <div style={{ marginTop: "7px", display: "inline-block", maxWidth: "100%", padding: "4px 13px", borderRadius: "8px", background: "rgba(255,255,255,.90)", border: "2px solid #111827", color: "#e11d48", fontSize: "16px", lineHeight: 1, fontWeight: 1000, textTransform: "uppercase", letterSpacing: "1.2px", boxShadow: "0 2px 10px rgba(0,0,0,.45)" }}>
-          {enrollment.command}
-        </div>
+        <div style={{ marginTop: "7px", display: "inline-block", maxWidth: "100%", padding: "4px 13px", borderRadius: "8px", background: "rgba(255,255,255,.90)", border: "2px solid #111827", color: "#e11d48", fontSize: "16px", lineHeight: 1, fontWeight: 1000, textTransform: "uppercase", letterSpacing: "1.2px", boxShadow: "0 2px 10px rgba(0,0,0,.45)" }}>{enrollment.command}</div>
       ) : (
         <div style={{ marginTop: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
           <RegistrationAssetImage enrollment={enrollment} />
-          <div style={{ maxWidth: "145px", fontSize: "12px", lineHeight: 1.05, fontWeight: 1000, color: "#fff", textTransform: "uppercase", textShadow: "0 2px 5px rgba(0,0,0,.95)" }}>
-            {enrollment.giftName || "ENVÍA"}
-          </div>
+          <div style={{ maxWidth: "145px", fontSize: "12px", lineHeight: 1.05, fontWeight: 1000, color: "#fff", textTransform: "uppercase", textShadow: "0 2px 5px rgba(0,0,0,.95)" }}>{enrollment.giftName || "ENVÍA"}</div>
         </div>
       )}
     </div>
