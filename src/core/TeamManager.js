@@ -45,8 +45,6 @@ function syncConfiguredTeams(configTeams = []) {
     };
   });
 
-  // IMPORTANT: configured order is canonical visual order.
-  // Never reorder teams by score, wins, MVPs, or any ranking value.
   teams = next;
   saveTeams();
   return getTeams();
@@ -114,9 +112,6 @@ function getTeam(teamId) {
 
 function getTeams() {
   loadTeams();
-  // DO NOT SORT HERE.
-  // The configured TeamManager order is the canonical left-to-right overlay order.
-  // Team 1 stays left and Team 2 stays right regardless of score/wins.
   return [...teams];
 }
 
@@ -126,17 +121,16 @@ function resetTeams() {
 }
 
 /**
- * Resets only the round scoreboard. Team definitions remain intact.
- * Historical/session data is archived by roundManager before this function runs.
- * Points, round wins, and round player assignments all belong to the completed
- * round and therefore return to their clean-round state.
+ * Reset round points while keeping the cumulative RONDA counter (wins).
+ * In CHICOS VS CHICAS the registered team membership must also survive
+ * between rounds, so preservePlayers=true keeps TeamManager assignments.
  */
-function resetRoundTeamScores() {
+function resetRoundTeamScores(preservePlayers = false) {
   loadTeams();
   teams.forEach(team => {
     team.points = 0;
-    team.wins = 0;
-    team.players = [];
+    // wins are cumulative session round wins and must NOT be reset here.
+    if (!preservePlayers) team.players = [];
   });
   saveTeams();
   return getTeams();
