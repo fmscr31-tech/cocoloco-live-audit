@@ -1,526 +1,125 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { configManager } from "../../core/configManager";
 import { audioManager } from "../../core/audioManager";
 import { CANONICAL_GIFTS, resolveCanonicalGiftId } from "../../config/canonicalGifts";
-import { ABILITY_REGISTRY } from "../../config/abilityRegistry";
 import { GiftImage } from "../common/GiftImage";
 
-/**
- * Gift Control Center v4 — P5 Hardening & Canonical Registry Integration
- * Operator-friendly production console using CANONICAL_GIFTS source of truth.
- * Ensures 100% safe audio/visual preview (zero scoring) and persistent configuration.
- */
+const REAL_SOUNDS = [
+  { value: "/Sounds/mudo.mp3", label: "mudo.mp3 — Doughnut" },
+  { value: "/Sounds/Sombrero Vaquero.mp3", label: "Sombrero Vaquero.mp3 — Hat" },
+  { value: "/Sounds/Castigados.mp3", label: "Castigados.mp3 — Freeze" },
+  { value: "/Sounds/Kamehameha.mp3", label: "Kamehameha.mp3 — Galaxy" },
+  { value: "/Sounds/Reinicio.mp3", label: "Reinicio.mp3 — Money Gun" },
+  { value: "/Sounds/Grito feo.mp3", label: "Grito feo.mp3 — Amped Up" },
+  { value: "/Sounds/Ahh cute.mp3", label: "Ahh cute.mp3 — Ice Cream / Pista" },
+  { value: "/Sounds/coconut-sfx.mp3", label: "coconut-sfx.mp3 — Go Popular / Cocazo" }
+];
+
+const REAL_SOUND_SET = new Set(REAL_SOUNDS.map(s => s.value));
+const supportedGifts = Object.values(CANONICAL_GIFTS).filter(g => g.supported);
+
+function sanitizeRules(saved) {
+  const source = saved && typeof saved === "object" ? saved : {};
+  const modes = ["context", "vs_battle", "tournament"];
+  const output = {};
+  for (const mode of modes) {
+    const rules = Array.isArray(source[mode]) ? source[mode] : [];
+    output[mode] = rules.map(rule => {
+      const resolved = resolveCanonicalGiftId(rule.giftId || rule.giftName);
+      const canonical = resolved || CANONICAL_GIFTS[rule.giftId];
+      const sound = REAL_SOUND_SET.has(rule.sound) ? rule.sound : (canonical?.sound && REAL_SOUND_SET.has(canonical.sound) ? canonical.sound : null);
+      return {
+        ...rule,
+        giftId: canonical?.canonicalId || rule.giftId,
+        displayName: rule.displayName || canonical?.displayName || rule.giftId,
+        soundEnabled: rule.soundEnabled !== false && !!sound,
+        sound,
+        animationEnabled: rule.animationEnabled !== false && !!(rule.animation || canonical?.animation),
+        animation: rule.animation || canonical?.animation || "none",
+        active: rule.active !== false
+      };
+    });
+  }
+  if (!output.context.length) {
+    output.context = supportedGifts.map(g => ({ giftId:g.canonicalId, displayName:g.displayName, action:g.action, value:g.defaultPoints||0, active:true, sound:g.sound||null, soundEnabled:!!g.sound, animation:g.animation||"none", animationEnabled:!!g.animation }));
+  }
+  return output;
+}
+
 export function GiftConfigControls() {
   const [selectedMode, setSelectedMode] = useState("context");
-
-  // Get supported canonical gifts list
-  const supportedGiftsList = Object.values(CANONICAL_GIFTS).filter(g => g.supported);
-
-  // Initialize rules by mode from configManager with fail-safe fallback
   const [rulesByMode, setRulesByMode] = useState(() => {
     try {
-      const saved = configManager.get("giftRules");
-      if (saved && typeof saved === "object") {
-        return saved;
-      }
+      const clean = sanitizeRules(configManager.get("giftRules"));
+      configManager.set("giftRules", clean);
+      return clean;
     } catch (e) {
-      console.warn("[GiftControlCenter] Failed to load giftRules:", e);
+      return sanitizeRules(null);
     }
-    return {
-      context: [
-        { giftId: "doughnut", displayName: "Doughnut 🍩", action: "Special event", value: 30, active: true, sound: "/mudo.mp3", animation: "silent_challenge" },
-        { giftId: "hat_and_mustache", displayName: "Hat and Mustache 🤠", action: "Add points", value: 99, active: true, sound: "/Sounds/Sombrero Vaquero.mp3", animation: "creative_challenge" }
-      ]
-    };
   });
-
-  const [showAddModal, setShowAddModal] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
-  const [previewNotification, setPreviewNotification] = useState(null);
-
-  const [formState, setFormState] = useState({
-    giftId: "doughnut",
-    displayName: "Doughnut 🍩",
-    pointsEnabled: true,
-    value: 30,
-    soundEnabled: true,
-    sound: "/mudo.mp3",
-    animationEnabled: true,
-    animation: "silent_challenge",
-    active: true
-  });
-
+  const [form, setForm] = useState(null);
+  const [notice, setNotice] = useState("");
   const currentRules = rulesByMode[selectedMode] || [];
 
-  const persistRules = (newRulesByMode) => {
-    setRulesByMode(newRulesByMode);
-    try {
-      configManager.set("giftRules", newRulesByMode);
-    } catch (e) {
-      console.warn("[GiftControlCenter] Failed to persist giftRules:", e);
-    }
-  };
+  const persist = next => { const clean = sanitizeRules(next); setRulesByMode(clean); configManager.set("giftRules", clean); };
 
-  const handleOpenAdd = () => {
+  const openNew = () => {
+    const gift = supportedGifts[0];
     setEditingIndex(null);
-    setFormState({
-      giftId: "doughnut",
-      displayName: "Doughnut 🍩",
-      pointsEnabled: true,
-      value: 30,
-      soundEnabled: true,
-      sound: "/mudo.mp3",
-      animationEnabled: true,
-      animation: "silent_challenge",
-      active: true
-    });
-    setShowAddModal(true);
+    setForm({ giftId:gift.canonicalId, displayName:gift.displayName, value:gift.defaultPoints||0, sound:gift.sound||null, animation:gift.animation||"none", active:true });
   };
 
-  const handleOpenEdit = (index, rule) => {
+  const openEdit = (index, rule) => {
+    const gift = resolveCanonicalGiftId(rule.giftId);
     setEditingIndex(index);
-    const resolved = resolveCanonicalGiftId(rule.giftId);
-    setFormState({
-      giftId: resolved ? resolved.canonicalId : (rule.giftId || "doughnut"),
-      displayName: rule.displayName || (resolved ? resolved.displayName : rule.giftId),
-      pointsEnabled: rule.pointsEnabled !== false && (rule.value > 0 || rule.action === "Add points"),
-      value: rule.value ?? 30,
-      soundEnabled: rule.soundEnabled !== false && !!rule.sound,
-      sound: rule.sound || resolved?.sound || "",
-      animationEnabled: rule.animationEnabled !== false && !!rule.animation,
-      animation: rule.animation || resolved?.animation || "none",
-      active: rule.active !== false
-    });
-    setShowAddModal(true);
+    setForm({ giftId:gift?.canonicalId||rule.giftId, displayName:rule.displayName||gift?.displayName||rule.giftId, value:Number(rule.value)||0, sound:REAL_SOUND_SET.has(rule.sound)?rule.sound:(gift?.sound||null), animation:rule.animation||gift?.animation||"none", active:rule.active!==false });
   };
 
-  const handleGiftSelect = (e) => {
-    const selectedId = e.target.value;
-    const resolved = resolveCanonicalGiftId(selectedId);
-    if (resolved) {
-      setFormState({
-        ...formState,
-        giftId: resolved.canonicalId,
-        displayName: resolved.displayName,
-        value: resolved.defaultPoints || 30,
-        sound: resolved.sound || "",
-        animation: resolved.animation || "none"
-      });
-    }
+  const selectGift = giftId => {
+    const gift = CANONICAL_GIFTS[giftId];
+    if (!gift) return;
+    setForm(prev => ({ ...prev, giftId, displayName:gift.displayName, value:gift.defaultPoints||0, sound:gift.sound||null, animation:gift.animation||"none" }));
   };
 
-  const handleSaveRule = (e) => {
+  const saveForm = e => {
     e.preventDefault();
-    const rulePayload = {
-      giftId: formState.giftId,
-      displayName: formState.displayName,
-      action: formState.pointsEnabled ? "Add points" : "Special event",
-      value: formState.pointsEnabled ? Number(formState.value) || 0 : 0,
-      soundEnabled: formState.soundEnabled,
-      sound: formState.soundEnabled ? formState.sound : null,
-      animationEnabled: formState.animationEnabled,
-      animation: formState.animationEnabled ? formState.animation : null,
-      active: formState.active
-    };
-
-    let updated;
-    if (editingIndex !== null) {
-      updated = currentRules.map((r, i) => i === editingIndex ? rulePayload : r);
-    } else {
-      updated = [...currentRules, rulePayload];
-    }
-
-    const newRulesByMode = { ...rulesByMode, [selectedMode]: updated };
-    persistRules(newRulesByMode);
-    setShowAddModal(false);
+    if (!form) return;
+    const rule = { giftId:form.giftId, displayName:form.displayName, action:Number(form.value)>0?"Add points":"Special event", value:Number(form.value)||0, pointsEnabled:Number(form.value)>0, soundEnabled:!!form.sound, sound:form.sound||null, animationEnabled:form.animation!=="none", animation:form.animation||"none", active:form.active!==false };
+    const updated = editingIndex===null ? [...currentRules, rule] : currentRules.map((r,i)=>i===editingIndex?rule:r);
+    persist({ ...rulesByMode, [selectedMode]:updated });
+    setForm(null); setNotice("Configuración guardada sin sonidos ficticios.");
   };
 
-  const handleDeleteRule = (index) => {
-    const updated = currentRules.filter((_, i) => i !== index);
-    const newRulesByMode = { ...rulesByMode, [selectedMode]: updated };
-    persistRules(newRulesByMode);
-  };
+  const remove = index => { persist({ ...rulesByMode, [selectedMode]:currentRules.filter((_,i)=>i!==index) }); };
+  const preview = rule => { if (rule.sound) audioManager.playSound(rule.sound,{source:"SAFE_PREVIEW"}); setNotice(`Preview: ${rule.displayName}`); };
+  const soundCount = useMemo(() => REAL_SOUNDS.length, []);
 
-  const handleToggleActive = (index) => {
-    const updated = currentRules.map((r, i) => i === index ? { ...r, active: r.active === false ? true : false } : r);
-    const newRulesByMode = { ...rulesByMode, [selectedMode]: updated };
-    persistRules(newRulesByMode);
-  };
-
-  // Safe Preview — AUDIO & VISUAL ONLY. ZERO SCORING. ZERO STATE MUTATION.
-  const handleSafePreview = (rule) => {
-    if (rule.sound) {
-      try {
-        audioManager.playSound(rule.sound, { source: "SAFE_PREVIEW" });
-      } catch (err) {
-        console.warn("[GiftControlCenter] Audio preview note:", err);
-      }
-    }
-    setPreviewNotification(`▶ PREVIEW: ${rule.displayName || rule.giftId} (Audio/Visual Only - Zero Scoring)`);
-    setTimeout(() => setPreviewNotification(null), 3500);
-  };
-
-  return (
-    <div style={{
-      background: "rgba(25, 20, 38, 0.95)",
-      border: "1px solid rgba(0, 245, 255, 0.3)",
-      borderRadius: "12px",
-      padding: "18px",
-      boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
-      display: "flex",
-      flexDirection: "column",
-      gap: "16px"
-    }}>
-      {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", borderBottom: "1px solid rgba(255,255,255,0.12)", paddingBottom: "12px" }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: "16px", color: "#00f5ff", textTransform: "uppercase", letterSpacing: "1px" }}>
-            🎁 Gift Control Center (Canonical P5)
-          </h3>
-          <div style={{ fontSize: "11px", color: "#a0aec0", marginTop: "2px" }}>
-            Configuración determinista por Gift respaldada por el Canonical Gift Registry
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 800 }}>Mode:</span>
-          <select
-            value={selectedMode}
-            onChange={(e) => setSelectedMode(e.target.value)}
-            style={{
-              background: "#120f1d",
-              color: "#00f5ff",
-              border: "1px solid rgba(0,245,255,0.4)",
-              borderRadius: "6px",
-              padding: "6px 12px",
-              fontSize: "12px",
-              fontWeight: 800,
-              cursor: "pointer",
-              textTransform: "uppercase"
-            }}
-          >
-            <option value="context">Context / Standard</option>
-            <option value="vs_battle">VS Battle</option>
-            <option value="tournament">Tournament</option>
-          </select>
-        </div>
-      </div>
-
-      {/* ACTION BAR */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: "12px", color: "#e2e8f0" }}>
-          Gifts operativos configurados para <strong style={{ color: "#ffd700", textTransform: "uppercase" }}>{selectedMode}</strong> ({currentRules.length} gifts)
-        </div>
-        <button
-          onClick={handleOpenAdd}
-          style={{
-            background: "linear-gradient(135deg, #00f5ff, #0077ff)",
-            color: "#fff",
-            border: "none",
-            padding: "8px 16px",
-            borderRadius: "6px",
-            fontSize: "11px",
-            fontWeight: 900,
-            cursor: "pointer",
-            boxShadow: "0 2px 10px rgba(0,245,255,0.4)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px"
-          }}
-        >
-          + Agregar Gift Operativo
-        </button>
-      </div>
-
-      {/* PREVIEW NOTIFICATION BANNER */}
-      {previewNotification && (
-        <div style={{
-          background: "linear-gradient(135deg, rgba(255,215,0,0.95), rgba(255,140,0,0.95))",
-          color: "#0c091a",
-          borderRadius: "8px",
-          padding: "10px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxShadow: "0 0 25px rgba(255,215,0,0.8)",
-          fontWeight: 900,
-          fontSize: "11px",
-          textTransform: "uppercase"
-        }}>
-          <span>{previewNotification}</span>
-          <span style={{ background: "#0c091a", color: "#ffd700", padding: "2px 6px", borderRadius: "4px", fontSize: "9px" }}>ZERO SCORING</span>
-        </div>
-      )}
-
-      {/* ADD / EDIT MODAL */}
-      {showAddModal && (
-        <form onSubmit={handleSaveRule} style={{
-          background: "rgba(18, 15, 29, 0.98)",
-          border: "1.5px solid #00f5ff",
-          borderRadius: "10px",
-          padding: "18px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "14px",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.8)"
-        }}>
-          <div style={{ fontSize: "13px", fontWeight: 900, color: "#00f5ff", textTransform: "uppercase" }}>
-            {editingIndex !== null ? "Editar Comportamiento de Gift" : "Agregar Gift Operativo Soportado"}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
-            <div>
-              <label style={{ fontSize: "10px", color: "#ffd700", display: "block", marginBottom: "3px", fontWeight: 900 }}>Gift Canónico:</label>
-              <select
-                value={formState.giftId}
-                onChange={handleGiftSelect}
-                style={{ width: "100%", background: "#120f1d", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", padding: "8px", fontSize: "11px", fontWeight: 800 }}
-              >
-                {supportedGiftsList.map(g => (
-                  <option key={g.canonicalId} value={g.canonicalId}>{g.displayName} (ID: {g.canonicalId})</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "3px", fontWeight: 800 }}>Nombre Visible:</label>
-              <input
-                type="text"
-                value={formState.displayName}
-                onChange={(e) => setFormState({ ...formState, displayName: e.target.value })}
-                style={{ width: "100%", background: "#120f1d", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", padding: "8px", fontSize: "11px" }}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Behavior Toggles */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px" }}>
-            {/* Points Config */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 900, color: "#00f5ff", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={formState.pointsEnabled}
-                  onChange={(e) => setFormState({ ...formState, pointsEnabled: e.target.checked })}
-                />
-                Otorga Puntaje
-              </label>
-              {formState.pointsEnabled && (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontSize: "10px", color: "#a0aec0" }}>Puntos:</span>
-                  <input
-                    type="number"
-                    value={formState.value}
-                    onChange={(e) => setFormState({ ...formState, value: parseInt(e.target.value) || 0 })}
-                    style={{ width: "80px", background: "#120f1d", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", padding: "4px", fontSize: "11px", fontWeight: 900 }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Sound Config */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 900, color: "#ffd700", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={formState.soundEnabled}
-                  onChange={(e) => setFormState({ ...formState, soundEnabled: e.target.checked })}
-                />
-                Reproducir Sonido
-              </label>
-              {formState.soundEnabled && (
-                <select
-                  value={formState.sound}
-                  onChange={(e) => setFormState({ ...formState, sound: e.target.value })}
-                  style={{ background: "#120f1d", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", padding: "4px", fontSize: "10.5px" }}
-                >
-                  <option value="/mudo.mp3">mudo.mp3 (Doughnut)</option>
-                  <option value="/Sounds/Sombrero Vaquero.mp3">Sombrero Vaquero.mp3 (Hat)</option>
-                  <option value="/Sounds/Kamehameha.mp3">Kamehameha.mp3 (Galaxy)</option>
-                  <option value="/Sounds/Reinicio.mp3">Reinicio.mp3 (Money Gun)</option>
-                  <option value="pop">pop</option>
-                  <option value="epic">epic</option>
-                </select>
-              )}
-            </div>
-
-            {/* Animation / Ability Config */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 900, color: "#ff6b6b", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={formState.animationEnabled}
-                  onChange={(e) => setFormState({ ...formState, animationEnabled: e.target.checked })}
-                />
-                Activar Animación / Ability
-              </label>
-              {formState.animationEnabled && (
-                <select
-                  value={formState.animation}
-                  onChange={(e) => setFormState({ ...formState, animation: e.target.value })}
-                  style={{ background: "#120f1d", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", padding: "4px", fontSize: "10.5px" }}
-                >
-                  <option value="silent_challenge">El Mudo (silent_challenge)</option>
-                  <option value="creative_challenge">Reto Creativo (creative_challenge)</option>
-                  <option value="ultimate_galaxy">Galaxy Ultimate (ultimate_galaxy)</option>
-                  <option value="epic_impact">Epic Impact (epic_impact)</option>
-                  <option value="freeze">Freeze / Castigo (Freeze)</option>
-                  <option value="none">Ninguna</option>
-                </select>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "4px" }}>
-            <button
-              type="submit"
-              style={{ background: "#48bb78", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", fontSize: "11px", fontWeight: 900, cursor: "pointer" }}
-            >
-              Guardar Configuración
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddModal(false)}
-              style={{ background: "#4a5568", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", fontSize: "11px", fontWeight: 900, cursor: "pointer" }}
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* GIFT CARDS GRID */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))",
-        gap: "14px",
-        maxHeight: "500px",
-        overflowY: "auto",
-        paddingRight: "4px"
-      }}>
-        {currentRules.length === 0 ? (
-          <div style={{ gridColumn: "1 / -1", textAlign: "center", color: "#a0aec0", padding: "40px", fontSize: "12px", fontStyle: "italic" }}>
-            No hay gifts operativos configurados en este modo. Pulsa "+ Agregar Gift Operativo" para comenzar.
-          </div>
-        ) : (
-          currentRules.map((rule, index) => {
-            const isActive = rule.active !== false;
-            const pointsText = rule.pointsEnabled !== false && rule.value > 0 ? `+${rule.value} Puntos` : "Sin Puntaje";
-            const soundText = rule.soundEnabled !== false && rule.sound ? rule.sound : "Sin Sonido";
-            const animText = rule.animationEnabled !== false && rule.animation ? rule.animation : "Sin Animación";
-
-            return (
-              <div key={index} style={{
-                background: isActive ? "linear-gradient(145deg, rgba(32, 26, 48, 0.95), rgba(18, 14, 30, 0.98))" : "rgba(20, 16, 28, 0.6)",
-                border: isActive ? "1.5px solid rgba(0, 245, 255, 0.4)" : "1px solid rgba(255,255,255,0.1)",
-                borderRadius: "10px",
-                padding: "14px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                gap: "10px",
-                boxShadow: isActive ? "0 4px 15px rgba(0,0,0,0.5)" : "none",
-                opacity: isActive ? 1 : 0.65
-              }}>
-                {/* Top Row: Name & Status */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ width: "24px", height: "24px", display: "inline-block", flexShrink: 0 }}>
-                      <GiftImage giftId={rule.giftId} style={{ width: "24px", height: "24px" }} />
-                    </span>
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: 900, color: "#fff", textTransform: "uppercase" }}>
-                        {rule.displayName || rule.giftId}
-                      </div>
-                      <div style={{ fontSize: "9px", color: "#ffd700", fontFamily: "monospace" }}>
-                        Canonical ID: {rule.giftId}
-                      </div>
-                    </div>
-                  </div>
-                  <span style={{
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    fontSize: "8.5px",
-                    fontWeight: 900,
-                    background: isActive ? "rgba(72, 187, 120, 0.2)" : "rgba(229, 62, 62, 0.2)",
-                    color: isActive ? "#48bb78" : "#e53e3e",
-                    textTransform: "uppercase"
-                  }}>
-                    {isActive ? "ACTIVE" : "DISABLED"}
-                  </span>
-                </div>
-
-                {/* Behavior Summary */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px", background: "rgba(0,0,0,0.3)", padding: "8px", borderRadius: "6px", fontSize: "10.5px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ color: "#a0aec0" }}>Puntaje:</span>
-                    <strong style={{ color: "#00f5ff" }}>{pointsText}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ color: "#a0aec0" }}>Sonido:</span>
-                    <strong style={{ color: "#ffd700", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px" }}>{soundText}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ color: "#a0aec0" }}>Animación:</span>
-                    <strong style={{ color: "#ff6b6b" }}>{animText}</strong>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
-                  <button
-                    onClick={() => handleSafePreview(rule)}
-                    style={{
-                      background: "linear-gradient(135deg, #ffd700, #ff8c00)",
-                      color: "#0c091a",
-                      border: "none",
-                      padding: "6px 10px",
-                      borderRadius: "5px",
-                      fontSize: "10px",
-                      fontWeight: 900,
-                      cursor: "pointer",
-                      flex: 1,
-                      textTransform: "uppercase"
-                    }}
-                  >
-                    ▶ Preview
-                  </button>
-                  <button
-                    onClick={() => handleOpenEdit(index, rule)}
-                    style={{
-                      background: "#0099ff",
-                      color: "#fff",
-                      border: "none",
-                      padding: "6px 10px",
-                      borderRadius: "5px",
-                      fontSize: "10px",
-                      fontWeight: 800,
-                      cursor: "pointer"
-                    }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDeleteRule(index)}
-                    style={{
-                      background: "#e53e3e",
-                      color: "#fff",
-                      border: "none",
-                      padding: "6px 8px",
-                      borderRadius: "5px",
-                      fontSize: "10px",
-                      fontWeight: 800,
-                      cursor: "pointer"
-                    }}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+  return <div style={{background:"rgba(25,20,38,.95)",border:"1px solid rgba(0,245,255,.3)",borderRadius:"12px",padding:"18px",color:"white",display:"flex",flexDirection:"column",gap:"14px"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+      <div><h3 style={{margin:0,color:"#00f5ff",fontSize:"16px"}}>🎁 GIFT CONTROL CENTER</h3><div style={{fontSize:"10px",color:"#a0aec0"}}>Solo sonidos y animaciones que existen en el proyecto. {soundCount} sonidos reales.</div></div>
+      <select value={selectedMode} onChange={e=>setSelectedMode(e.target.value)} style={{background:"#120f1d",color:"white",padding:"7px",borderRadius:"6px"}}><option value="context">Context / Standard</option><option value="vs_battle">VS Battle</option><option value="tournament">Tournament</option></select>
     </div>
-  );
+
+    {notice&&<div style={{background:"rgba(72,187,120,.15)",border:"1px solid rgba(72,187,120,.35)",padding:"8px",borderRadius:"6px",fontSize:"10px",fontWeight:800}}>{notice}</div>}
+
+    <button onClick={openNew} style={{alignSelf:"flex-end",background:"linear-gradient(135deg,#00f5ff,#0077ff)",color:"white",border:0,padding:"8px 14px",borderRadius:"6px",fontWeight:900,cursor:"pointer"}}>+ AGREGAR GIFT</button>
+
+    {form&&<form onSubmit={saveForm} style={{background:"#120f1d",border:"1px solid #00f5ff",borderRadius:"8px",padding:"12px",display:"grid",gap:"10px"}}>
+      <select value={form.giftId} onChange={e=>selectGift(e.target.value)} style={{background:"#0c091a",color:"white",padding:"7px"}}>{supportedGifts.map(g=><option key={g.canonicalId} value={g.canonicalId}>{g.displayName}</option>)}</select>
+      <input value={form.displayName} onChange={e=>setForm({...form,displayName:e.target.value})} style={{background:"#0c091a",color:"white",padding:"7px"}} />
+      <input type="number" value={form.value} onChange={e=>setForm({...form,value:Number(e.target.value)||0})} style={{background:"#0c091a",color:"white",padding:"7px"}} placeholder="Puntos" />
+      <select value={form.sound||""} onChange={e=>setForm({...form,sound:e.target.value||null})} style={{background:"#0c091a",color:"white",padding:"7px"}}><option value="">Sin sonido</option>{REAL_SOUNDS.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select>
+      <select value={form.animation||"none"} onChange={e=>setForm({...form,animation:e.target.value})} style={{background:"#0c091a",color:"white",padding:"7px"}}><option value="none">Sin animación</option><option value="silent_challenge">El Mudo</option><option value="creative_challenge">Reto Creativo</option><option value="freeze">Freeze</option><option value="ultimate_galaxy">Galaxy</option><option value="epic_impact">Money Gun</option><option value="susto_coco">Susto a Coco</option><option value="clue_hint">Pista</option><option value="cocazo">Cocazo</option></select>
+      <div style={{display:"flex",gap:"8px",justifyContent:"flex-end"}}><button type="button" onClick={()=>setForm(null)} style={{padding:"7px 12px"}}>Cancelar</button><button type="submit" style={{padding:"7px 12px",fontWeight:900}}>Guardar</button></div>
+    </form>}
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:"10px"}}>{currentRules.map((rule,index)=><div key={`${rule.giftId}-${index}`} style={{background:"rgba(12,9,26,.85)",border:"1px solid rgba(0,245,255,.22)",borderRadius:"8px",padding:"10px"}}>
+      <div style={{display:"flex",gap:"7px",alignItems:"center"}}><GiftImage giftId={rule.giftId} style={{width:"32px",height:"32px"}}/><strong style={{fontSize:"11px"}}>{rule.displayName}</strong></div>
+      <div style={{fontSize:"9px",color:"#a0aec0",marginTop:"6px"}}>Puntos: <b>{rule.value||0}</b></div>
+      <div style={{fontSize:"9px",color:"#ffd166",marginTop:"3px",wordBreak:"break-word"}}>Sonido: {rule.sound||"Sin sonido"}</div>
+      <div style={{fontSize:"9px",color:"#ff9f9f",marginTop:"3px"}}>Animación: {rule.animation||"none"}</div>
+      <div style={{display:"flex",gap:"5px",marginTop:"8px"}}><button onClick={()=>preview(rule)} style={{flex:1}}>▶ Preview</button><button onClick={()=>openEdit(index,rule)}>Editar</button><button onClick={()=>remove(index)}>Eliminar</button></div>
+    </div>)}</div>
+  </div>;
 }
