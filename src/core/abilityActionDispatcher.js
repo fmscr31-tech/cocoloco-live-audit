@@ -1,7 +1,13 @@
 import { eventBus } from "./eventBus";
 import { addPoints, getPlayer, getPlayers } from "./playerManager";
-import { addPointsToTeam, getTeam } from "./TeamManager";
+import { addPointsToTeam, addWinToTeam, getTeam, getTeams } from "./TeamManager";
+import { battleEffectEngine } from "./engines/battleEffectEngine";
 
+/**
+ * Ability Action Dispatcher v2
+ * Authoritative executor for gift consequences. Visual components never decide
+ * score targets. FREEZE is consulted before competitive effects.
+ */
 class AbilityActionDispatcher {
   constructor() {
     this.processed = new Set();
@@ -34,49 +40,9 @@ class AbilityActionDispatcher {
     const quantity = Math.max(1, Number(ability.quantity || ability.repeatCount || 1));
 
     switch (type) {
-      case "ADD_POINTS": {
-        const player = this._resolvePlayer(ability);
-        if (!player || !Number.isFinite(baseValue) || baseValue === 0) {
-          console.warn("[AbilityActionDispatcher] ADD_POINTS target not found:", {
-            playerId: ability.playerId, userId: ability.userId, displayName: ability.displayName, username: ability.username || ability.sender,
-            canonicalGiftId: ability.canonicalGiftId, quantity
-          });
-          return { success: false, reason: "PLAYER_NOT_FOUND", displayName: ability.displayName || "" };
-        }
-        const points = baseValue * quantity;
-        const updated = addPoints(player.id, points);
-        if (!updated) return { success: false, reason: "SCORE_UPDATE_FAILED" };
-        if (updated.teamId) addPointsToTeam(updated.teamId, points);
-        const result = {
-          success: true, type, points, unitPoints: baseValue, quantity, playerId: updated.id,
-          tiktokId: updated.tiktokId || null, displayName: updated.displayName || updated.name,
-          username: updated.username || updated.name, teamId: updated.teamId || null, newTotal: updated.points,
-          abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY"
-        };
-        console.log("[GIFT SCORE EXECUTED]", result);
-        eventBus.publish("ability:score_executed", result);
-        eventBus.publish("gift:points_awarded", result);
-        return result;
-      }
-      case "RESET_SCORE": {
-        const teamId = ability.teamId;
-        if (!teamId) return { success: false, reason: "TEAM_TARGET_REQUIRED" };
-        const team = getTeam(teamId);
-        if (!team) return { success: false, reason: "TEAM_NOT_FOUND", teamId };
-        const affected = getPlayers().filter(player => player.teamId === teamId && Number(player.points) > 0).map(player => addPoints(player.id, -Number(player.points))).filter(Boolean).map(player => player.id);
-        const previousTeamPoints = Number(team.points) || 0;
-        if (previousTeamPoints !== 0) addPointsToTeam(teamId, -previousTeamPoints);
-        const result = { success: true, type, teamId, playersReset: affected.length, previousTeamPoints, abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY" };
-        eventBus.publish("ability:score_executed", result);
-        eventBus.publish("gift:action_dispatched", result);
-        return result;
-      }
-      case "ADD_ROUND": {
-        const result = { success: true, type, value: Number.isFinite(baseValue) ? baseValue : 0, quantity, teamId: ability.teamId || null, abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY" };
-        eventBus.publish("ability:round_executed", result);
-        eventBus.publish("gift:action_dispatched", result);
-        return result;
-      }
+      case "ADD_POINTS": return this._executeAddPoints(ability, baseValue, quantity);
+      case "RESET_SCORE": return this._executeResetScore(ability);
+      case "ADD_ROUND": return this._executeAddRound(ability, baseValue, quantity);
       default: {
         const result = { success: true, type, abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY" };
         eventBus.publish("ability:score_executed", result);
@@ -84,6 +50,123 @@ class AbilityActionDispatcher {
         return result;
       }
     }
+  }
+
+  _executeAddPoints(ability, baseValue, quantity) {
+    const player = this._resolvePlayer(ability);
+    if (!player || !Number.isFinite(baseValue) || baseValue === 0) {
+      console.warn("[AbilityActionDispatcher] ADD_POINTS target not found:", { playerId: ability.playerId, userId: ability.userId, displayName: ability.displayName, canonicalGiftId: ability.canonicalGiftId, quantity });
+      return { success: false, reason: "PLAYER_NOT_FOUND", displayName: ability.displayName || "" };
+    }
+
+    const points = baseValue * quantity;
+    const senderTeamId = player.teamId || ability.teamId || null;
+
+    if (senderTeamId && battleEffectEngine.isTeamFrozen(senderTeamId)) {
+      const targetTeam = this._getOpposingTeam(senderTeamId);
+      if (!targetTeam) return { success: false, reason: "FREEZE_TARGET_TEAM_NOT_FOUND", originalTeamId: senderTeamId };
+      const teamSnapshot = addPointsToTeam(targetTeam.id, points);
+      const result = {
+        success: true, type: "ADD_POINTS", points, unitPoints: baseValue, quantity,
+        playerId: player.id, displayName: player.displayName || player.name, username: player.username || player.name,
+        originalTeamId: senderTeamId, redirectedTeamId: targetTeam.id, redirectedTeamName: targetTeam.name,
+        teamId: targetTeam.id, teamSnapshot, abilityId: ability.abilityId, giftId: ability.giftId || null,
+        canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY_FREEZE_REDIRECT"
+      };
+      eventBus.emit("game:score_redirected", { originalTeam: senderTeamId, redirectedTeam: targetTeam.id, player: player.username || player.name, points, reason: "FREEZE", source: "ABILITY", canonicalGiftId: ability.canonicalGiftId || null });
+      eventBus.publish("ability:score_executed", result);
+      eventBus.publish("gift:points_awarded", result);
+      return result;
+    }
+
+    const updated = addPoints(player.id, points);
+    if (!updated) return { success: false, reason: "SCORE_UPDATE_FAILED" };
+    const teamSnapshot = updated.teamId ? addPointsToTeam(updated.teamId, points) : null;
+    const result = {
+      success: true, type: "ADD_POINTS", points, unitPoints: baseValue, quantity, playerId: updated.id,
+      tiktokId: updated.tiktokId || null, displayName: updated.displayName || updated.name,
+      username: updated.username || updated.name, teamId: updated.teamId || null, teamSnapshot,
+      newTotal: updated.points, abilityId: ability.abilityId, giftId: ability.giftId || null,
+      canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY"
+    };
+    console.log("[GIFT SCORE EXECUTED]", result);
+    eventBus.publish("ability:score_executed", result);
+    eventBus.publish("gift:points_awarded", result);
+    return result;
+  }
+
+  _executeResetScore(ability) {
+    const sender = this._resolvePlayer(ability);
+    const senderTeamId = sender?.teamId || ability.teamId || null;
+
+    if (senderTeamId) {
+      const frozenSender = battleEffectEngine.isTeamFrozen(senderTeamId);
+      const targetTeam = frozenSender ? getTeam(senderTeamId) : this._getOpposingTeam(senderTeamId);
+      if (!targetTeam) return { success: false, reason: "TEAM_TARGET_REQUIRED", senderTeamId };
+
+      const affected = getPlayers()
+        .filter(player => String(player.teamId) === String(targetTeam.id) && Number(player.points) > 0)
+        .map(player => addPoints(player.id, -Number(player.points)))
+        .filter(Boolean)
+        .map(player => player.id);
+      const previousTeamPoints = Number(targetTeam.points) || 0;
+      if (previousTeamPoints !== 0) addPointsToTeam(targetTeam.id, -previousTeamPoints);
+
+      const result = {
+        success: true, type: "RESET_SCORE", teamId: targetTeam.id, teamName: targetTeam.name,
+        playersReset: affected.length, previousTeamPoints, senderTeamId,
+        targetWasSenderBecauseFrozen: frozenSender, abilityId: ability.abilityId,
+        giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
+        source: frozenSender ? "ABILITY_FREEZE_INVERTED" : "ABILITY"
+      };
+      eventBus.publish("ability:score_executed", result);
+      eventBus.publish("gift:action_dispatched", result);
+      return result;
+    }
+
+    const senderId = sender?.id || ability.playerId || ability.userId || null;
+    const affected = getPlayers()
+      .filter(player => player.id !== senderId && Number(player.points) > 0)
+      .map(player => addPoints(player.id, -Number(player.points)))
+      .filter(Boolean)
+      .map(player => player.id);
+    const result = {
+      success: true, type: "RESET_SCORE", teamId: null, playersReset: affected.length, senderId,
+      abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
+      source: "ABILITY_INDIVIDUAL"
+    };
+    eventBus.publish("ability:score_executed", result);
+    eventBus.publish("gift:action_dispatched", result);
+    return result;
+  }
+
+  _executeAddRound(ability, baseValue, quantity) {
+    const sender = this._resolvePlayer(ability);
+    const senderTeamId = sender?.teamId || ability.teamId || null;
+    const configuredRounds = Number.isFinite(baseValue) && baseValue > 0 ? baseValue : 1;
+    if (!senderTeamId) return { success: false, type: "ADD_ROUND", reason: "TEAM_TARGET_REQUIRED", abilityId: ability.abilityId, canonicalGiftId: ability.canonicalGiftId || null };
+
+    const targetTeam = battleEffectEngine.isTeamFrozen(senderTeamId) ? this._getOpposingTeam(senderTeamId) : getTeam(senderTeamId);
+    if (!targetTeam) return { success: false, type: "ADD_ROUND", reason: "TEAM_TARGET_NOT_FOUND", senderTeamId };
+
+    const rounds = Math.max(1, Math.floor(configuredRounds * quantity));
+    let teamSnapshot = getTeam(targetTeam.id);
+    for (let i = 0; i < rounds; i += 1) teamSnapshot = addWinToTeam(targetTeam.id, 1);
+    const redirectedByFreeze = String(targetTeam.id) !== String(senderTeamId);
+    const result = {
+      success: true, type: "ADD_ROUND", rounds, teamId: targetTeam.id, teamName: targetTeam.name,
+      senderTeamId, redirectedByFreeze, teamSnapshot, abilityId: ability.abilityId,
+      giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
+      source: redirectedByFreeze ? "ABILITY_FREEZE_REDIRECT" : "ABILITY"
+    };
+    eventBus.emit("ability:round_executed", result);
+    eventBus.emit("gift:round_awarded", result);
+    eventBus.publish("gift:action_dispatched", result);
+    return result;
+  }
+
+  _getOpposingTeam(teamId) {
+    return getTeams().find(team => String(team.id) !== String(teamId)) || null;
   }
 
   _resolvePlayer(ability) {
@@ -96,13 +179,11 @@ class AbilityActionDispatcher {
       });
       if (byDisplay) return byDisplay;
     }
-
     const identityCandidates = [ability.playerId, ability.userId].filter(Boolean).map(String);
     for (const candidate of identityCandidates) {
       const player = getPlayer(candidate);
       if (player) return player;
     }
-
     const username = String(ability.username || "").trim().toLowerCase();
     if (!username) return null;
     return getPlayers().find(player => String(player.username || "").trim().toLowerCase() === username) || null;
