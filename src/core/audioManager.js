@@ -13,6 +13,8 @@ class AudioManager {
     this.isOverlayContext = typeof window !== "undefined" && (
       window.location.pathname.includes("overlay") ||
       window.location.pathname.includes("preview") ||
+      window.location.pathname.includes("contexto") ||
+      window.location.pathname.includes("/play/") ||
       window.__cocoIsOverlay === true
     );
 
@@ -135,7 +137,7 @@ class AudioManager {
     }
   }
 
-  playSound(soundPath, item) {
+  playSound(soundPath, item = {}) {
     if (!this.enabled || !soundPath) return;
 
     const isAdminPreview = item?.source === "ADMIN_PREVIEW" || item?.sender === "ADMIN_PREVIEW";
@@ -154,24 +156,33 @@ class AudioManager {
         audio.volume = this.volume;
         audio.muted = false;
         const promise = audio.play();
-        if (promise !== undefined) promise.catch(() => this.playFresh(soundPath));
+        if (promise !== undefined) {
+          promise.then(() => {
+            console.log("[AUDIO PLAYING]", soundPath, item?.abilityId || item?.source || "gift");
+          }).catch(() => this.playFresh(soundPath, item));
+        }
       } else {
-        this.playFresh(soundPath);
+        this.playFresh(soundPath, item);
       }
     } catch (e) {
       console.warn("[AUDIO] Playback exception:", soundPath, e);
     }
   }
 
-  playFresh(soundPath) {
+  playFresh(soundPath, item = {}) {
     try {
       const audio = new Audio(soundPath);
+      audio.preload = "auto";
       audio.volume = this.volume;
       audio.muted = false;
       const promise = audio.play();
-      if (promise !== undefined) promise.catch(err => console.warn("[AUDIO] Fresh playback failed:", err));
+      if (promise !== undefined) {
+        promise.then(() => {
+          console.log("[AUDIO PLAYING FRESH]", soundPath, item?.abilityId || item?.source || "gift");
+        }).catch(err => console.warn("[AUDIO] Fresh playback failed:", soundPath, err));
+      }
     } catch (e) {
-      console.warn("[AUDIO] Fresh playback exception:", e);
+      console.warn("[AUDIO] Fresh playback exception:", soundPath, e);
     }
   }
 
@@ -188,7 +199,7 @@ class AudioManager {
   initListeners() {
     eventBus.subscribe("normalized:gift", (giftEvent) => {
       if (!this.enabled || !giftEvent) return;
-      const giftName = String(giftEvent.giftId || giftEvent.giftName || giftEvent.canonicalGiftId || "").trim();
+      const giftName = String(giftEvent.canonicalGiftId || giftEvent.giftName || giftEvent.giftId || "").trim();
       const mapping = this.findAbilityMapping(giftName);
       if (mapping) return;
 
@@ -212,7 +223,7 @@ class AudioManager {
       const abilityId = mapping ? mapping.abilityId : item.abilityId;
       const abilityEntry = this.getAbilities()[abilityId];
       const registryEntry = ABILITY_REGISTRY[abilityId];
-      const soundPath = abilityEntry?.sound || registryEntry?.sound || mapping?.sound;
+      const soundPath = item.sound || abilityEntry?.sound || registryEntry?.sound || mapping?.sound;
 
       if (soundPath) {
         console.log("[AUDIO] Playing authoritative Ability Manager sound:", abilityId, soundPath);
@@ -220,8 +231,6 @@ class AudioManager {
       }
     });
 
-    // BattleEffectEngine emits effect:activated. The previous listener was
-    // subscribed to freeze:activated, which is never emitted by the engine.
     eventBus.subscribe("effect:activated", (payload) => {
       if (!this.enabled || payload?.type !== "FREEZE") return;
       const freezeConfig = this.getFreezeConfig();
