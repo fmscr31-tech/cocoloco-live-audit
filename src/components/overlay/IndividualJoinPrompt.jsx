@@ -44,7 +44,7 @@ export function IndividualJoinPrompt() {
     <div
       style={{
         position: "absolute",
-        top: "-42px",
+        top: "-34px",
         left: "calc(50% + 18px)",
         right: "auto",
         zIndex: 90,
