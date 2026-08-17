@@ -54,6 +54,19 @@ function resetRoundTeamScores(preservePlayers = false) {
   saveTeams(); return getTeams();
 }
 
+/* Team wins are session-scoped round counters, not permanent configuration.
+   A fresh LIVE must therefore start both counters at zero. */
+function resetTeamSessionScores(preservePlayers = false) {
+  loadTeams();
+  teams.forEach(team => {
+    team.points = 0;
+    team.wins = 0;
+    if (!preservePlayers) team.players = [];
+  });
+  saveTeams();
+  return getTeams();
+}
+
 loadTeams();
 
-export { loadTeams, saveTeams, createTeam, syncConfiguredTeams, deleteTeam, addPlayerToTeam, removePlayerFromTeam, removePlayerFromAllTeams, addPointsToTeam, addTeamPoints, addWinToTeam, adjustTeamWins, getTeam, getTeams, resetTeams, resetRoundTeamScores };
+export { loadTeams, saveTeams, createTeam, syncConfiguredTeams, deleteTeam, addPlayerToTeam, removePlayerFromTeam, removePlayerFromAllTeams, addPointsToTeam, addTeamPoints, addWinToTeam, adjustTeamWins, getTeam, getTeams, resetTeams, resetRoundTeamScores, resetTeamSessionScores };
