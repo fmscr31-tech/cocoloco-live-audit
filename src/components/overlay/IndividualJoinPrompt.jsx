@@ -21,9 +21,6 @@ const toAssetUrl = (value) => {
 
   let clean = raw.replace(/^\.?\//, "").replace(/^public[\\/]/i, "");
   clean = clean.replace(/^gifts[\\/]/i, "");
-
-  // The repository's real public asset directory is public/Gifts (capital G).
-  // encodeURI preserves the filename while making spaces and special characters safe.
   return encodeURI(`/Gifts/${clean}`);
 };
 
@@ -58,14 +55,7 @@ function RegistrationAssetImage({ enrollment }) {
       src={candidates[index]}
       alt={enrollment.giftName || "Método de inscripción"}
       onError={() => setIndex((value) => value + 1)}
-      style={{
-        width: "54px",
-        height: "54px",
-        objectFit: "contain",
-        display: "block",
-        flex: "0 0 54px",
-        filter: "drop-shadow(0 0 8px rgba(255,255,255,.65))"
-      }}
+      style={{ width: "54px", height: "54px", objectFit: "contain", display: "block", flex: "0 0 54px", filter: "drop-shadow(0 0 8px rgba(255,255,255,.65))" }}
     />
   );
 }
@@ -80,16 +70,10 @@ export function IndividualJoinPrompt() {
   useEffect(() => {
     const markDuplicate = () => {
       const nodes = Array.from(document.querySelectorAll('[data-cocoloco-registration-prompt="true"]'));
-      const ownNode = nodes.find((node) => node === document.querySelector('[data-cocoloco-registration-prompt="true"]'));
-      nodes.forEach((node, index) => {
-        node.style.display = index === 0 ? "" : "none";
-      });
-      if (ownNode) {
-        const ownerIndex = nodes.indexOf(ownNode);
-        setIsDuplicate(ownerIndex > 0);
-      }
+      nodes.forEach((node, index) => { node.style.display = index === 0 ? "" : "none"; });
+      const ownNode = nodes[0];
+      setIsDuplicate(!ownNode || ownNode !== document.querySelector('[data-cocoloco-registration-prompt="true"]'));
     };
-
     const frame = window.requestAnimationFrame(markDuplicate);
     return () => window.cancelAnimationFrame(frame);
   }, []);
@@ -104,11 +88,7 @@ export function IndividualJoinPrompt() {
     const refresh = () => apply();
     const interval = setInterval(refresh, 700);
     window.addEventListener("storage", refresh);
-    return () => {
-      unsubscribe?.();
-      clearInterval(interval);
-      window.removeEventListener("storage", refresh);
-    };
+    return () => { unsubscribe?.(); clearInterval(interval); window.removeEventListener("storage", refresh); };
   }, []);
 
   useEffect(() => {
@@ -117,10 +97,11 @@ export function IndividualJoinPrompt() {
   }, []);
 
   useEffect(() => {
-    const hideForWinner = () => {
-      const until = Date.now() + 20000;
+    const hideForWinner = (payload = {}) => {
+      const duration = Math.max(15000, Math.min(20000, Number(payload.durationMs) || 18000));
+      const until = Date.now() + duration;
       setWinnerSuppressedUntil(until);
-      window.setTimeout(() => setWinnerSuppressedUntil((current) => current === until ? 0 : current), 20100);
+      window.setTimeout(() => setWinnerSuppressedUntil((current) => current === until ? 0 : current), duration + 100);
     };
 
     const subscriptions = [
