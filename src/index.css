@@ -25,9 +25,6 @@ body {
   isolation: isolate;
 }
 
-/* Readability pass: larger, heavier typography with dark lettering on
-   high-contrast light broadcast cards. Functional geometry and timer/feed
-   behavior remain unchanged. */
 .hud-container {
   min-height: 158px;
 }
@@ -105,13 +102,10 @@ body {
   font-weight: 950;
 }
 
-/* Individual leaderboard text uses the same dark, heavy treatment. */
 .hud-container .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"] span {
   font-weight: 950 !important;
 }
 
-/* Informational gift card: readable dark typography and no decorative emoji
-   fallback. Gift artwork itself remains the only graphic on gift slides. */
 .hud-container .timer-feed-compact-card {
   min-height: 98px !important;
   width: 104px !important;
@@ -121,8 +115,6 @@ body {
   color: #102a43;
 }
 
-/* Cheerful tropical background accents. They stay behind the HUD content and
-   never intercept input or alter the protected timer/feed geometry. */
 .hud-container::before,
 .hud-container::after {
   content: "🥥";
@@ -150,28 +142,11 @@ body {
 }
 
 @keyframes cocoloco-coconut-float {
-  0%, 100% {
-    opacity: 0;
-    transform: translate3d(0, 8px, 0) rotate(-8deg) scale(0.82);
-  }
-  18%, 68% {
-    opacity: 0.28;
-  }
-  45% {
-    opacity: 0.16;
-    transform: translate3d(8px, -6px, 0) rotate(8deg) scale(1);
-  }
-  82% {
-    opacity: 0.08;
-    transform: translate3d(-5px, 3px, 0) rotate(-4deg) scale(0.9);
-  }
+  0%, 100% { opacity: 0; transform: translate3d(0, 8px, 0) rotate(-8deg) scale(0.82); }
+  18%, 68% { opacity: 0.28; }
+  45% { opacity: 0.16; transform: translate3d(8px, -6px, 0) rotate(8deg) scale(1); }
+  82% { opacity: 0.08; transform: translate3d(-5px, 3px, 0) rotate(-4deg) scale(0.9); }
 }
-
-/* ================================================================
-   PLAYER LISTS — FIXED HUD / INTERNAL SCROLL
-   More than 8 players must never increase the overlay height.
-   The scrollbar belongs only to the player-list area.
-   ================================================================ */
 
 .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"] {
   max-height: 184px;
@@ -191,34 +166,18 @@ body {
 }
 
 .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar,
-.players-box::-webkit-scrollbar {
-  width: 6px;
-}
+.players-box::-webkit-scrollbar { width: 6px; }
 
 .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar-track,
-.players-box::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 6px;
-}
+.players-box::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.07); border-radius: 6px; }
 
 .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar-thumb,
-.players-box::-webkit-scrollbar-thumb {
-  background: rgba(72, 202, 228, 0.9);
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-}
+.players-box::-webkit-scrollbar-thumb { background: rgba(72, 202, 228, 0.9); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.25); }
 
 .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"]::-webkit-scrollbar-thumb:hover,
-.players-box::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 209, 102, 0.95);
-}
+.players-box::-webkit-scrollbar-thumb:hover { background: rgba(255, 209, 102, 0.95); }
 
-/* ================================================================
-   TEAM MARKER — FINAL DARK BROADCAST TREATMENT
-   The light card was being imposed here by index.css and therefore
-   overrode the darker team-card definition in overlay.css.
-   ================================================================ */
-
+/* FINAL BASE TEAM MARKER */
 .hud-container .team-card {
   background: linear-gradient(145deg, #253447 0%, #182434 48%, #111a27 100%) !important;
   border: 1px solid rgba(255,255,255,0.22) !important;
@@ -227,13 +186,8 @@ body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.62), inset 0 1px 1px rgba(255,255,255,0.14) !important;
 }
 
-.hud-container .team-one .team-card {
-  border-top-color: #ff3366 !important;
-}
-
-.hud-container .team-two .team-card {
-  border-top-color: #00bfff !important;
-}
+.hud-container .team-one .team-card { border-top-color: #ff3366 !important; }
+.hud-container .team-two .team-card { border-top-color: #00bfff !important; }
 
 .hud-container .team-name {
   position: relative;
@@ -264,26 +218,118 @@ body {
 }
 
 @keyframes cocoloco-team-name-pulse {
-  0%, 100% {
-    transform: translateY(0);
-    filter: brightness(1);
-  }
-  50% {
-    transform: translateY(-1px);
-    filter: brightness(1.12);
-  }
+  0%, 100% { transform: translateY(0); filter: brightness(1); }
+  50% { transform: translateY(-1px); filter: brightness(1.12); }
 }
 
 @keyframes cocoloco-team-name-sheen {
-  0%, 55% {
-    left: -30%;
-    opacity: 0;
-  }
-  65% {
-    opacity: 1;
-  }
-  82%, 100% {
-    left: 125%;
-    opacity: 0;
-  }
+  0%, 55% { left: -30%; opacity: 0; }
+  65% { opacity: 1; }
+  82%, 100% { left: 125%; opacity: 0; }
+}
+
+/* ================================================================
+   CHICOS VS CHICAS — EXPLICIT OVERRIDE
+   This comes AFTER the base team-card rule because the base uses !important.
+   The visual is intentionally unmistakable: blue/cyan/green camouflage for
+   CHICOS and pink/cyan/yellow camouflage for CHICAS.
+   ================================================================ */
+
+.hud-container .gender-boys .team-card {
+  background:
+    radial-gradient(ellipse 42px 24px at 12% 28%, rgba(55,150,75,.98) 0 68%, transparent 70%),
+    radial-gradient(ellipse 52px 30px at 72% 18%, rgba(12,73,145,.98) 0 68%, transparent 70%),
+    radial-gradient(ellipse 46px 28px at 42% 66%, rgba(83,205,230,.98) 0 68%, transparent 70%),
+    radial-gradient(ellipse 48px 25px at 88% 72%, rgba(52,122,66,.98) 0 68%, transparent 70%),
+    linear-gradient(135deg, #0756a0 0%, #28a9d0 42%, #5ecf8b 68%, #17633e 100%) !important;
+  border: 2px solid #67d8f4 !important;
+  border-top-color: #b8f2ff !important;
+  box-shadow: 0 0 14px rgba(31,174,235,.65), inset 0 0 22px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.38) !important;
+  animation: boysCamoPulse 4s ease-in-out infinite !important;
+  overflow: hidden !important;
+}
+
+.hud-container .gender-girls .team-card {
+  background:
+    radial-gradient(ellipse 42px 25px at 14% 25%, rgba(255,224,72,.98) 0 68%, transparent 70%),
+    radial-gradient(ellipse 52px 30px at 74% 20%, rgba(255,92,170,.98) 0 68%, transparent 70%),
+    radial-gradient(ellipse 48px 28px at 40% 68%, rgba(113,211,244,.98) 0 68%, transparent 70%),
+    radial-gradient(ellipse 46px 26px at 88% 74%, rgba(255,192,58,.98) 0 68%, transparent 70%),
+    linear-gradient(135deg, #e92f83 0%, #ff72b5 38%, #7bd9f1 70%, #ffd447 100%) !important;
+  border: 2px solid #ff9acb !important;
+  border-top-color: #ffe4f2 !important;
+  box-shadow: 0 0 14px rgba(255,72,166,.65), inset 0 0 22px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.42) !important;
+  animation: girlsCamoPulse 4s ease-in-out infinite !important;
+  overflow: hidden !important;
+}
+
+.hud-container .gender-boys .team-card::before,
+.hud-container .gender-girls .team-card::before {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: .5;
+  background-size: 105px 75px, 145px 92px, 180px 115px;
+  animation: camoMove 10s linear infinite;
+}
+
+.hud-container .gender-boys .team-card::before {
+  background-image:
+    repeating-radial-gradient(ellipse at 20% 30%, rgba(8,61,111,.42) 0 8px, transparent 9px 23px),
+    repeating-radial-gradient(ellipse at 70% 65%, rgba(50,121,67,.40) 0 10px, transparent 11px 28px),
+    repeating-linear-gradient(35deg, transparent 0 17px, rgba(255,255,255,.08) 18px 27px, transparent 28px 43px);
+}
+
+.hud-container .gender-girls .team-card::before {
+  background-image:
+    repeating-radial-gradient(ellipse at 20% 30%, rgba(190,30,105,.32) 0 8px, transparent 9px 23px),
+    repeating-radial-gradient(ellipse at 70% 65%, rgba(255,211,58,.34) 0 10px, transparent 11px 28px),
+    repeating-linear-gradient(35deg, transparent 0 17px, rgba(255,255,255,.12) 18px 27px, transparent 28px 43px);
+}
+
+.hud-container .gender-boys .team-name {
+  color: #8feaff !important;
+  -webkit-text-stroke: 1px #063b67;
+  text-shadow: 0 2px 0 #031d34, 0 0 8px rgba(135,235,255,.8) !important;
+}
+
+.hud-container .gender-girls .team-name {
+  color: #ff4fa6 !important;
+  -webkit-text-stroke: 1px #70123f;
+  text-shadow: 0 2px 0 #4b092b, 0 0 8px rgba(255,159,211,.85) !important;
+}
+
+.hud-container .gender-boys .team-score,
+.hud-container .gender-girls .team-score {
+  color: #fff !important;
+  -webkit-text-stroke: 1px rgba(0,0,0,.8);
+  text-shadow: 0 2px 0 rgba(0,0,0,.8), 0 0 10px rgba(255,255,255,.32) !important;
+}
+
+.hud-container .gender-boys .team-rounds-container,
+.hud-container .gender-girls .team-rounds-container {
+  border-width: 2px !important;
+  background: rgba(0,0,0,.42) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.55), inset 0 1px 2px rgba(255,255,255,.25) !important;
+}
+
+.hud-container .gender-boys .team-rounds-container { border-color: #70ddf7 !important; }
+.hud-container .gender-girls .team-rounds-container { border-color: #ff9ccc !important; }
+
+@keyframes camoMove {
+  0% { transform: translate3d(-25px,-12px,0) rotate(0deg); }
+  50% { transform: translate3d(25px,14px,0) rotate(2deg); }
+  100% { transform: translate3d(-25px,-12px,0) rotate(0deg); }
+}
+
+@keyframes boysCamoPulse {
+  0%,100% { filter: saturate(1) brightness(1); }
+  50% { filter: saturate(1.15) brightness(1.08); }
+}
+
+@keyframes girlsCamoPulse {
+  0%,100% { filter: saturate(1) brightness(1); }
+  50% { filter: saturate(1.12) brightness(1.07); }
 }
