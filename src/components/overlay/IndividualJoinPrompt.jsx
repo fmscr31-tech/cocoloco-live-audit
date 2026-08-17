@@ -50,7 +50,7 @@ export function IndividualJoinPrompt() {
   return (
     <div style={{
       position: "absolute",
-      top: "2px",
+      top: "-18px",
       left: "50%",
       right: "auto",
       zIndex: 90,
@@ -63,7 +63,7 @@ export function IndividualJoinPrompt() {
       border: "2px solid rgba(16,42,67,.78)",
       boxShadow: "0 3px 12px rgba(0,0,0,.38),0 0 10px rgba(255,209,102,.32)",
       textAlign: "center",
-      transform: show ? "translate(-50%,0)" : "translate(-50%,-1px)",
+      transform: show ? "translate(calc(-50% + 5px),0)" : "translate(calc(-50% + 5px),-1px)",
       opacity: show ? 1 : .86,
       transition: "all .45s ease"
     }}>
