@@ -11,7 +11,6 @@ import { BattleEffects } from "./overlay/BattleEffects";
 import { PowerUpFeed } from "./overlay/PowerUpFeed";
 import { BattleAnnouncement } from "./overlay/BattleAnnouncement";
 import { LivePhaseTimer } from "./overlay/LivePhaseTimer";
-import { SessionRecord } from "./overlay/SessionRecord";
 import "./overlay.css";
 
 const normalizeMode = (m) => {
@@ -24,7 +23,6 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
   const [state, setState] = useState({ players: [], battle: null, teams: [], round: null, timer: { minutes: 0, seconds: 0 }, liveActive: false });
   const effectivePlayers = testPlayers !== undefined ? testPlayers : state.players;
   const effectiveTeams = testTeams !== undefined ? testTeams : state.teams;
-  const effectiveRound = testRound !== undefined ? testRound : state.round;
   const effectiveTimer = testTimer !== undefined ? testTimer : state.timer;
   const effectiveLiveActive = testLiveActive !== undefined ? testLiveActive : state.liveActive;
   const [alert, setAlert] = useState(null);
@@ -44,6 +42,7 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
   const [highlightedPlayerId, setHighlightedPlayerId] = useState(null);
   const [scareActive, setScareActive] = useState(false);
   const [clueActive, setClueActive] = useState(false);
+  const [genericGiftActive, setGenericGiftActive] = useState(false);
 
   const [currentMode, setCurrentMode] = useState(() => {
     const apiMode = dashboardAPI.getGameMode();
@@ -66,51 +65,37 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
 
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
-
   useEffect(() => { if (mode) setCurrentMode(normalizeMode(mode)); }, [mode]);
-
   useEffect(() => {
-    const unsubscribe = dashboardAPI.subscribe((dashboard) => { updateOverlayFromDashboard(dashboard); });
-    const unsubMode = dashboardAPI.subscribeToModeChange(({ mode: nextMode }) => { setCurrentMode(normalizeMode(nextMode)); });
+    const unsubscribe = dashboardAPI.subscribe((dashboard) => updateOverlayFromDashboard(dashboard));
+    const unsubMode = dashboardAPI.subscribeToModeChange(({ mode: nextMode }) => setCurrentMode(normalizeMode(nextMode)));
     return () => { unsubscribe && unsubscribe(); unsubMode && unsubMode(); };
   }, []);
 
   useEffect(() => {
     const unsubStarted = eventBus.subscribe("ability:started", (item) => {
-      console.log("[OVERLAY EVENT RECEIVED]", item);
       setShowWin(false); setWinner(null);
-      const giftName = item.sourceGift || (item.abilityId === "epic_impact" ? "Money Gun" : item.abilityId === "ultimate_galaxy" ? "Galaxy" : item.abilityId === "creative_challenge" ? "Cowboy Hat" : item.abilityId === "susto_coco" ? "Amped Up" : item.abilityId === "clue_hint" ? "Ice Cream Cone" : item.abilityId === "freeze" ? "Freeze" : "Donut");
-      const icon = item.display?.icon || (item.abilityId === "epic_impact" ? "💥" : item.abilityId === "ultimate_galaxy" ? "🌌" : item.abilityId === "creative_challenge" ? "🤠" : item.abilityId === "susto_coco" ? "😱" : item.abilityId === "clue_hint" ? "🍦" : item.abilityId === "freeze" ? "❄️" : "🍩");
+      const giftName = item.sourceGift || (item.abilityId === "epic_impact" ? "Money Gun" : item.abilityId === "ultimate_galaxy" ? "Galaxy" : item.abilityId === "creative_challenge" ? "Cowboy Hat" : item.abilityId === "susto_coco" ? "Amped Up" : item.abilityId === "clue_hint" ? "Ice Cream Cone" : item.abilityId === "freeze" ? "Freeze" : item.abilityId === "generic_gift" ? (item.giftName || "Gift") : "Donut");
+      const icon = item.display?.icon || (item.abilityId === "epic_impact" ? "💥" : item.abilityId === "ultimate_galaxy" ? "🌌" : item.abilityId === "creative_challenge" ? "🤠" : item.abilityId === "susto_coco" ? "😱" : item.abilityId === "clue_hint" ? "🍦" : item.abilityId === "freeze" ? "❄️" : item.abilityId === "generic_gift" ? "🎁" : "🍩");
       setEpicGift({ giftName, username: item.sender || "FERNANDO", icon });
       setTimeout(() => setEpicGift(null), 1200);
 
       if (item.abilityId === "silent_challenge") {
-        setDonutTeamId(item.teamId || "team1");
-        setEpicEvent({ giftDisplay: `🍩 ${item.sourceGift?.toUpperCase() || "DONUT"}`, tagline: "EL MUDO • RETO ACTIVO", username: item.sender || "ANNA" });
-        setAlert(`🔇 [EL MUDO] ¡RETO ACTIVO LANZADO POR ${item.sender || "ANNA"}!`);
+        setDonutTeamId(item.teamId || "team1"); setEpicEvent({ giftDisplay: `🍩 ${giftName.toUpperCase()}`, tagline: "EL MUDO • RETO ACTIVO", username: item.sender || "ANNA" }); setAlert(`🔇 [EL MUDO] ¡RETO ACTIVO LANZADO POR ${item.sender || "ANNA"}!`);
       } else if (item.abilityId === "creative_challenge") {
-        setHatTeamId(item.teamId || "team1");
-        setEpicEvent({ giftDisplay: `🤠 ${item.sourceGift?.toUpperCase() || "SOMBRERO"}`, tagline: "RETO CREATIVO • MODO ARTISTA", username: item.sender || "FERNANDO" });
-        setAlert(`🤠 [RETO CREATIVO] ¡ACTIVADO POR ${item.sender || "FERNANDO"}!`);
+        setHatTeamId(item.teamId || "team1"); setEpicEvent({ giftDisplay: `🤠 ${giftName.toUpperCase()}`, tagline: "RETO CREATIVO • MODO ARTISTA", username: item.sender || "FERNANDO" }); setAlert(`🤠 [RETO CREATIVO] ¡ACTIVADO POR ${item.sender || "FERNANDO"}!`);
       } else if (item.abilityId === "ultimate_galaxy") {
-        setGalaxyTeamId(item.teamId || "team1");
-        setGalaxyPopup({ sender: item.sender || "FERNANDO", phrase: "⚡ ULTIMATE ACTIVATED ⚡" });
-        setEpicEvent({ giftDisplay: `🌌 ${item.sourceGift?.toUpperCase() || "GALAXY"}`, tagline: "ULTIMATE GALAXY ENERGY", username: item.sender || "FERNANDO" });
-        setAlert(`🌌 [ULTIMATE ENERGY] ¡GALAXY LANZADA POR ${item.sender || "FERNANDO"}!`);
+        setGalaxyTeamId(item.teamId || "team1"); setGalaxyPopup({ sender: item.sender || "FERNANDO", phrase: "⚡ ULTIMATE ACTIVATED ⚡" }); setEpicEvent({ giftDisplay: `🌌 ${giftName.toUpperCase()}`, tagline: "ULTIMATE GALAXY ENERGY", username: item.sender || "FERNANDO" }); setAlert(`🌌 [ULTIMATE ENERGY] ¡GALAXY LANZADA POR ${item.sender || "FERNANDO"}!`);
       } else if (item.abilityId === "epic_impact") {
-        setMoneyGunTeamId(item.teamId || "team2");
-        setEpicEvent({ giftDisplay: `💥 ${item.sourceGift?.toUpperCase() || "MONEY GUN"}`, tagline: "EPIC IMPACT BULLET STORM", username: item.sender || "FERNANDO" });
-        setAlert("🔫 [MONEY GUN] ¡MARCADOR OPONENTE DESTRUIDO!");
+        setMoneyGunTeamId(item.teamId || "team2"); setEpicEvent({ giftDisplay: `💥 ${giftName.toUpperCase()}`, tagline: "EPIC IMPACT BULLET STORM", username: item.sender || "FERNANDO" }); setAlert("🔫 [MONEY GUN] ¡MARCADOR OPONENTE DESTRUIDO!");
       } else if (item.abilityId === "susto_coco") {
-        setScareActive(true);
-        setEpicEvent({ giftDisplay: "😱 AMPED UP", tagline: "SUSTO A COCO", username: item.sender || "FERNANDO" });
-        setAlert(`😱 [SUSTO] ¡COCO SE ASUSTÓ POR ${item.sender || "FERNANDO"}!`);
+        setScareActive(true); setEpicEvent({ giftDisplay: "😱 AMPED UP", tagline: "SUSTO A COCO", username: item.sender || "FERNANDO" }); setAlert(`😱 [SUSTO] ¡COCO SE ASUSTÓ POR ${item.sender || "FERNANDO"}!`);
       } else if (item.abilityId === "clue_hint") {
-        setClueActive(true);
-        setEpicEvent({ giftDisplay: "🍦 ICE CREAM CONE", tagline: "PISTA DESBLOQUEADA", username: item.sender || "FERNANDO" });
-        setAlert(`🍦 [PISTA] ¡REGALO DE ${item.sender || "FERNANDO"}!`);
+        setClueActive(true); setEpicEvent({ giftDisplay: "🍦 ICE CREAM CONE", tagline: "PISTA DESBLOQUEADA", username: item.sender || "FERNANDO" }); setAlert(`🍦 [PISTA] ¡REGALO DE ${item.sender || "FERNANDO"}!`);
       } else if (item.abilityId === "freeze") {
         setAlert(`❄️ [CONGELADOS] ¡${item.sender || "FERNANDO"} ACTIVÓ FREEZE!`);
+      } else if (item.abilityId === "generic_gift") {
+        setGenericGiftActive(true); setEpicEvent({ giftDisplay: `🎁 ${giftName.toUpperCase()}`, tagline: "¡REGALO RECIBIDO!", username: item.sender || "FERNANDO" }); setAlert(`🎁 ¡${item.sender || "FERNANDO"} ENVIÓ ${giftName.toUpperCase()}!`);
       }
     });
 
@@ -121,27 +106,20 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
       else if (item.abilityId === "epic_impact") setMoneyGunTeamId(null);
       else if (item.abilityId === "susto_coco") setScareActive(false);
       else if (item.abilityId === "clue_hint") setClueActive(false);
+      else if (item.abilityId === "generic_gift") setGenericGiftActive(false);
       setEpicEvent(null); setAlert(null);
     });
 
     const unsubActivated = eventBus.subscribe("effect:activated", (effect) => {
-      if (effect.type === "FREEZE") {
-        setFrozenTeamId(effect.affectedTeamId || "team1");
-        setFrozenDetails({ remainingTime: effect.totalDuration || 300, activatedBy: effect.activatedBy || "FERNANDO" });
-        setAlert(`❄️ ¡${effect.affectedTeamName || "EQUIPO"} ESTÁ CONGELADO!`);
-      }
+      if (effect.type === "FREEZE") { setFrozenTeamId(effect.affectedTeamId || "team1"); setFrozenDetails({ remainingTime: effect.totalDuration || 300, activatedBy: effect.activatedBy || "FERNANDO" }); setAlert(`❄️ ¡${effect.affectedTeamName || "EQUIPO"} ESTÁ CONGELADO!`); }
     });
-    const unsubUpdated = eventBus.subscribe("effect:updated", (effect) => {
-      if (effect.type === "FREEZE") setFrozenDetails(prev => prev ? { ...prev, remainingTime: effect.remainingTime } : { remainingTime: effect.remainingTime, activatedBy: effect.activatedBy });
-    });
+    const unsubUpdated = eventBus.subscribe("effect:updated", (effect) => { if (effect.type === "FREEZE") setFrozenDetails(prev => prev ? { ...prev, remainingTime: effect.remainingTime } : { remainingTime: effect.remainingTime, activatedBy: effect.activatedBy }); });
     const unsubRemoved = eventBus.subscribe("effect:removed", () => { setFrozenTeamId(null); setFrozenDetails(null); setAlert(null); });
     const unsubExpired = eventBus.subscribe("effect:expired", () => { setFrozenTeamId(null); setFrozenDetails(null); setAlert(null); });
-    const unsubHighlight = eventBus.subscribe("player:highlight", (data) => {
-      if (data?.playerId) { setHighlightedPlayerId(data.playerId); setTimeout(() => setHighlightedPlayerId(null), 1400); }
-    });
+    const unsubHighlight = eventBus.subscribe("player:highlight", (data) => { if (data?.playerId) { setHighlightedPlayerId(data.playerId); setTimeout(() => setHighlightedPlayerId(null), 1400); } });
     const unsubReset = eventBus.subscribe("overlay:reset", () => {
       setState({ players: [], battle: null, teams: [], round: null, timer: { minutes: 0, seconds: 0 }, liveActive: false });
-      setShowWin(false); setWinner(null); setDonutTeamId(null); setHatTeamId(null); setGalaxyTeamId(null); setGalaxyPopup(null); setMoneyGunTeamId(null); setFrozenTeamId(null); setFrozenDetails(null); setEpicEvent(null); setEpicGift(null); setAlert(null); setScareActive(false); setClueActive(false);
+      setShowWin(false); setWinner(null); setDonutTeamId(null); setHatTeamId(null); setGalaxyTeamId(null); setGalaxyPopup(null); setMoneyGunTeamId(null); setFrozenTeamId(null); setFrozenDetails(null); setEpicEvent(null); setEpicGift(null); setAlert(null); setScareActive(false); setClueActive(false); setGenericGiftActive(false);
     });
     return () => { unsubStarted(); unsubFinished(); unsubActivated(); unsubUpdated(); unsubRemoved(); unsubExpired(); unsubHighlight(); unsubReset(); };
   }, []);
@@ -150,28 +128,18 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
     const newState = dashboard.game || {};
     if (dashboard.gameMode) setCurrentMode(normalizeMode(dashboard.gameMode));
     setBattleEffects(dashboard.battleEffects || null);
-    if (dashboard.battleEffects?.active) {
-      setFrozenTeamId(dashboard.battleEffects.frozenTeams?.[0] || dashboard.battleEffects.affectedTeamId || "team1");
-      setFrozenDetails({ remainingTime: dashboard.battleEffects.remainingTime || 300, activatedBy: dashboard.battleEffects.activatedBy || "FERNANDO" });
-    }
+    if (dashboard.battleEffects?.active) { setFrozenTeamId(dashboard.battleEffects.frozenTeams?.[0] || dashboard.battleEffects.affectedTeamId || "team1"); setFrozenDetails({ remainingTime: dashboard.battleEffects.remainingTime || 300, activatedBy: dashboard.battleEffects.activatedBy || "FERNANDO" }); }
     setPowerUps(dashboard.powerUps?.activePowerUps || []);
     const event = getNewEvent();
     if (event) {
       if (event.type === "BATTLE_START") setAlert("⚔️ BATALLA INICIADA");
       if (event.type === "BATTLE_END") setAlert("🏆 BATALLA FINALIZADA");
-      if (event.type === "PLAYER_WIN") {
-        setWinner({ id: event.data.playerId, name: event.data.name, points: event.data.points, wins: event.data.wins });
-        setShowWin(true); setAlert(`👑 ¡CAMPEÓN: ${event.data.name}!`);
-        setTimeout(() => { setShowWin(false); setAlert(null); }, 4000);
-      }
+      if (event.type === "PLAYER_WIN") { setWinner({ id: event.data.playerId, name: event.data.name, points: event.data.points, wins: event.data.wins }); setShowWin(true); setAlert(`👑 ¡CAMPEÓN: ${event.data.name}!`); setTimeout(() => { setShowWin(false); setAlert(null); }, 4000); }
       setTimeout(() => setAlert(null), 3000);
     }
     const oldState = stateRef.current;
     if (newState.players?.length) {
-      const changed = newState.players.find(player => {
-        const oldPlayer = oldState.players.find(p => p.id === player.id);
-        return player.wins > (oldPlayer ? oldPlayer.wins : 0);
-      });
+      const changed = newState.players.find(player => { const oldPlayer = oldState.players.find(p => p.id === player.id); return player.wins > (oldPlayer ? oldPlayer.wins : 0); });
       if (changed) { setWinner(changed); setShowWin(true); setTimeout(() => setShowWin(false), 3000); }
     }
     const isRoundActive = newState.round && newState.round.active;
@@ -189,6 +157,7 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
       <BattleEffects battleEffects={battleEffects} />
       {effectiveScare && <div className="scare-popup-banner"><div style={{ fontSize: "14px", fontWeight: 900, color: "#ffff00", textTransform: "uppercase", textShadow: "0 0 10px rgba(255,0,0,1)", animation: "scareShake .18s infinite" }}>😱 ¡SUSTO A COCO! 😱</div><div style={{ fontSize: "9px", fontWeight: 800, color: "#ffffff", marginTop: "2px" }}>¡ALARMA DE SUSTO!</div><style>{`@keyframes scareShake{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-3px) rotate(-1deg)}75%{transform:translateX(3px) rotate(1deg)}}`}</style></div>}
       {clueActive && <div style={{ position: "absolute", left: "50%", top: "38%", transform: "translate(-50%,-50%)", zIndex: 9998, padding: "8px 14px", borderRadius: "10px", background: "linear-gradient(135deg,rgba(255,247,220,.98),rgba(255,218,150,.98))", border: "2px solid rgba(255,255,255,.95)", boxShadow: "0 0 24px rgba(255,215,120,.85)", color: "#4a2a00", fontWeight: 950, textAlign: "center", animation: "cluePop .45s cubic-bezier(.175,.885,.32,1.275)" }}><div style={{ fontSize: "22px" }}>🍦</div><div style={{ fontSize: "10px", textTransform: "uppercase" }}>¡PISTA DESBLOQUEADA!</div><style>{`@keyframes cluePop{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}70%{transform:translate(-50%,-50%) scale(1.08)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}`}</style></div>}
+      {genericGiftActive && <div style={{ position: "absolute", left: "50%", top: "38%", transform: "translate(-50%,-50%)", zIndex: 9997, padding: "8px 14px", borderRadius: "10px", background: "linear-gradient(135deg,rgba(35,35,50,.98),rgba(75,55,100,.98))", border: "2px solid rgba(255,215,0,.95)", boxShadow: "0 0 24px rgba(255,215,0,.7)", color: "#fff", fontWeight: 950, textAlign: "center", animation: "genericGiftPop .35s cubic-bezier(.175,.885,.32,1.275)" }}><div style={{ fontSize: "22px" }}>🎁</div><div style={{ fontSize: "10px", textTransform: "uppercase" }}>¡REGALO RECIBIDO!</div><style>{`@keyframes genericGiftPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.6) rotate(-4deg)}70%{transform:translate(-50%,-50%) scale(1.08) rotate(2deg)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}}`}</style></div>}
       <OverlayHeader />
       <LivePhaseTimer />
       <ScoreBoard teams={effectiveTeams} players={effectivePlayers} timer={effectiveTimer} donutTeamId={effectiveDonut} hatTeamId={effectiveHat} galaxyTeamId={effectiveGalaxy} moneyGunTeamId={effectiveMoneyGun} frozenTeamId={effectiveFrozenTeamId} frozenDetails={effectiveFrozenDetails} highlightedPlayerId={effectiveHighlightedPlayerId} mode={currentMode} showWin={effectiveShowWin} winner={effectiveWinner} liveActive={effectiveLiveActive} battleEffects={battleEffects} />
