@@ -1,45 +1,37 @@
 import { useState, useEffect, useRef } from "react";
 import { getPlayerMvpRounds, getPlayerContributionPoints } from "../../core/mvpLeaderboardManager";
 import { eventBus } from "../../core/eventBus";
+import { commandConfigManager } from "../../core/commandConfigManager";
 
 function FloatingGirlsDecor() {
   const boxRef = useRef(null);
   const itemsRef = useRef([
-    { icon: "♥", x: 4, y: 12, vx: 0.48, vy: 0.22, size: 30, color: "#ffb7dd", glow: "#ff359d", rotation: 0 },
-    { icon: "✿", x: 72, y: 70, vx: -0.36, vy: 0.31, size: 34, color: "#ffe66d", glow: "#ff4aa8", rotation: 7 },
-    { icon: "❀", x: 38, y: 25, vx: 0.29, vy: -0.34, size: 31, color: "#9eeaff", glow: "#ff43a7", rotation: -6 },
-    { icon: "♡", x: 82, y: 42, vx: -0.43, vy: -0.19, size: 27, color: "#ff8fc9", glow: "#ff2f9d", rotation: 4 },
-    { icon: "✾", x: 18, y: 76, vx: 0.34, vy: -0.28, size: 29, color: "#fff09a", glow: "#6edcff", rotation: -4 }
+    { icon: "♥", x: 4, y: 12, vx: 0.48, vy: 0.22, size: 30, color: "#ffb7dd", glow: "#ff359d" },
+    { icon: "✿", x: 72, y: 70, vx: -0.36, vy: 0.31, size: 34, color: "#ffe66d", glow: "#ff4aa8" },
+    { icon: "❀", x: 38, y: 25, vx: 0.29, vy: -0.34, size: 31, color: "#9eeaff", glow: "#ff43a7" },
+    { icon: "♡", x: 82, y: 42, vx: -0.43, vy: -0.19, size: 27, color: "#ff8fc9", glow: "#ff2f9d" },
+    { icon: "✾", x: 18, y: 76, vx: 0.34, vy: -0.28, size: 29, color: "#fff09a", glow: "#6edcff" }
   ]);
   const [, forceFrame] = useState(0);
-
   useEffect(() => {
     const box = boxRef.current;
     if (!box) return undefined;
     let raf = 0;
     let last = performance.now();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {}) : null;
-    observer?.observe(box);
-
     const tick = now => {
       const dt = Math.min(32, now - last);
       last = now;
-      const items = itemsRef.current;
-      const pad = 4;
-
-      items.forEach((item, index) => {
+      itemsRef.current.forEach((item, index) => {
         const t = now / 1000 + index * 1.7;
         item.vx += Math.sin(t * (0.22 + index * 0.013)) * 0.00016;
         item.vy += Math.cos(t * (0.19 + index * 0.011)) * 0.00016;
-
         const speed = Math.hypot(item.vx, item.vy) || 1;
         const targetSpeed = 0.075 + (index % 3) * 0.012;
         item.vx = (item.vx / speed) * targetSpeed;
         item.vy = (item.vy / speed) * targetSpeed;
-
         item.x += item.vx * dt / 20;
         item.y += item.vy * dt / 20;
-
+        const pad = 4;
         const maxX = 100 - pad;
         const maxY = 100 - pad;
         if (item.x <= pad) { item.x = pad; item.vx = Math.abs(item.vx) * 0.98; }
@@ -47,224 +39,101 @@ function FloatingGirlsDecor() {
         if (item.y <= pad) { item.y = pad; item.vy = Math.abs(item.vy) * 0.98; }
         if (item.y >= maxY) { item.y = maxY; item.vy = -Math.abs(item.vy) * 0.98; }
       });
-
       forceFrame(v => (v + 1) % 2);
       raf = requestAnimationFrame(tick);
     };
-
     raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      observer?.disconnect();
-    };
+    return () => cancelAnimationFrame(raf);
   }, []);
-
-  return (
-    <div ref={boxRef} aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 1 }}>
-      {itemsRef.current.map((item, index) => (
-        <span key={`${item.icon}-${index}`} style={{
-          position: "absolute",
-          left: `${item.x}%`,
-          top: `${item.y}%`,
-          transform: `translate(-50%, -50%) rotate(${item.rotation}deg)`,
-          fontSize: `${item.size}px`,
-          lineHeight: 1,
-          color: item.color,
-          fontWeight: 900,
-          opacity: 0.9,
-          textShadow: `0 0 5px ${item.glow}, 0 0 12px ${item.glow}, 0 0 22px rgba(255,220,120,.45)`,
-          willChange: "left,top"
-        }}>{item.icon}</span>
-      ))}
-    </div>
-  );
+  return <div ref={boxRef} aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 1 }}>
+    {itemsRef.current.map((item, index) => <span key={`${item.icon}-${index}`} style={{ position: "absolute", left: `${item.x}%`, top: `${item.y}%`, transform: "translate(-50%,-50%)", fontSize: `${item.size}px`, lineHeight: 1, color: item.color, fontWeight: 900, opacity: .9, textShadow: `0 0 5px ${item.glow},0 0 12px ${item.glow},0 0 22px rgba(255,220,120,.45)`, willChange: "left,top" }}>{item.icon}</span>)}
+  </div>;
 }
 
 export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen, roundMvpTitle, frozenDetails, isDamaged, isGalaxyBenefited, galaxyPopup, isDonutActive, isCowboyActive }) {
   if (!team) return null;
-
-  const topPlayers = (players || [])
-    .filter(p => p.teamId === team.id)
-    .sort((a, b) => {
-      if ((b.points || 0) !== (a.points || 0)) return (b.points || 0) - (a.points || 0);
-      if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
-      return (b.messages || 0) - (a.messages || 0);
-    })
-    .slice(0, 10);
-
+  const config = commandConfigManager.getConfig();
+  const configuredTeam = (config?.teams || []).find(t => String(t.id) === String(team.id)) || {};
+  const displayTeam = { ...configuredTeam, ...team, name: team.name || configuredTeam.name || "Equipo" };
+  const configuredCommands = Array.isArray(displayTeam.commands) ? displayTeam.commands.filter(Boolean).map(v => String(v).trim()).filter(Boolean) : [];
+  const commandPrompt = configuredCommands[0] || String(displayTeam.command || displayTeam.joinCommand || displayTeam.registrationCommand || displayTeam.entryCommand || "").trim();
+  const topPlayers = (players || []).filter(p => p.teamId === team.id).sort((a,b) => (b.points||0)-(a.points||0) || (b.wins||0)-(a.wins||0) || (b.messages||0)-(a.messages||0)).slice(0,10);
   const winMvpId = round?.contributions?.winLimpia?.playerId || null;
   const giftMvpId = round?.contributions?.gift?.playerId || null;
-  const [rankDeltas, setRankDeltas] = useState({});
-  const [mvpRefresh, setMvpRefresh] = useState(0);
-  const prevRanksRef = useRef({});
   const [showCommand, setShowCommand] = useState(false);
+  const [mvpRefresh, setMvpRefresh] = useState(0);
+  const [rankDeltas, setRankDeltas] = useState({});
+  const prevRanksRef = useRef({});
 
-  const configuredCommands = Array.isArray(team.commands)
-    ? team.commands.filter(Boolean).map(v => String(v).trim()).filter(Boolean)
-    : [];
-  const commandPrompt = configuredCommands[0] || String(team.command || team.joinCommand || team.registrationCommand || team.entryCommand || "").trim();
-  const teamMode = String(team.mode || team.gameMode || team.gameModeId || team.variant || team.type || team.category || team.teamMode || "").toUpperCase();
-  const teamGender = String(team.gender || team.genderType || team.genderRole || team.sex || "").toLowerCase();
-  const teamLabel = String(team.name || "").toLowerCase();
+  const teamLabel = String(displayTeam.name || "").toLowerCase();
+  const teamGender = String(displayTeam.gender || displayTeam.genderType || displayTeam.genderRole || displayTeam.sex || "").toLowerCase();
+  const teamMode = String(displayTeam.mode || displayTeam.gameMode || displayTeam.gameModeId || displayTeam.variant || displayTeam.type || displayTeam.category || displayTeam.teamMode || "").toUpperCase();
   const isGenderBattle = teamMode.includes("GENDER") || teamMode.includes("CHICOS") || teamMode.includes("CHICAS") || teamGender.length > 0 || /\b(chico|chicos|chica|chicas|hombre|hombres|mujer|mujeres|masculino|femenino)\b/.test(teamLabel);
   const isGirlsTeam = isGenderBattle && (teamGender.includes("female") || teamGender.includes("woman") || teamGender.includes("mujer") || teamGender.includes("femen") || /\b(chica|chicas|mujer|mujeres|femenino|femenina)\b/.test(teamLabel));
   const isBoysTeam = isGenderBattle && !isGirlsTeam && (teamGender.includes("male") || teamGender.includes("man") || teamGender.includes("hombre") || teamGender.includes("mascul") || /\b(chico|chicos|hombre|hombres|masculino|masculina)\b/.test(teamLabel));
-
-  const genderTheme = isGirlsTeam ? {
-    background: "rgba(255,105,180,.14)",
-    border: "rgba(255,106,181,.98)",
-    glow: "rgba(255,91,174,.7)",
-    accent: "#8f174f"
-  } : isBoysTeam ? {
-    background: "rgba(91,201,231,.13)",
-    border: "rgba(78,210,255,.98)",
-    glow: "rgba(31,159,232,.72)",
-    accent: "#063d68"
-  } : null;
+  const genderTheme = isGirlsTeam ? { border: "rgba(255,106,181,.98)", glow: "rgba(255,91,174,.7)" } : isBoysTeam ? { border: "rgba(78,210,255,.98)", glow: "rgba(31,159,232,.72)" } : null;
+  const commandColor = isGirlsTeam ? "#a21caf" : isBoysTeam ? "#075985" : "#0b63ce";
 
   useEffect(() => {
-    const unsubs = ["mvp:recipient_selected", "mvp:contribution_pending", "mvp:gift_contribution", "round:finished"]
-      .map(name => eventBus.subscribe(name, () => setMvpRefresh(v => v + 1)));
+    const unsubs = ["mvp:recipient_selected","mvp:contribution_pending","mvp:gift_contribution","round:finished"].map(name => eventBus.subscribe(name, () => setMvpRefresh(v => v + 1)));
     return () => unsubs.forEach(u => u?.());
   }, []);
 
   useEffect(() => {
-    const newRanks = {};
+    const next = {};
     const deltas = {};
-    topPlayers.forEach((player, index) => {
-      const currentRank = index + 1;
-      const prevRank = prevRanksRef.current[player.id];
-      if (prevRank !== undefined && prevRank > currentRank) {
-        const delta = prevRank - currentRank;
-        deltas[player.id] = delta;
-        setTimeout(() => setRankDeltas(prev => {
-          const copy = { ...prev };
-          delete copy[player.id];
-          return copy;
-        }), 2200);
-      }
-      newRanks[player.id] = currentRank;
+    topPlayers.forEach((player,index) => {
+      const previous = prevRanksRef.current[player.id];
+      if (previous !== undefined && previous > index + 1) deltas[player.id] = previous - (index + 1);
+      next[player.id] = index + 1;
     });
-    prevRanksRef.current = newRanks;
-    if (Object.keys(deltas).length > 0) setRankDeltas(prev => ({ ...prev, ...deltas }));
+    prevRanksRef.current = next;
+    if (Object.keys(deltas).length) setRankDeltas(deltas);
   }, [topPlayers, mvpRefresh]);
 
   useEffect(() => {
-    if (!commandPrompt || isFrozen || isDamaged || isGalaxyBenefited || isDonutActive || isCowboyActive) {
-      setShowCommand(false);
-      return undefined;
-    }
-    const intervalId = setInterval(() => setShowCommand(prev => !prev), 4000);
-    return () => clearInterval(intervalId);
+    if (!commandPrompt || isFrozen || isDamaged || isGalaxyBenefited || isDonutActive || isCowboyActive) { setShowCommand(false); return undefined; }
+    const id = setInterval(() => setShowCommand(v => !v), 4000);
+    return () => clearInterval(id);
   }, [commandPrompt, isFrozen, isDamaged, isGalaxyBenefited, isDonutActive, isCowboyActive]);
 
-  const commandColor = isGirlsTeam ? "#a21caf" : isBoysTeam ? "#075985" : "#0b63ce";
-  const commandStyle = {
-    color: "#050505",
-    background: "rgba(255,255,255,.96)",
-    border: genderTheme ? `1px solid ${genderTheme.border}` : "1px solid rgba(0,0,0,.38)",
-    borderRadius: "999px",
-    padding: "2px 6px",
-    boxShadow: "0 1px 3px rgba(0,0,0,.28)",
-    textShadow: "none",
-    filter: "none"
-  };
-
-  const teamNameStyle = {
-    color: isFrozen || isDamaged || isGalaxyBenefited || isDonutActive || isCowboyActive || genderTheme ? "#fff" : undefined,
-    textShadow: isFrozen ? "0 0 8px rgba(0,245,255,.9)" : isDamaged ? "0 0 10px rgba(255,0,0,.9)" : isGalaxyBenefited ? "0 0 10px rgba(125,211,252,.8)" : isDonutActive ? "0 0 10px rgba(255,105,180,.8)" : isCowboyActive ? "0 0 12px rgba(255,100,34,.9)" : genderTheme ? "0 2px 5px rgba(0,0,0,.55)" : "0 2px 5px rgba(0,0,0,.9)",
-    fontFamily: isGirlsTeam || isBoysTeam ? '"Siller", "Arial Rounded MT Bold", "Arial Black", Impact, sans-serif' : undefined,
-    fontWeight: isGirlsTeam || isBoysTeam ? 950 : undefined,
-    letterSpacing: isGirlsTeam || isBoysTeam ? ".45px" : undefined,
-    position: "relative",
-    zIndex: 8,
-    minHeight: "18px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "visible"
-  };
-
-  const normalName = isFrozen ? `❄️ ${team.name} [CONGELADO] ❄️` : isDamaged ? `💥 ${team.name} [DESTRUIDO]` : isGalaxyBenefited ? `🌌 ${team.name} 🌌` : isDonutActive ? `🍩 ${team.name} [EL MUDO]` : isCowboyActive ? `🤠 ${team.name} [RETO]` : team.name;
+  const name = displayTeam.name;
+  const nameText = isFrozen ? `❄️ ${name} [CONGELADO] ❄️` : isDamaged ? `💥 ${name} [DESTRUIDO]` : isGalaxyBenefited ? `🌌 ${name} 🌌` : isDonutActive ? `🍩 ${name} [EL MUDO]` : isCowboyActive ? `🤠 ${name} [RETO]` : name;
   const commandVisible = !!commandPrompt && !isFrozen && !isDamaged && !isGalaxyBenefited && !isDonutActive && !isCowboyActive;
+  const teamNameStyle = { color: isGirlsTeam ? "#ff4fa6" : isBoysTeam ? "#8feaff" : "#fff", WebkitTextStroke: isGirlsTeam ? "1px #70123f" : isBoysTeam ? "1px #063b67" : "1px rgba(0,0,0,.5)", fontFamily: isGirlsTeam || isBoysTeam ? '"Siller", "Arial Rounded MT Bold", "Arial Black", Impact, sans-serif' : undefined, fontWeight: 950, fontSize: "16px", letterSpacing: ".45px", lineHeight: 1.05, textAlign: "center", position: "relative", zIndex: 20, minHeight: "20px", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", overflow: "visible", textShadow: isGirlsTeam ? "0 2px 0 #4b092b,0 0 8px rgba(255,159,211,.85)" : isBoysTeam ? "0 2px 0 #031d34,0 0 8px rgba(135,235,255,.8)" : "0 2px 5px #000" };
+  const commandStyle = { color: "#050505", background: "rgba(255,255,255,.97)", border: `2px solid ${genderTheme?.border || "rgba(0,0,0,.35)"}`, borderRadius: "6px", padding: "3px 8px", fontSize: "8.5px", fontWeight: 950, letterSpacing: ".25px", textTransform: "uppercase", whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.35)" };
 
-  const genderDecor = genderTheme ? {
-    position: "absolute",
-    inset: 0,
-    pointerEvents: "none",
-    zIndex: 1,
-    overflow: "hidden",
-    borderRadius: "6px",
-    backgroundImage: "none",
-    backgroundColor: "transparent",
-    mixBlendMode: "normal"
-  } : null;
+  return <div className={`team-wrapper ${wrapperClass} ${isGenderBattle ? "gender-team-wrapper" : ""} ${isGirlsTeam ? "gender-girls" : ""} ${isBoysTeam ? "gender-boys" : ""}`} style={{ position:"relative" }}>
+    <div className={`team-card ${isFrozen?"punished":""} ${isDamaged?"damaged":""} ${isDonutActive?"donut-active":""} ${isCowboyActive?"cowboy-active":""} ${isGalaxyBenefited?"galaxy-active":""}`} style={{ position:"relative", overflow:"hidden" }}>
+      {isGirlsTeam && <FloatingGirlsDecor />}
+      {isDamaged && <div className="ability-layer ability-layer-money" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:3,overflow:"hidden"}}><div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 15% 25%,rgba(255,0,0,.6),transparent 35%),radial-gradient(circle at 85% 75%,rgba(255,100,0,.6),transparent 35%)"}}/></div>}
+      {isCowboyActive && <div className="ability-layer ability-layer-cowboy" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:4,border:"2px solid #ff6622",borderRadius:"6px",boxShadow:"0 0 15px rgba(255,100,34,.8)"}}/>}
+      {isDonutActive && <div className="ability-layer ability-layer-donut" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:5,border:"2px solid #ff69b4",borderRadius:"6px",boxShadow:"0 0 15px rgba(255,105,180,.8)"}}/>}
+      {isGalaxyBenefited && <div className="ability-layer ability-layer-galaxy" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:6,border:"2px solid #00ffff",borderRadius:"6px",boxShadow:"0 0 18px rgba(0,245,255,.9)"}}/>}
+      {isFrozen && <div className="ability-layer ability-layer-freeze" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:7,border:"2px solid #00f0ff",borderRadius:"6px",background:"rgba(0,180,216,.25)"}}/>}
 
-  const genderSymbol = isGirlsTeam ? "♥ ❀ ♥" : "▲ ◆ ⚑";
-
-  return (
-    <div className={`team-wrapper ${wrapperClass} ${isGenderBattle ? "gender-team-wrapper" : ""} ${isGirlsTeam ? "gender-girls" : ""} ${isBoysTeam ? "gender-boys" : ""}`} style={{ position: "relative" }}>
-      <div className={`team-card ${isFrozen ? "punished" : ""} ${isDamaged ? "damaged" : ""} ${isDonutActive ? "donut-active" : ""} ${isCowboyActive ? "cowboy-active" : ""} ${isGalaxyBenefited ? "galaxy-active" : ""}`} style={genderTheme && !isFrozen && !isDamaged && !isGalaxyBenefited && !isDonutActive && !isCowboyActive ? { background: genderTheme.background, border: `2px solid ${genderTheme.border}`, boxShadow: `0 0 20px ${genderTheme.glow}, inset 0 0 18px rgba(255,255,255,.08), inset 0 -8px 18px rgba(0,0,0,.08)`, overflow: "hidden" } : {}}>
-        {genderDecor && <>
-          <div style={genderDecor} />
-          {isGirlsTeam ? <FloatingGirlsDecor /> : <>
-            <div style={{ position: "absolute", left: "10px", bottom: "4px", zIndex: 2, pointerEvents: "none", fontSize: "12px", letterSpacing: "5px", fontWeight: 900, color: "rgba(255,255,255,.28)", textShadow: "0 2px 4px rgba(0,0,0,.35)" }}>{genderSymbol}</div>
-            <div style={{ position: "absolute", right: "10px", top: "4px", zIndex: 2, pointerEvents: "none", fontSize: "11px", letterSpacing: "5px", fontWeight: 900, color: "rgba(255,255,255,.27)", textShadow: "0 2px 4px rgba(0,0,0,.35)", transform: "rotate(-8deg)" }}>{genderSymbol}</div>
-          </>}
-        </>}
-
-        {isDamaged && <div className="ability-layer ability-layer-money" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3, overflow: "hidden" }}><div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 15% 25%,rgba(255,0,0,.6) 0%,transparent 35%),radial-gradient(circle at 85% 75%,rgba(255,100,0,.6) 0%,transparent 35%)", opacity: .95 }} /><div style={{ position: "absolute", top: "5px", left: "10px", fontSize: "11px", transform: "rotate(-12deg)" }}>💥</div><div style={{ position: "absolute", top: "10px", right: "18px", fontSize: "10px", transform: "rotate(25deg)" }}>💥</div></div>}
-        {isCowboyActive && <div className="ability-layer ability-layer-cowboy" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 4, border: "2px solid #ff6622", borderRadius: "6px", boxShadow: "0 0 15px rgba(255,100,34,.8)" }} />}
-        {isDonutActive && <div className="ability-layer ability-layer-donut" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5, border: "2px solid #ff69b4", borderRadius: "6px", boxShadow: "0 0 15px rgba(255,105,180,.8)" }} />}
-        {isGalaxyBenefited && <div className="ability-layer ability-layer-galaxy" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6, border: "2px solid #00ffff", borderRadius: "6px", boxShadow: "0 0 18px rgba(0,245,255,.9)" }} />}
-        {isFrozen && <div className="ability-layer ability-layer-freeze" style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(white 1.2px,transparent 0),radial-gradient(white 1.8px,transparent 0)", backgroundSize: "14px 14px,22px 22px", backgroundPosition: "0 0,7px 7px", opacity: .7, animation: "snowfall 3.5s linear infinite", pointerEvents: "none", zIndex: 7, border: "2px solid #00f0ff", borderRadius: "6px", background: "rgba(0,180,216,.25)" }} />}
-
-        <div className="team-name" style={teamNameStyle}>
-          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: commandVisible && showCommand ? 0 : 1, transition: "opacity .35s ease", pointerEvents: "none" }}>{normalName}</span>
-          {commandVisible && <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: showCommand ? 1 : 0, transition: "opacity .35s ease", pointerEvents: "none" }}>
-            <span style={{ fontSize: "8.5px", fontWeight: 950, letterSpacing: ".25px", textTransform: "uppercase", whiteSpace: "nowrap", ...commandStyle }}>
-              📣 ESCRIBE <strong style={{ color: commandColor, fontWeight: 1000, background: "rgba(255,255,255,.92)", padding: "0 3px", borderRadius: "3px", textShadow: "none" }}>{commandPrompt}</strong> PARA UNIRTE
-            </span>
-          </span>}
-        </div>
-
-        <style>{`@keyframes genderSymbolPulse{0%,100%{opacity:.42}50%{opacity:.72}}@keyframes roundsShimmer{0%{background-position:140% 0}55%,100%{background-position:-40% 0}}`}</style>
-
-        <div className={`team-score ${isDonutActive ? "clean-number-pop" : ""}`} style={{ color: "#fff", textShadow: isFrozen ? "0 0 16px rgba(0,240,255,1)" : isDamaged ? "0 0 18px rgba(255,0,0,1)" : isGalaxyBenefited ? "0 0 15px rgba(255,255,255,.7)" : isDonutActive ? "0 0 15px rgba(255,105,180,.8)" : isCowboyActive ? "0 0 20px rgba(255,100,34,1)" : genderTheme ? "0 2px 6px rgba(0,0,0,.6)" : "0 2px 8px rgba(0,0,0,.9)", position: "relative", zIndex: 8 }}>{score}</div>
-
-        <div style={{ position: "relative", zIndex: 8, width: "100%", display: "flex", justifyContent: "center", alignItems: "center", boxSizing: "border-box" }}>
-          {isFrozen ? <div style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%" }}><div className="freeze-timer-badge"><span style={{ fontSize: "11px" }}>❄️ FREEZE:</span><span style={{ color: "#fff", fontSize: "12px", marginLeft: "2px" }}>{frozenDetails?.remainingTime || "10"}s</span></div></div> : <div className={`team-rounds-container ${isGalaxyBenefited ? "galaxy-rounds-boost" : ""}`} style={{ position: "relative", overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "center", gap: "3px", minHeight: "18px", padding: "2px 7px", borderRadius: "5px", border: isGalaxyBenefited ? "1.5px solid #7dd3fc" : isDonutActive ? "1.5px solid #ff69b4" : isCowboyActive ? "1.5px solid #ff8a3d" : genderTheme ? `1.5px solid ${genderTheme.border}` : "1px solid rgba(125,211,252,.55)", background: isGalaxyBenefited ? "linear-gradient(135deg,rgba(8,22,38,.98),rgba(24,38,70,.98))" : isDonutActive ? "linear-gradient(135deg,rgba(38,12,32,.98),rgba(50,18,42,.98))" : isCowboyActive ? "linear-gradient(135deg,rgba(45,22,10,.98),rgba(60,28,10,.98))" : genderTheme ? "rgba(0,0,0,.30)" : "linear-gradient(135deg,rgba(8,22,38,.98),rgba(22,34,52,.98))", boxShadow: genderTheme ? `0 0 9px ${genderTheme.glow},inset 0 1px 2px rgba(255,255,255,.18)` : "0 2px 8px rgba(0,0,0,.65),inset 0 1px 1px rgba(255,255,255,.12),0 0 10px rgba(125,211,252,.16)" }}>
-            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(105deg,transparent 0%,transparent 42%,rgba(255,255,255,.28) 49%,transparent 56%,transparent 100%)", backgroundSize: "220% 100%", animation: "roundsShimmer 3.2s ease-in-out infinite" }} />
-            <span className="rounds-title" style={{ color: "#fff", fontWeight: 900, textShadow: "0 1px 4px rgba(0,0,0,.95)", position: "relative", zIndex: 2 }}>RONDA</span>
-            <span className="rounds-digits" style={{ color: "#fff", fontWeight: 950, textShadow: "0 1px 5px rgba(0,0,0,.95)", position: "relative", zIndex: 2 }}>{team.wins || 0}</span>
-            {isDamaged && <span style={{ fontSize: "5.5px", color: "#ff8f8f", fontWeight: 900, whiteSpace: "nowrap", position: "relative", zIndex: 2 }}>💥 0 PTS</span>}
-            {isGalaxyBenefited && <span style={{ fontSize: "6px", color: "#dbeafe", fontWeight: 900, textShadow: "0 0 4px rgba(125,211,252,.9)", whiteSpace: "nowrap", position: "relative", zIndex: 2 }}>⚡</span>}
-            {isDonutActive && <span style={{ fontSize: "6px", color: "#ffd1ec", fontWeight: 900, textShadow: "0 0 4px rgba(255,105,180,.9)", position: "relative", zIndex: 2 }}>🍩</span>}
-            {isCowboyActive && <span style={{ fontSize: "6px", color: "#ffd0ad", fontWeight: 900, textShadow: "0 0 6px rgba(255,153,51,1)", whiteSpace: "nowrap", position: "relative", zIndex: 2 }}>🤠</span>}
-          </div>}
-        </div>
+      <div className="team-name" style={teamNameStyle}>
+        {!commandVisible || !showCommand ? <span>{nameText}</span> : <span style={commandStyle}>ESCRIBE <strong style={{color:commandColor,fontWeight:1000}}>{commandPrompt}</strong> PARA UNIRTE</span>}
       </div>
 
-      {topPlayers.length > 0 && <div className="players-box" style={{ position: "relative", overflowY: "auto", maxHeight: "220px", border: isFrozen ? "1.5px solid #00f0ff" : isDamaged ? "1px solid rgba(255,51,51,.5)" : isGalaxyBenefited ? "1px solid #7dd3fc" : isDonutActive ? "1px solid rgba(255,105,180,.5)" : isCowboyActive ? "1.5px solid #ff6622" : genderTheme ? `1px solid ${genderTheme.border}` : "1px solid rgba(125,211,252,.5)", background: isFrozen ? "linear-gradient(145deg,rgba(0,150,200,.4),rgba(0,60,120,.6))" : isDamaged ? "linear-gradient(145deg,rgba(50,15,15,.92),rgba(20,5,5,.96))" : isGalaxyBenefited ? "linear-gradient(145deg,rgba(0,30,90,.9),rgba(50,0,140,.9))" : isDonutActive ? "linear-gradient(145deg,rgba(160,30,90,.85),rgba(90,10,50,.85))" : isCowboyActive ? "linear-gradient(145deg,rgba(100,40,15,.96),rgba(50,20,10,.96))" : genderTheme ? "linear-gradient(145deg,rgba(255,255,255,.92),rgba(235,240,248,.92))" : "linear-gradient(145deg,rgba(232,238,244,.98),rgba(207,216,226,.98))", boxShadow: "0 3px 12px rgba(0,0,0,.5),inset 0 1px 1px rgba(255,255,255,.45)" }}>
-        {isFrozen && <div className="mvp-ice-layer"><div style={{ fontSize: "11px", fontWeight: 900, color: "#00f0ff", textShadow: "0 0 10px rgba(0,240,255,1)", textTransform: "uppercase", letterSpacing: "1px", whiteSpace: "nowrap" }}>❄️ FROZEN / CONGELADO ❄️</div></div>}
-        {isGalaxyBenefited && galaxyPopup ? <div style={{ padding: "4px 2px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100%" }}><div style={{ fontSize: "11.5px", fontWeight: 900, color: "#fff", textShadow: "0 0 8px rgba(125,211,252,.8)", textTransform: "uppercase", letterSpacing: ".8px" }}>✨ {galaxyPopup.sender} ✨</div><div style={{ fontSize: "7.5px", fontWeight: 900, color: "#fff", background: "rgba(0,0,0,.85)", padding: "1.5px 5px", borderRadius: "3px", textTransform: "uppercase", display: "inline-block", boxShadow: "0 0 6px rgba(255,255,255,.35)", letterSpacing: ".5px", marginTop: "3px" }}>GALAXY • +1 RONDA</div></div> : <>
-          <div className="players-title" style={{ color: genderTheme ? (isGirlsTeam ? "#7a174f" : "#08345f") : "#102a43", position: "relative", zIndex: 2, textShadow: "none" }}>{isFrozen ? "❄️ MVP CONGELADOS" : isDamaged ? "💥 BAJO FUEGO" : isDonutActive ? "🍩 EL MUDO • RETO" : isCowboyActive ? "🤠 RETO CREATIVO" : (roundMvpTitle || "🏆 MVPS (TOP 10)")}</div>
-          {topPlayers.map((player, index) => {
-            const rawPoints = player.points || 0;
-            const displayPoints = rawPoints > 0 ? rawPoints : (player.wins || 0);
-            const hasRankUp = rankDeltas[player.id] !== undefined;
-            const deltaVal = rankDeltas[player.id];
-            const isWinMvp = String(player.id) === String(winMvpId) || String(player.playerId) === String(winMvpId);
-            const isGiftMvp = String(player.id) === String(giftMvpId) || String(player.playerId) === String(giftMvpId);
-            const mvpRounds = getPlayerMvpRounds(player.id || player.playerId);
-            const contributionPoints = getPlayerContributionPoints(player.id || player.playerId);
-            return <div key={player.id} className={`gamer-player ${hasRankUp ? "rank-up-highlight" : ""}`} style={{ position: "relative", zIndex: 2, background: hasRankUp ? "linear-gradient(135deg,rgba(57,255,136,.28),rgba(255,255,255,.45))" : "rgba(255,255,255,.58)", transition: "all .5s ease" }}>
-              <div className="player-position">{index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}º`} <span className="player-name" style={{ color: "#102a43", fontWeight: 900, textShadow: "none" }}>{player.name}</span>{mvpRounds > 0 && <span style={{ marginLeft: "4px", fontSize: "8px", fontWeight: 950, color: genderTheme ? (isGirlsTeam ? "#a21caf" : "#075985") : "#7c3aed" }}>🏆 {mvpRounds}</span>}{contributionPoints > 0 && <span style={{ marginLeft: "4px", fontSize: "7px", fontWeight: 950, color: "#b45309" }}>💠 +{contributionPoints} APORTE</span>}{isWinMvp && <span style={{ marginLeft: "4px", fontSize: "8px", fontWeight: 950, color: "#15803d" }}>👑 WIN</span>}{isGiftMvp && <span style={{ marginLeft: "4px", fontSize: "8px", fontWeight: 950, color: "#a16207" }}>🎁 MVP</span>}{hasRankUp && <span className="rank-delta-badge" style={{ marginLeft: "4px" }}>▲ +{deltaVal}</span>}</div>
-              <div className="player-points" style={{ color: "#102a43", fontWeight: 950, textShadow: "none" }}>{displayPoints} pts</div>
-            </div>;
-          })}
-        </>}
-      </div>}
+      <div className={`team-score ${isDonutActive ? "clean-number-pop" : ""}`} style={{color:"#fff",position:"relative",zIndex:20,textShadow:isFrozen?"0 0 16px #00f0ff":isDamaged?"0 0 18px red":isGalaxyBenefited?"0 0 15px #fff":isDonutActive?"0 0 15px #ff69b4":isCowboyActive?"0 0 20px #ff6422":"0 2px 8px #000"}}>{score}</div>
+      <div style={{position:"relative",zIndex:20,width:"100%",display:"flex",justifyContent:"center"}}>
+        {isFrozen ? <div className="freeze-timer-badge">❄️ FREEZE: {frozenDetails?.remainingTime || "10"}s</div> : <div className={`team-rounds-container ${isGalaxyBenefited?"galaxy-rounds-boost":""}`} style={{position:"relative",display:"flex",justifyContent:"center",alignItems:"center",gap:"3px",minHeight:"18px",padding:"2px 7px",borderRadius:"5px",overflow:"hidden"}}><span className="rounds-title">RONDA</span><span className="rounds-digits">{displayTeam.wins || team.wins || 0}</span></div>}
+      </div>
     </div>
-  );
+
+    {topPlayers.length > 0 && <div className="players-box" style={{position:"relative",zIndex:10,overflowY:"auto",maxHeight:"220px"}}>
+      {isGalaxyBenefited && galaxyPopup ? <div style={{padding:"8px",textAlign:"center"}}><div style={{fontSize:"11.5px",fontWeight:900,color:"#fff"}}>✨ {galaxyPopup.sender} ✨</div><div style={{fontSize:"7.5px",fontWeight:900,color:"#fff"}}>GALAXY • +1 RONDA</div></div> : <>
+        <div className="players-title">{isFrozen ? "❄️ MVP CONGELADOS" : isDamaged ? "💥 BAJO FUEGO" : isDonutActive ? "🍩 EL MUDO • RETO" : isCowboyActive ? "🤠 RETO CREATIVO" : (roundMvpTitle || "🏆 MVPS (TOP 10)")}</div>
+        {topPlayers.map((player,index) => {
+          const id = player.id || player.playerId;
+          const mvpRounds = getPlayerMvpRounds(id);
+          const contributionPoints = getPlayerContributionPoints(id);
+          const isWinMvp = String(id) === String(winMvpId);
+          const isGiftMvp = String(id) === String(giftMvpId);
+          return <div key={id} className="gamer-player" style={{position:"relative",zIndex:2}}><div className="player-position">{index<3?["🥇","🥈","🥉"][index]:`${index+1}º`} <span className="player-name">{player.name}</span>{mvpRounds>0&&<span style={{marginLeft:4,fontSize:8}}>🏆 {mvpRounds}</span>}{contributionPoints>0&&<span style={{marginLeft:4,fontSize:7}}>💠 +{contributionPoints} APORTE</span>}{isWinMvp&&<span style={{marginLeft:4,fontSize:8,color:"#15803d"}}>👑 WIN</span>}{isGiftMvp&&<span style={{marginLeft:4,fontSize:8}}>MVP</span>}{rankDeltas[id]&&<span style={{marginLeft:4}}>▲ +{rankDeltas[id]}</span>}</div><div className="player-points">{player.points || player.wins || 0} pts</div></div>;
+        })}
+      </>}
+    </div>}
+  </div>;
 }
