@@ -50,27 +50,28 @@ export function IndividualJoinPrompt() {
   return (
     <div style={{
       position: "absolute",
-      top: "-34px",
-      right: "0",
-      zIndex: 80,
-      width: "150px",
-      minHeight: "30px",
-      padding: "5px 8px",
+      top: "2px",
+      left: "50%",
+      right: "auto",
+      zIndex: 90,
+      width: "184px",
+      minHeight: "34px",
+      padding: "5px 9px",
       boxSizing: "border-box",
       borderRadius: "8px",
       background: "linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,245,210,.97))",
       border: "2px solid rgba(16,42,67,.78)",
       boxShadow: "0 3px 12px rgba(0,0,0,.38),0 0 10px rgba(255,209,102,.32)",
       textAlign: "center",
-      transform: show ? "translateY(0)" : "translateY(-1px)",
+      transform: show ? "translate(-50%,0)" : "translate(-50%,-1px)",
       opacity: show ? 1 : .86,
       transition: "all .45s ease"
     }}>
       <div style={{ fontSize: "7px", lineHeight: 1.1, fontWeight: 1000, color: "#111827", textTransform: "uppercase", letterSpacing: ".35px" }}>
-        REGÍSTRATE CON:
+        {isCommand ? "ESCRIBE EN EL CHAT" : "ÚNETE CON"}
       </div>
       {isCommand ? (
-        <div style={{ marginTop: "3px", fontSize: "11px", lineHeight: 1.05, fontWeight: 1000, color: "#ffffff", background: "#111111", border: "1px solid #000000", borderRadius: "5px", padding: "3px 6px", textTransform: "uppercase", letterSpacing: ".6px", textShadow: "none", boxShadow: "0 1px 0 #fff" }}>
+        <div style={{ marginTop: "3px", fontSize: "12px", lineHeight: 1.05, fontWeight: 1000, color: "#ffffff", background: "#111111", border: "1px solid #000000", borderRadius: "5px", padding: "3px 8px", textTransform: "uppercase", letterSpacing: ".7px", textShadow: "none", boxShadow: "0 1px 0 #fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {enrollment.command}
         </div>
       ) : (
