@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import Overlay from "../components/overlay";
 import { IndividualRegistrationPromptV2 } from "../components/overlay/IndividualRegistrationPromptV2";
+import { TeamIdentityRepair } from "../components/overlay/TeamIdentityRepair";
 
 function OverlayPage() {
   useEffect(() => {
@@ -62,6 +63,7 @@ function OverlayPage() {
   return (
     <main style={{display:"block",width:"520px",margin:0,padding:0,overflow:"hidden",boxSizing:"border-box",position:"relative"}}>
       <Overlay />
+      <TeamIdentityRepair />
       <IndividualRegistrationPromptV2 />
     </main>
   );
