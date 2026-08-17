@@ -56,10 +56,7 @@ export function GiftFeed() {
       setGiftQueue(prev => [...prev, meta]);
 
       if (meta.abilityId === "cocazo") {
-        setCocazo({
-          username: meta.sender,
-          executionId: meta.executionId
-        });
+        setCocazo({ username: meta.sender, executionId: meta.executionId });
       }
     });
 
@@ -75,14 +72,17 @@ export function GiftFeed() {
 
   useEffect(() => {
     if (currentGift || giftQueue.length === 0) return undefined;
-
     const [next, ...rest] = giftQueue;
     setGiftQueue(rest);
     setCurrentGift(next);
+    return undefined;
+  }, [currentGift, giftQueue]);
 
+  useEffect(() => {
+    if (!currentGift) return undefined;
     const timer = window.setTimeout(() => setCurrentGift(null), 4000);
     return () => window.clearTimeout(timer);
-  }, [currentGift, giftQueue]);
+  }, [currentGift]);
 
   const isIceCream = currentGift?.abilityId === "clue_hint";
   const palette = isIceCream
