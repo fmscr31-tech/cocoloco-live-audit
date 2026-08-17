@@ -139,9 +139,6 @@ class AudioManager {
     if (!this.enabled || !soundPath) return;
 
     const isAdminPreview = item?.source === "ADMIN_PREVIEW" || item?.sender === "ADMIN_PREVIEW";
-    // CocoDanceZone exists only in the live overlay. Treat its explicit
-    // COCAZO source as an authoritative overlay playback request even when
-    // the overlay URL uses a custom route that does not contain /overlay.
     const isCocazoOverlay = item?.source === "COCAZO";
 
     if (isAdminPreview) {
@@ -223,8 +220,10 @@ class AudioManager {
       }
     });
 
-    eventBus.subscribe("freeze:activated", (payload) => {
-      if (!this.enabled) return;
+    // BattleEffectEngine emits effect:activated. The previous listener was
+    // subscribed to freeze:activated, which is never emitted by the engine.
+    eventBus.subscribe("effect:activated", (payload) => {
+      if (!this.enabled || payload?.type !== "FREEZE") return;
       const freezeConfig = this.getFreezeConfig();
       const soundPath = payload?.sound !== undefined ? payload.sound : freezeConfig.sound;
       if (soundPath) this.playSound(soundPath, { ...payload, source: "FREEZE" });
