@@ -88,35 +88,44 @@ export function GiftFeed() {
   const palette = isIceCream
     ? {
         background: "linear-gradient(135deg, rgba(255,192,224,.18), rgba(150,220,255,.18))",
-        border: "1.5px solid rgba(103,199,255,.62)",
+        border: "1.5px solid rgba(103,199,255,.72)",
         title: "#ffe3f5",
-        shadow: "0 0 16px rgba(103,199,255,.24), inset 0 0 18px rgba(255,255,255,.04)"
+        shadow: "0 0 18px rgba(103,199,255,.30), 0 0 34px rgba(255,170,225,.14), inset 0 0 20px rgba(255,255,255,.05)"
       }
     : {
-        background: "linear-gradient(135deg, rgba(255,255,255,.10), rgba(70,220,190,.08))",
-        border: "1.5px solid rgba(185,255,194,.48)",
-        title: "#ffffff",
-        shadow: "0 0 16px rgba(120,255,145,.16), inset 0 0 18px rgba(255,255,255,.035)"
+        background: "linear-gradient(135deg, rgba(255,255,255,.12), rgba(90,215,240,.10))",
+        border: "1.5px solid rgba(103,199,255,.68)",
+        title: "#e7fbff",
+        shadow: "0 0 18px rgba(103,199,255,.26), 0 0 34px rgba(103,199,255,.13), inset 0 0 20px rgba(255,255,255,.05)"
       };
 
   return (
     <>
       <style>{`
-        /* Gift information slide: fixed enlarged glass geometry. */
+        /* Gift information slide: fixed, larger glass geometry with depth and a soft shimmer. */
         .timer-feed-compact-card {
-          width: 124px !important;
-          height: 108px !important;
-          min-height: 108px !important;
-          max-height: 108px !important;
+          width: 138px !important;
+          height: 116px !important;
+          min-height: 116px !important;
+          max-height: 116px !important;
           box-sizing: border-box !important;
-          border-radius: 14px !important;
-          background: linear-gradient(135deg, rgba(255,255,255,.11), rgba(90,215,240,.10)) !important;
-          border: 1.5px solid rgba(103,199,255,.72) !important;
-          box-shadow: 0 0 12px rgba(103,199,255,.20), 0 0 26px rgba(103,199,255,.12), inset 0 0 18px rgba(255,255,255,.045) !important;
-          backdrop-filter: blur(2px) !important;
-          -webkit-backdrop-filter: blur(2px) !important;
+          border-radius: 15px !important;
+          background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(90,215,240,.11)) !important;
+          border: 1.5px solid rgba(103,199,255,.76) !important;
+          box-shadow: 0 3px 0 rgba(20,55,75,.28), 0 7px 18px rgba(0,35,55,.22), 0 0 15px rgba(103,199,255,.22), 0 0 32px rgba(103,199,255,.12), inset 0 1px 0 rgba(255,255,255,.20), inset 0 -8px 18px rgba(0,70,100,.08) !important;
+          backdrop-filter: blur(3px) !important;
+          -webkit-backdrop-filter: blur(3px) !important;
           overflow: hidden !important;
-          animation: giftSlideGlow 2.8s ease-in-out infinite !important;
+          animation: giftSlideGlow 2.4s ease-in-out infinite !important;
+        }
+        .timer-feed-compact-card::after {
+          content: "";
+          position: absolute;
+          inset: -40%;
+          background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.24) 48%, transparent 56%);
+          transform: translateX(-70%) rotate(8deg);
+          animation: giftSlideShimmer 3.8s ease-in-out infinite;
+          pointer-events: none;
         }
         .timer-feed-compact-card .compact-title {
           color: #dff9ff !important;
@@ -133,13 +142,18 @@ export function GiftFeed() {
         }
         @keyframes giftSlideGlow {
           0%, 100% {
-            border-color: rgba(103,199,255,.58);
-            box-shadow: 0 0 9px rgba(103,199,255,.16), 0 0 20px rgba(103,199,255,.08), inset 0 0 16px rgba(255,255,255,.035);
+            border-color: rgba(103,199,255,.60);
+            box-shadow: 0 3px 0 rgba(20,55,75,.25), 0 7px 16px rgba(0,35,55,.18), 0 0 10px rgba(103,199,255,.15), 0 0 22px rgba(103,199,255,.07), inset 0 1px 0 rgba(255,255,255,.16);
           }
           50% {
-            border-color: rgba(190,241,255,.96);
-            box-shadow: 0 0 15px rgba(103,199,255,.34), 0 0 32px rgba(103,199,255,.18), inset 0 0 20px rgba(255,255,255,.07);
+            border-color: rgba(215,248,255,.98);
+            box-shadow: 0 3px 0 rgba(20,55,75,.30), 0 8px 20px rgba(0,35,55,.24), 0 0 18px rgba(103,199,255,.38), 0 0 38px rgba(103,199,255,.18), inset 0 1px 0 rgba(255,255,255,.25);
           }
+        }
+        @keyframes giftSlideShimmer {
+          0%, 35% { transform: translateX(-70%) rotate(8deg); opacity: 0; }
+          48% { opacity: 1; }
+          62%, 100% { transform: translateX(70%) rotate(8deg); opacity: 0; }
         }
       `}</style>
 
@@ -153,33 +167,36 @@ export function GiftFeed() {
             top: "38%",
             transform: "translate(-50%, -50%)",
             zIndex: 10000,
-            width: "150px",
-            minHeight: "58px",
-            padding: "5px 7px",
-            borderRadius: "9px",
+            width: "170px",
+            minHeight: "66px",
+            padding: "6px 8px",
+            borderRadius: "10px",
             background: palette.background,
             border: palette.border,
             boxShadow: palette.shadow,
             color: "#fff",
             textAlign: "center",
-            animation: "giftReceivedPop .32s cubic-bezier(.175,.885,.32,1.275)"
+            animation: "giftReceivedPop .32s cubic-bezier(.175,.885,.32,1.275), giftReceivedShine 2.2s ease-in-out .35s infinite"
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-            <GiftImage giftId={currentGift.giftName} fallbackIcon="🎁" style={{ width: "28px", height: "28px" }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "7px", fontWeight: 950, color: palette.title, textTransform: "uppercase", lineHeight: 1.1 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "7px" }}>
+            <GiftImage giftId={currentGift.giftName} fallbackIcon="🎁" style={{ width: "32px", height: "32px" }} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: "8px", fontWeight: 950, color: palette.title, textTransform: "uppercase", lineHeight: 1.15, whiteSpace: "normal" }}>
                 {currentGift.giftName}
               </div>
-              <div style={{ fontSize: "7px", fontWeight: 950, color: "#fff", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ fontSize: "7.5px", fontWeight: 950, color: "#fff", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {currentGift.sender}
               </div>
             </div>
           </div>
-          <div style={{ marginTop: "3px", fontSize: "6.5px", fontWeight: 950, color: "#fff", lineHeight: 1.15 }}>
+          <div style={{ marginTop: "4px", fontSize: "6.8px", fontWeight: 950, color: "#fff", lineHeight: 1.15 }}>
             {currentGift.effectText}
           </div>
-          <style>{`@keyframes giftReceivedPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}70%{transform:translate(-50%,-50%) scale(1.04)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}`}</style>
+          <style>{`
+            @keyframes giftReceivedPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}70%{transform:translate(-50%,-50%) scale(1.04)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+            @keyframes giftReceivedShine{0%,70%,100%{filter:brightness(1)}82%{filter:brightness(1.22)}}
+          `}</style>
         </div>
       )}
 
