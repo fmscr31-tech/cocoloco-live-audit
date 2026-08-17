@@ -114,7 +114,7 @@ export function IndividualJoinPrompt() {
   const isCommand = enrollment.method === "command";
   return (
     <div ref={promptRef} data-cocoloco-registration-prompt="true" aria-live="polite" style={{
-      position: "absolute", left: "calc(50% - 167px)", top: "50%", transform: "translate(-50%, -50%)", zIndex: 5000,
+      position: "absolute", left: "calc(50% - 67px)", top: "50%", transform: "translate(-50%, -50%)", zIndex: 5000,
       width: isCommand ? "220px" : "250px", minHeight: isCommand ? "74px" : "112px", padding: isCommand ? "10px 18px" : "12px 20px",
       boxSizing: "border-box", borderRadius: "18px", background: blink ? "rgba(46, 125, 50, .18)" : "rgba(46, 125, 50, .10)",
       border: blink ? "1px solid rgba(185, 255, 194, .70)" : "1px solid rgba(185, 255, 194, .38)",
