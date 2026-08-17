@@ -1,0 +1,142 @@
+/* CocoLoco — CHICOS vs CHICAS visual-only finishing layer.
+   Loaded after the existing team-panel styles so it cannot alter game logic.
+   Scope is limited to gender team cards and their visual labels/decorations. */
+
+.hud-container .gender-boys .team-card,
+.hud-container .gender-girls .team-card {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+}
+
+/* More organic camouflage: no circular/bubble look. */
+.hud-container .gender-boys .team-card {
+  background:
+    linear-gradient(151deg, transparent 0 18%, rgba(8,58,108,.48) 19% 30%, transparent 31% 44%, rgba(72,151,79,.42) 45% 58%, transparent 59%),
+    linear-gradient(27deg, transparent 0 22%, rgba(89,206,232,.55) 23% 37%, transparent 38% 54%, rgba(15,78,126,.58) 55% 72%, transparent 73%),
+    linear-gradient(135deg,#0a4f98 0%,#208bc1 34%,#63cfe1 56%,#4f9c5d 76%,#234d35 100%) !important;
+  border: 2px solid #75def7 !important;
+  box-shadow: 0 0 18px rgba(45,190,240,.72), inset 0 0 30px rgba(0,20,40,.30), inset 0 1px 0 rgba(255,255,255,.42) !important;
+}
+
+.hud-container .gender-girls .team-card {
+  background:
+    linear-gradient(151deg, transparent 0 18%, rgba(181,28,104,.38) 19% 30%, transparent 31% 44%, rgba(255,212,61,.46) 45% 58%, transparent 59%),
+    linear-gradient(27deg, transparent 0 22%, rgba(111,211,239,.48) 23% 37%, transparent 38% 54%, rgba(255,96,173,.48) 55% 72%, transparent 73%),
+    linear-gradient(135deg,#e72f83 0%,#ff70b6 34%,#79d9ef 59%,#ffd64a 80%,#eaa52e 100%) !important;
+  border: 2px solid #ffacd2 !important;
+  box-shadow: 0 0 18px rgba(255,72,166,.72), inset 0 0 30px rgba(90,0,45,.16), inset 0 1px 0 rgba(255,255,255,.46) !important;
+}
+
+/* Animated camo sheen. */
+.hud-container .gender-boys .team-card::before,
+.hud-container .gender-girls .team-card::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: -35% !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+  opacity: .62 !important;
+  background-size: 150px 110px, 190px 130px !important;
+  animation: cocoGenderCamoSweep 8.5s ease-in-out infinite !important;
+}
+
+.hud-container .gender-boys .team-card::before {
+  background-image:
+    repeating-linear-gradient(122deg, transparent 0 22px, rgba(8,62,112,.38) 23px 39px, transparent 40px 63px),
+    repeating-linear-gradient(36deg, transparent 0 31px, rgba(74,157,78,.34) 32px 52px, transparent 53px 79px) !important;
+}
+
+.hud-container .gender-girls .team-card::before {
+  background-image:
+    repeating-linear-gradient(122deg, transparent 0 22px, rgba(185,25,103,.28) 23px 39px, transparent 40px 63px),
+    repeating-linear-gradient(36deg, transparent 0 31px, rgba(255,218,62,.32) 32px 52px, transparent 53px 79px) !important;
+}
+
+/* Girls: larger hearts + flowers, deliberately soft and spread out. */
+.hud-container .gender-girls .team-card::after {
+  content: "♥     ❀     ♥" !important;
+  position: absolute !important;
+  inset: auto 4px 3px 4px !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+  white-space: pre !important;
+  text-align: center !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+  letter-spacing: 6px !important;
+  font-weight: 900 !important;
+  color: rgba(255,255,255,.30) !important;
+  text-shadow: 0 2px 5px rgba(130,0,70,.45), 0 0 10px rgba(255,240,250,.25) !important;
+  animation: cocoGirlsDecor 5.5s ease-in-out infinite !important;
+}
+
+/* Boys counterpart: military/esports chevrons instead of stars. */
+.hud-container .gender-boys .team-card::after {
+  content: "◆   ◢   ◆" !important;
+  position: absolute !important;
+  inset: auto 4px 3px 4px !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+  text-align: center !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  letter-spacing: 8px !important;
+  font-weight: 900 !important;
+  color: rgba(215,250,255,.24) !important;
+  text-shadow: 0 2px 5px rgba(0,30,60,.65), 0 0 10px rgba(120,235,255,.20) !important;
+  animation: cocoBoysDecor 5s ease-in-out infinite !important;
+}
+
+/* Remove the old inline symbol decorations so the new artwork is the only one visible. */
+.hud-container .gender-girls .team-card > div[style*="letter-spacing"]:not(.ability-layer),
+.hud-container .gender-boys .team-card > div[style*="letter-spacing"]:not(.ability-layer) {
+  display: none !important;
+}
+
+/* Bigger, heavier esports-style team names. */
+.hud-container .gender-boys .team-name,
+.hud-container .gender-girls .team-name {
+  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1.25px !important;
+  line-height: 1 !important;
+  transform: scale(1.04) !important;
+  transform-origin: center !important;
+}
+
+.hud-container .gender-boys .team-name {
+  color: #a7efff !important;
+  -webkit-text-stroke: 1.25px #06375f !important;
+  text-shadow: 0 2px 0 #021b30, 0 0 8px rgba(112,229,255,.90), 0 0 15px rgba(41,178,230,.42) !important;
+}
+
+.hud-container .gender-girls .team-name {
+  color: #ff69b2 !important;
+  -webkit-text-stroke: 1.25px #68103c !important;
+  text-shadow: 0 2px 0 #430820, 0 0 8px rgba(255,180,220,.95), 0 0 15px rgba(255,74,165,.44) !important;
+}
+
+/* Preserve the already-correct command presentation and keep it compact. */
+.hud-container .gender-boys .team-name > span,
+.hud-container .gender-girls .team-name > span {
+  transform: none !important;
+  -webkit-text-stroke: 0 !important;
+  text-shadow: none !important;
+}
+
+@keyframes cocoGenderCamoSweep {
+  0%,100% { transform: translate3d(-24px,-12px,0) rotate(-1deg); opacity: .48; }
+  50% { transform: translate3d(24px,14px,0) rotate(1.5deg); opacity: .70; }
+}
+
+@keyframes cocoGirlsDecor {
+  0%,100% { transform: translateY(2px) scale(.96); opacity: .24; }
+  50% { transform: translateY(-2px) scale(1.10); opacity: .52; }
+}
+
+@keyframes cocoBoysDecor {
+  0%,100% { transform: translateX(-3px) scale(.96); opacity: .18; }
+  50% { transform: translateX(3px) scale(1.08); opacity: .40; }
+}
