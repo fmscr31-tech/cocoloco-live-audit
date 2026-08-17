@@ -1,5 +1,6 @@
 import { dashboardAPI } from "./dashboardAPI";
 import { commandConfigManager } from "./commandConfigManager";
+import { getDefaultGenderTeams } from "./genderTeamsMode";
 import { eventBus } from "./eventBus";
 
 function normalize(mode) {
@@ -11,10 +12,19 @@ function normalize(mode) {
 
 function sync(mode) {
   const normalized = normalize(mode);
-  const current = commandConfigManager.getConfig().gameRegistrationMode;
-  if (current === normalized) return;
-  commandConfigManager.updateFullConfig({ gameRegistrationMode: normalized });
-  console.log("[GAME MODE SYNC] Dashboard mode -> registration mode", normalized);
+  const currentConfig = commandConfigManager.getConfig();
+  const patch = { gameRegistrationMode: normalized };
+
+  if (normalized === "GENDER_TEAMS") {
+    const teams = currentConfig.teams || [];
+    const hasGenderTeams = teams.some(t => String(t.id || "").startsWith("gender_"));
+    if (!hasGenderTeams) patch.teams = getDefaultGenderTeams();
+  }
+
+  if (currentConfig.gameRegistrationMode !== normalized || patch.teams) {
+    commandConfigManager.updateFullConfig(patch);
+    console.log("[GAME MODE SYNC] Dashboard mode -> registration mode", normalized);
+  }
 }
 
 sync(dashboardAPI.getGameMode());
