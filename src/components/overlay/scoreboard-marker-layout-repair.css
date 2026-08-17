@@ -1,9 +1,9 @@
 /* SCOREBOARD MARKER LAYOUT REPAIR
-   The marker is a fixed 90px box. Its three pieces have reserved rows:
+   Fixed 90px marker with three reserved rows:
    1) CHICOS/CHICAS OR join-command
    2) wins score
-   3) RONDA / rounds won
-   This prevents the score from pushing the identity out of the card. */
+   3) RONDAS GANADAS
+   The score can no longer push the identity outside the marker. */
 
 .scoreboard .gender-team-wrapper > .team-card {
   height: 90px !important;
@@ -43,7 +43,7 @@
   box-sizing: border-box !important;
 }
 
-/* Row 2: wins score. Never let it participate in row 1 sizing. */
+/* Row 2: wins score. It has its own fixed row and cannot move upward. */
 .scoreboard .gender-team-wrapper > .team-card > .team-score {
   grid-row: 2 !important;
   width: 100% !important;
@@ -85,6 +85,17 @@
   max-height: 18px !important;
   padding: 1px 7px !important;
   box-sizing: border-box !important;
+}
+
+/* Make the rounds label explicit without touching game state. */
+.scoreboard .gender-team-wrapper .team-rounds-container .rounds-title {
+  font-size: 0 !important;
+}
+.scoreboard .gender-team-wrapper .team-rounds-container .rounds-title::before {
+  content: "RONDAS GANADAS" !important;
+  font-size: 6.5px !important;
+  letter-spacing: .35px !important;
+  white-space: nowrap !important;
 }
 
 /* Decorations stay behind all three reserved rows. */
