@@ -56,8 +56,8 @@ export function InformationRotationPanel() {
       <div style={{
         fontSize: "0.74rem",
         fontWeight: 950,
-        color: "#102a43",
-        textShadow: "none",
+        color: "#ffd700",
+        textShadow: "0 1px 4px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.65)",
         textTransform: "uppercase",
         letterSpacing: "0.4px",
         textAlign: "center",
@@ -71,8 +71,8 @@ export function InformationRotationPanel() {
       <div style={{
         fontSize: "0.58rem",
         fontWeight: 850,
-        color: "#17324d",
-        textShadow: "none",
+        color: "#ffffff",
+        textShadow: "0 1px 4px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.7)",
         textTransform: "uppercase",
         letterSpacing: "0.2px",
         textAlign: "center",
