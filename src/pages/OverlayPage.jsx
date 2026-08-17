@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import Overlay from "../components/overlay";
+import { IndividualRegistrationPromptV2 } from "../components/overlay/IndividualRegistrationPromptV2";
 
 function OverlayPage() {
   useEffect(() => {
@@ -33,11 +34,7 @@ function OverlayPage() {
         const contentHeight = document.documentElement.scrollHeight;
         const browserChromeWidth = Math.max(0, window.outerWidth - window.innerWidth);
         const browserChromeHeight = Math.max(0, window.outerHeight - window.innerHeight);
-
-        window.resizeTo(
-          contentWidth + browserChromeWidth,
-          contentHeight + browserChromeHeight
-        );
+        window.resizeTo(contentWidth + browserChromeWidth, contentHeight + browserChromeHeight);
       }
     };
 
@@ -47,13 +44,11 @@ function OverlayPage() {
     return () => {
       window.clearTimeout(resizeTimer);
       window.removeEventListener("load", fitPopupToOverlay);
-
       document.documentElement.style.margin = "";
       document.documentElement.style.padding = "";
       document.documentElement.style.width = "";
       document.documentElement.style.height = "";
       document.documentElement.style.overflow = "";
-
       document.body.style.margin = previous.margin;
       document.body.style.padding = previous.padding;
       document.body.style.width = previous.width;
@@ -65,17 +60,9 @@ function OverlayPage() {
   }, []);
 
   return (
-    <main
-      style={{
-        display: "block",
-        width: "520px",
-        margin: 0,
-        padding: 0,
-        overflow: "hidden",
-        boxSizing: "border-box"
-      }}
-    >
+    <main style={{display:"block",width:"520px",margin:0,padding:0,overflow:"hidden",boxSizing:"border-box",position:"relative"}}>
       <Overlay />
+      <IndividualRegistrationPromptV2 />
     </main>
   );
 }
