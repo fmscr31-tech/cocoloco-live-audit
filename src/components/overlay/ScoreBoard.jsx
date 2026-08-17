@@ -139,10 +139,15 @@ export function ScoreBoard({ teams, players, timer, round, frozenTeamId, roundMv
     return (players || []).filter(p => p.teamId === teamId).reduce((total, p) => total + (p.points || p.wins || 0), 0);
   };
 
+  // Carry the active game mode into each TeamPanel without mutating the source team objects.
+  // This is required for custom team names in the Chicos vs Chicas mode: TeamPanel must know
+  // that it is rendering the gender battle even when the operator renamed the teams.
+  const overlayTeam = team => ({ ...team, mode });
+
   return (
     <div className="scoreboard" style={{ position: "relative" }}>
       <TeamPanel
-        team={activeTeams[0]}
+        team={overlayTeam(activeTeams[0])}
         score={getTeamScore(activeTeams[0].id)}
         players={getTeamPlayers(activeTeams[0].id)}
         round={round}
@@ -195,7 +200,7 @@ export function ScoreBoard({ teams, players, timer, round, frozenTeamId, roundMv
       </div>
 
       <TeamPanel
-        team={activeTeams[1]}
+        team={overlayTeam(activeTeams[1])}
         score={getTeamScore(activeTeams[1].id)}
         players={getTeamPlayers(activeTeams[1].id)}
         round={round}
