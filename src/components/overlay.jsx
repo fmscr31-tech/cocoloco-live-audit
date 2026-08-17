@@ -11,6 +11,7 @@ import { BattleEffects } from "./overlay/BattleEffects";
 import { PowerUpFeed } from "./overlay/PowerUpFeed";
 import { BattleAnnouncement } from "./overlay/BattleAnnouncement";
 import { LivePhaseTimer } from "./overlay/LivePhaseTimer";
+import { IndividualJoinPrompt } from "./overlay/IndividualJoinPrompt";
 import "./overlay.css";
 
 const normalizeMode = (m) => {
@@ -162,6 +163,7 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
       <BattleAnnouncement />
       <PowerUpFeed activePowerUps={powerUps} />
       <GiftFeed alert={alert} showWin={effectiveShowWin} winner={effectiveWinner} epicEvent={effectiveEpicEvent} epicGift={effectiveEpicGift} />
+      <IndividualJoinPrompt />
       <PlayerStats />
     </div>
   );
