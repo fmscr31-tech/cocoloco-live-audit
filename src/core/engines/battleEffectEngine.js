@@ -2,7 +2,6 @@ import { eventBus } from "../eventBus";
 import { configManager } from "../configManager";
 import { players } from "../playerManager";
 import { getTeams } from "../TeamManager";
-import "../freezeAudioBridge";
 
 /**
  * Battle Effect Engine v2
@@ -105,8 +104,6 @@ class BattleEffectEngine {
       return;
     }
 
-    // The rule is a true toggle: while any Freeze is active, the next
-    // Twinkling Star removes it. It never requires a quantity threshold.
     if (this.activeEffect) {
       this.removeEffect("COUNTER_GIFT");
       console.log("[BattleEffectEngine] Twinkling Star countered the active FREEZE.", { sender, senderTeamId: senderTeam.id });
