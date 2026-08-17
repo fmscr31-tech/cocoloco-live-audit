@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dashboardAPI } from "../../core/dashboardAPI";
 import { commandConfigManager } from "../../core/commandConfigManager";
+import { registrationManager } from "../../core/registrationManager";
 import { eventBus } from "../../core/eventBus";
 
 const readEnrollment = (dashboard) => {
@@ -56,9 +57,6 @@ export function IndividualJoinPrompt() {
       const nodes = Array.from(document.querySelectorAll('[data-cocoloco-registration-prompt="true"]'));
       const ownNode = promptRef.current;
       if (!ownNode || nodes.length <= 1) { setIsDuplicate(false); return; }
-      // ScoreBoard also renders this component for historical compatibility.
-      // The top-level instance is the authoritative one because its absolute
-      // position is relative to the complete HUD, not the scoreboard shell.
       const primary = nodes.find(node => !node.closest('.individual-scoreboard-shell')) || nodes[0];
       nodes.forEach((node) => { node.style.display = node === primary ? "" : "none"; });
       setIsDuplicate(ownNode !== primary);
@@ -82,9 +80,11 @@ export function IndividualJoinPrompt() {
       eventBus.subscribe("registration:locked", refresh),
       eventBus.subscribe("registration:cleared", refresh),
       eventBus.subscribe("individual:registration_cycle_opened", refresh),
+      eventBus.subscribe("registration:updated", refresh),
       eventBus.subscribe("round:started", refresh),
       eventBus.subscribe("round:finished", refresh),
-      eventBus.subscribe("GAME_MODE_CHANGED", refresh)
+      eventBus.subscribe("GAME_MODE_CHANGED", refresh),
+      eventBus.subscribe("config:command_updated", refresh)
     ];
     const interval = setInterval(refresh, 700);
     window.addEventListener("storage", refresh);
@@ -118,9 +118,10 @@ export function IndividualJoinPrompt() {
   const registration = dashboard?.registration || {};
   const config = dashboard?.commandConfig || commandConfigManager.getConfig?.() || {};
   const mode = String(dashboard?.gameMode || dashboard?.gameRegistrationMode || config.gameRegistrationMode || "").toUpperCase();
-  const isIndividual = mode === "INDIVIDUAL" || mode === "INDIVIDUAL_MODE" || mode === "SOLO" || !mode;
+  const isIndividual = mode === "INDIVIDUAL" || mode === "INDIVIDUAL_MODE" || mode === "SOLO";
   const roundActive = !!(game?.round?.active || game?.roundActive || game?.timer?.running);
-  const registrationOpen = String(registration?.status || "").toUpperCase() === "OPEN";
+  const managerRegistration = registrationManager?.getRegistrationState?.() || {};
+  const registrationOpen = String(registration?.status || managerRegistration?.status || "").toUpperCase() === "OPEN";
   const winnerSuppressed = Date.now() < winnerSuppressedUntil;
   const visible = isIndividual && registrationOpen && !roundActive && !winnerSuppressed && !!(enrollment.command || enrollment.giftName);
 
