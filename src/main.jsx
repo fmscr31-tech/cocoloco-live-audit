@@ -7,6 +7,7 @@ import "./components/individual-points.css";
 import "./components/overlay/team-panel-polish.css";
 import "./components/overlay/team-gender-visual-overrides.css";
 import "./components/overlay/visual-motion-recovery.css";
+import "./components/overlay/team-identity-final.css";
 import { audioManager } from "./core/audioManager";
 import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
