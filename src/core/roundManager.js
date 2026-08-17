@@ -5,6 +5,7 @@ import { getPlayers } from "./playerManager";
 import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
 import { isGenderTeamsMode } from "./genderTeamsMode";
+import { playRoundEndBuzzer } from "./roundEndSound";
 
 let currentRound = null;
 let lastFinishedRoundId = null;
@@ -62,8 +63,6 @@ export function endRound() {
   currentRound.totalPoints = totalPts;
   currentRound.totalGifts = currentPlayers.reduce((sum, p) => sum + (p.gifts || 0), 0);
 
-  // Automatically award the round to the team with the highest round score.
-  // This is the counter displayed as RONDA on each TeamPanel.
   const teamsBeforeReset = getTeams();
   const rankedTeams = [...teamsBeforeReset].sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
   const winningTeam = rankedTeams[0] || null;
@@ -97,6 +96,10 @@ export function endRound() {
     currentRound.roundAward = null;
     console.log("[ROUND NOT AWARDED] Tie or no team score", { winningScore, runnerUpScore });
   }
+
+  // Round-end cue is fired once, after the winner has been determined and
+  // before the round state is reset for the next round.
+  playRoundEndBuzzer();
 
   sessionManager.archiveRound(currentRound);
   resetRoundTeamScores(genderMode);
