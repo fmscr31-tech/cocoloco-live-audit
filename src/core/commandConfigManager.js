@@ -3,20 +3,16 @@ import { getDefaultGenderTeams, isGenderTeamsMode } from "./genderTeamsMode";
 
 const STORAGE_KEY_COMMAND_CONFIG = "cocoloco_command_config_v3";
 
-/**
- * Command Configuration Manager v4
- * Registration/team configuration only.
- *
- * WIN LIMPIA is NOT a word/answer configuration. The winning result belongs to
- * the external Contexto/TikFinity event source. This manager only stores whether
- * WIN LIMPIA is enabled and how many points a detected win awards.
- */
 class CommandConfigManager {
   constructor() {
     this.config = this.loadFromStorage() || {
       registrationMode: "MIXED",
       gameRegistrationMode: "INDIVIDUAL",
       individualCommand: "entrar",
+      individualRegistrationMethod: "command",
+      individualRegistrationGift: "",
+      individualRegistrationGiftAsset: "",
+      individualRegistrationGiftImage: "",
       minPlayers: 1,
       maxPlayers: 100,
       winLimpia: { enabled: true, points: 1 },
@@ -27,6 +23,7 @@ class CommandConfigManager {
     };
 
     this._sanitizeWinConfig();
+    this._sanitizeIndividualRegistrationConfig();
     this._ensureGenderTeamsConfig();
     this._installGenderModeOption();
 
@@ -35,6 +32,7 @@ class CommandConfigManager {
       if (!incoming || typeof incoming !== "object") return;
       this.config = JSON.parse(JSON.stringify(incoming));
       this._sanitizeWinConfig();
+      this._sanitizeIndividualRegistrationConfig();
       this._ensureGenderTeamsConfig();
       this.saveToStorage();
       this._installGenderModeOption();
@@ -49,6 +47,7 @@ class CommandConfigManager {
           if (!parsed || typeof parsed !== "object") return;
           this.config = JSON.parse(JSON.stringify(parsed));
           this._sanitizeWinConfig();
+          this._sanitizeIndividualRegistrationConfig();
           this._ensureGenderTeamsConfig();
           this.saveToStorage();
           eventBus.emit("config:command_updated", { config: this.getConfig(), timestamp: Date.now() });
@@ -77,6 +76,15 @@ class CommandConfigManager {
       this._genderModeObserver = new MutationObserver(install);
       this._genderModeObserver.observe(document.documentElement, { childList: true, subtree: true });
     }
+  }
+
+  _sanitizeIndividualRegistrationConfig() {
+    const validMethods = ["command", "gift"];
+    if (!validMethods.includes(String(this.config.individualRegistrationMethod || "").toLowerCase())) this.config.individualRegistrationMethod = "command";
+    this.config.individualCommand = String(this.config.individualCommand || "entrar").trim().toLowerCase() || "entrar";
+    this.config.individualRegistrationGift = String(this.config.individualRegistrationGift || "").trim();
+    this.config.individualRegistrationGiftAsset = String(this.config.individualRegistrationGiftAsset || "").trim();
+    this.config.individualRegistrationGiftImage = String(this.config.individualRegistrationGiftImage || "").trim();
   }
 
   _ensureGenderTeamsConfig() {
@@ -112,6 +120,7 @@ class CommandConfigManager {
     if (persisted && typeof persisted === "object") {
       this.config = JSON.parse(JSON.stringify(persisted));
       this._sanitizeWinConfig();
+      this._sanitizeIndividualRegistrationConfig();
       this._ensureGenderTeamsConfig();
     }
     return this.getConfig();
@@ -123,6 +132,19 @@ class CommandConfigManager {
   }
 
   getConfig() { return JSON.parse(JSON.stringify(this.config)); }
+
+  setIndividualRegistration(options = {}) {
+    const method = String(options.method || "command").toLowerCase() === "gift" ? "gift" : "command";
+    this.config.individualRegistrationMethod = method;
+    if (options.command !== undefined) this.config.individualCommand = String(options.command).trim().toLowerCase();
+    if (options.giftName !== undefined) this.config.individualRegistrationGift = String(options.giftName).trim();
+    if (options.giftAsset !== undefined) this.config.individualRegistrationGiftAsset = String(options.giftAsset).trim();
+    if (options.giftImage !== undefined) this.config.individualRegistrationGiftImage = String(options.giftImage).trim();
+    this._sanitizeIndividualRegistrationConfig();
+    this.saveToStorage();
+    this._publishUpdate();
+    return this.getConfig();
+  }
 
   setRegistrationMode(mode) {
     const validModes = ["CHAT", "GIFT", "MANUAL", "MIXED"];
@@ -140,6 +162,10 @@ class CommandConfigManager {
     if (newConfig.registrationMode !== undefined) this.config.registrationMode = newConfig.registrationMode;
     if (newConfig.gameRegistrationMode !== undefined) this.config.gameRegistrationMode = newConfig.gameRegistrationMode;
     if (newConfig.individualCommand !== undefined) this.config.individualCommand = newConfig.individualCommand.trim().toLowerCase();
+    if (newConfig.individualRegistrationMethod !== undefined) this.config.individualRegistrationMethod = newConfig.individualRegistrationMethod;
+    if (newConfig.individualRegistrationGift !== undefined) this.config.individualRegistrationGift = newConfig.individualRegistrationGift;
+    if (newConfig.individualRegistrationGiftAsset !== undefined) this.config.individualRegistrationGiftAsset = newConfig.individualRegistrationGiftAsset;
+    if (newConfig.individualRegistrationGiftImage !== undefined) this.config.individualRegistrationGiftImage = newConfig.individualRegistrationGiftImage;
     if (newConfig.minPlayers !== undefined) this.config.minPlayers = Number(newConfig.minPlayers) || 1;
     if (newConfig.maxPlayers !== undefined) this.config.maxPlayers = Number(newConfig.maxPlayers) || 100;
 
@@ -164,6 +190,7 @@ class CommandConfigManager {
 
     this._ensureGenderTeamsConfig();
     this._sanitizeWinConfig();
+    this._sanitizeIndividualRegistrationConfig();
     this.saveToStorage();
     this._installGenderModeOption();
     this._publishUpdate();
@@ -181,6 +208,10 @@ class CommandConfigManager {
       if (!indCmd) errors.push("El comando individual no puede estar vacío.");
       if (minP < 1) errors.push("El mínimo de jugadores debe ser al menos 1.");
       if (maxP < minP) errors.push("El máximo de jugadores debe ser mayor o igual al mínimo.");
+      const method = String(cfg.individualRegistrationMethod !== undefined ? cfg.individualRegistrationMethod : this.config.individualRegistrationMethod).toLowerCase();
+      const giftName = String(cfg.individualRegistrationGift !== undefined ? cfg.individualRegistrationGift : this.config.individualRegistrationGift).trim();
+      if (!["command", "gift"].includes(method)) errors.push("El método de inscripción individual debe ser comando o regalo.");
+      if (method === "gift" && !giftName) errors.push("Selecciona un regalo para la inscripción individual.");
     } else if (mode === "TEAMS" || mode === "TEAM" || isGenderTeamsMode(mode)) {
       const teams = cfg.teams || (isGenderTeamsMode(mode) ? getDefaultGenderTeams() : this.config.teams);
       if (!Array.isArray(teams) || teams.length < 2) errors.push("Se requieren al menos 2 equipos para esta modalidad.");
