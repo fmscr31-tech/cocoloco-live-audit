@@ -6,6 +6,16 @@ import { isGenderTeamsMode } from "./genderTeamsMode";
 const STORAGE_KEY_PLAYERS = "cocoloco_registered_players_v2";
 const STORAGE_KEY_STATUS = "cocoloco_registration_status_v2";
 
+const normalizeIdentity = (value) => String(value || "")
+  .trim()
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/\.(webp|png|jpe?g|gif)$/i, "")
+  .replace(/[._-]+/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
 class RegistrationManager {
   constructor() {
     this.status = localStorage.getItem(STORAGE_KEY_STATUS) || "CLOSED";
@@ -16,9 +26,8 @@ class RegistrationManager {
   }
 
   ensureModeState() {
-    if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
-      // CHICOS VS CHICAS is permanently open during the active LIVE session.
-      // Persisted CLOSED/LOCKED values from older builds must never block chat registration.
+    const mode = commandConfigManager.getConfig().gameRegistrationMode;
+    if (isGenderTeamsMode(mode)) {
       this.status = "OPEN";
       this.saveToStorage();
     }
@@ -57,51 +66,121 @@ class RegistrationManager {
     });
 
     eventBus.subscribe("registration:state_synced", ({ players, status }) => {
-      if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
-        this.status = "OPEN";
-      } else if (status) {
-        this.status = status;
-      }
+      if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) this.status = "OPEN";
+      else if (status) this.status = status;
       if (Array.isArray(players)) {
         this.registeredPlayers.clear();
         players.forEach(p => {
           if (p && p.playerId) this.registeredPlayers.set(p.playerId, p);
         });
-        eventBus.publish("registration:updated", {
-          players: Array.from(this.registeredPlayers.values()),
-          status: this.status
-        });
+        eventBus.publish("registration:updated", { players: Array.from(this.registeredPlayers.values()), status: this.status });
       }
     });
 
-    eventBus.subscribe("normalized:chat", (event) => {
-      const config = commandConfigManager.getConfig();
-      const genderMode = isGenderTeamsMode(config.gameRegistrationMode);
-      if (genderMode) this.status = "OPEN";
-      if (!genderMode || this.status !== "OPEN") return;
+    eventBus.subscribe("normalized:chat", (event) => this.handleChatRegistration(event));
+    eventBus.subscribe("normalized:gift", (event) => this.handleGiftRegistration(event));
+  }
 
-      const message = String(event?.message || event?.comment || event?.text || "").trim().toLowerCase();
-      const team = (config.teams || []).find(t =>
-        Array.isArray(t.commands) && t.commands.some(command => String(command).trim().toLowerCase() === message)
-      );
-      if (!team) return;
+  handleChatRegistration(event = {}) {
+    const config = commandConfigManager.getConfig();
+    const mode = String(config.gameRegistrationMode || "").toUpperCase();
+    const genderMode = isGenderTeamsMode(mode);
+    const individualMode = mode === "INDIVIDUAL";
+
+    if (!genderMode && !individualMode) return;
+    if (genderMode) this.status = "OPEN";
+    if (this.status !== "OPEN") return;
+
+    const message = normalizeIdentity(event?.message || event?.comment || event?.text || "");
+
+    if (individualMode) {
+      const method = String(config.individualRegistrationMethod || "command").toLowerCase();
+      if (method !== "command") return;
+      const command = normalizeIdentity(config.individualCommand || "entrar");
+      if (!command || message !== command) return;
 
       const result = this.registerPlayer({
         playerId: event.playerId || event.userId || event.uniqueId || event.username,
         displayName: event.displayName || event.username || event.nickname || "Viewer",
         username: event.username || event.uniqueId || event.displayName || "Viewer",
         avatar: event.profilePictureUrl || event.avatar || event.profilePicture || "",
-        teamId: team.id,
+        teamId: null,
         source: "CHAT"
       });
 
-      eventBus.publish(result.success ? "gender:registration_accepted" : "gender:registration_rejected", {
+      eventBus.publish(result.success ? "individual:registration_accepted" : "individual:registration_rejected", {
         event,
         player: result.player,
-        teamId: team.id,
         alreadyRegistered: result.alreadyRegistered === true,
-        reason: result.reason
+        reason: result.reason,
+        method: "command"
       });
+      return;
+    }
+
+    const team = (config.teams || []).find(t => Array.isArray(t.commands) && t.commands.some(command => normalizeIdentity(command) === message));
+    if (!team) return;
+
+    const result = this.registerPlayer({
+      playerId: event.playerId || event.userId || event.uniqueId || event.username,
+      displayName: event.displayName || event.username || event.nickname || "Viewer",
+      username: event.username || event.uniqueId || event.displayName || "Viewer",
+      avatar: event.profilePictureUrl || event.avatar || event.profilePicture || "",
+      teamId: team.id,
+      source: "CHAT"
+    });
+
+    eventBus.publish(result.success ? "gender:registration_accepted" : "gender:registration_rejected", {
+      event,
+      player: result.player,
+      teamId: team.id,
+      alreadyRegistered: result.alreadyRegistered === true,
+      reason: result.reason
+    });
+  }
+
+  handleGiftRegistration(event = {}) {
+    const config = commandConfigManager.getConfig();
+    if (String(config.gameRegistrationMode || "").toUpperCase() !== "INDIVIDUAL") return;
+    if (String(config.individualRegistrationMethod || "command").toLowerCase() !== "gift") return;
+    if (this.status !== "OPEN") return;
+
+    const configuredGift = normalizeIdentity(config.individualRegistrationGift || config.individualRegistrationGiftAsset || "");
+    if (!configuredGift) return;
+
+    const receivedCandidates = [
+      event.canonicalGiftId,
+      event.giftName,
+      event.giftDisplayName,
+      event.giftId,
+      event.rawInput
+    ].map(normalizeIdentity).filter(Boolean);
+
+    const configuredCandidates = [
+      configuredGift,
+      normalizeIdentity(config.individualRegistrationGiftAsset)
+    ].filter(Boolean);
+
+    const matches = receivedCandidates.some(received => configuredCandidates.some(expected => received === expected || received.includes(expected) || expected.includes(received)));
+    if (!matches) return;
+
+    const result = this.registerPlayer({
+      playerId: event.playerId || event.userId || event.username,
+      displayName: event.displayName || event.username || "Viewer",
+      username: event.username || event.uniqueId || event.displayName || "Viewer",
+      avatar: event.avatar || event.profilePictureUrl || "",
+      teamId: null,
+      source: "GIFT"
+    });
+
+    eventBus.publish(result.success ? "individual:registration_accepted" : "individual:registration_rejected", {
+      event,
+      player: result.player,
+      alreadyRegistered: result.alreadyRegistered === true,
+      reason: result.reason,
+      method: "gift",
+      giftName: event.giftName,
+      giftId: event.giftId
     });
   }
 
@@ -171,9 +250,7 @@ class RegistrationManager {
 
     const playerId = playerData.playerId || playerData.id || playerData.username || playerData.uniqueId;
 
-    if (genderMode && playerId && this.registeredPlayers.has(playerId)) {
-      return { success: true, player: this.registeredPlayers.get(playerId), alreadyRegistered: true };
-    }
+    if (genderMode && playerId && this.registeredPlayers.has(playerId)) return { success: true, player: this.registeredPlayers.get(playerId), alreadyRegistered: true };
 
     if (this.status !== "OPEN") {
       eventBus.publish("registration:rejected", { playerData, reason: "REGISTRATION_CLOSED", timestamp: Date.now() });
