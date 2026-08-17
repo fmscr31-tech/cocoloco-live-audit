@@ -1,10 +1,6 @@
 /* Team mode command prompt + MVP container polish. */
 
-/*
- * The two states deliberately occupy the same footprint:
- * 1) TEAM NAME = branded/glowing identity state.
- * 2) COMMAND = compact glass prompt, with ONLY the command highlighted.
- */
+/* Command state: same footprint, command is the highlighted part. */
 .hud-container .team-name > span[style*="text-transform"] {
   color: #050505 !important;
   background: transparent !important;
@@ -16,14 +12,8 @@
   filter: none !important;
   animation: teamCommandFade 3.8s ease-in-out infinite !important;
 }
-
-/* Keep ESCRIBE / PARA UNIRTE plain black. */
 .hud-container .team-name > span[style*="text-transform"]::before,
-.hud-container .team-name > span[style*="text-transform"]::after {
-  color: #050505 !important;
-}
-
-/* The actual command is the only highlighted element. */
+.hud-container .team-name > span[style*="text-transform"]::after { color: #050505 !important; }
 .hud-container .team-name > span[style*="text-transform"] strong {
   display: inline-flex !important;
   align-items: center;
@@ -40,77 +30,82 @@
   box-shadow: 0 0 0 1px rgba(0,0,0,.18), 0 0 9px currentColor, inset 0 1px 0 rgba(255,255,255,.95) !important;
   animation: commandBadgePulse 1.65s ease-in-out infinite !important;
 }
-
 .hud-container .gender-boys .team-name > span[style*="text-transform"] strong {
   color: #075985 !important;
   background: linear-gradient(180deg, #e7fbff, #9ee7f7) !important;
 }
-
 .hud-container .gender-girls .team-name > span[style*="text-transform"] strong {
   color: #c21875 !important;
   background: linear-gradient(180deg, #fff0f8, #ffc0df) !important;
 }
 
-/* Team-name state: same position, completely different visual language. */
+/* TEAM NAME STATE — intentionally larger and visually distinct from COMMAND state. */
 .hud-container .team-name:not(:has(> span[style*="text-transform"])) {
-  animation: teamNamePresence 3.2s ease-in-out infinite !important;
+  position: relative !important;
+  font-size: clamp(26px, 3.1vw, 42px) !important;
+  line-height: 1 !important;
+  font-weight: 1000 !important;
+  letter-spacing: .045em !important;
+  padding: 4px 10px 7px !important;
+  transform-origin: center !important;
+  animation: teamNameHero 2.8s ease-in-out infinite !important;
 }
-
 .hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"])) {
   color: #e9fbff !important;
-  text-shadow: 0 0 3px #061b2a, 0 0 8px #55d9ff, 0 2px 2px #071b2b !important;
+  -webkit-text-stroke: 1.2px #063b59;
+  text-shadow: 0 2px 0 #032536, 0 0 5px #55d9ff, 0 0 13px rgba(72,211,255,.95), 0 0 22px rgba(29,144,192,.62) !important;
 }
-
 .hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"])) {
   color: #fff3fa !important;
-  text-shadow: 0 0 3px #4d1235, 0 0 9px #ff62b3, 0 2px 2px #4d1235 !important;
+  -webkit-text-stroke: 1.2px #74104b;
+  text-shadow: 0 2px 0 #4d1235, 0 0 5px #ff62b3, 0 0 14px rgba(255,98,179,.95), 0 0 23px rgba(218,42,128,.62) !important;
 }
 
-/* Thin identity underline reinforces that this is the team-name state. */
-.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"]))::after,
-.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"]))::after {
+/* A soft halo + moving highlight makes the team identity feel like a title, not a command. */
+.hud-container .team-name:not(:has(> span[style*="text-transform"]))::before {
   content: "";
   position: absolute;
-  left: 22%;
-  right: 22%;
-  bottom: -1px;
-  height: 2px;
+  inset: -5px 10%;
   border-radius: 999px;
   pointer-events: none;
-  animation: identityLinePulse 2.6s ease-in-out infinite;
+  opacity: .55;
+  filter: blur(5px);
+  animation: teamNameHalo 2.8s ease-in-out infinite;
+}
+.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"]))::before {
+  background: radial-gradient(ellipse, rgba(72,211,255,.42), transparent 70%);
+}
+.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"]))::before {
+  background: radial-gradient(ellipse, rgba(255,98,179,.42), transparent 70%);
 }
 
+.hud-container .team-name:not(:has(> span[style*="text-transform"]))::after {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 999px;
+  pointer-events: none;
+  animation: identityLineHero 2.4s ease-in-out infinite;
+}
 .hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"]))::after {
-  background: #74e4ff;
-  box-shadow: 0 0 6px #2ebde8, 0 0 12px rgba(46,189,232,.65);
+  background: linear-gradient(90deg, transparent, #74e4ff, #7de68b, #74e4ff, transparent);
+  box-shadow: 0 0 7px #2ebde8, 0 0 16px rgba(46,189,232,.72);
 }
-
 .hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"]))::after {
-  background: #ff9bcd;
-  box-shadow: 0 0 6px #ff4ca8, 0 0 12px rgba(255,76,168,.65);
+  background: linear-gradient(90deg, transparent, #ff9bcd, #ffe66d, #7de4ff, #ff9bcd, transparent);
+  box-shadow: 0 0 7px #ff4ca8, 0 0 16px rgba(255,76,168,.72);
 }
 
-@keyframes commandBadgePulse {
-  0%,100% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.07); filter: brightness(1.12); }
-}
+@keyframes commandBadgePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.07); filter: brightness(1.12); } }
+@keyframes teamCommandFade { 0%,100% { opacity: .96; } 50% { opacity: 1; } }
+@keyframes teamNameHero { 0%,100% { transform: scale(1) translateY(0); } 50% { transform: scale(1.045) translateY(-1px); } }
+@keyframes teamNameHalo { 0%,100% { opacity: .32; transform: scaleX(.86); } 50% { opacity: .72; transform: scaleX(1.04); } }
+@keyframes identityLineHero { 0%,100% { opacity: .5; transform: scaleX(.88); } 50% { opacity: 1; transform: scaleX(1.06); } }
 
-@keyframes teamCommandFade {
-  0%,100% { opacity: .96; }
-  50% { opacity: 1; }
-}
-
-@keyframes teamNamePresence {
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-1px); }
-}
-
-@keyframes identityLinePulse {
-  0%,100% { opacity: .55; transform: scaleX(.92); }
-  50% { opacity: 1; transform: scaleX(1); }
-}
-
-/* MVP / Top Players: replace the flat white box with a themed glass background. */
+/* MVP / Top Players: themed glass background. */
 .hud-container .gender-boys .players-box {
   background: linear-gradient(145deg, rgba(8,55,92,.88), rgba(22,108,145,.76) 48%, rgba(47,113,78,.78)) !important;
   border-color: rgba(103,216,244,.82) !important;
@@ -124,16 +119,10 @@
 .hud-container .gender-boys .players-box .players-title,
 .hud-container .gender-boys .players-box .player-position,
 .hud-container .gender-boys .players-box .player-name,
-.hud-container .gender-boys .players-box .player-points {
-  color: #f4fcff !important;
-  text-shadow: 0 1px 3px rgba(0,0,0,.72) !important;
-}
+.hud-container .gender-boys .players-box .player-points { color: #f4fcff !important; text-shadow: 0 1px 3px rgba(0,0,0,.72) !important; }
 .hud-container .gender-girls .players-box .players-title,
 .hud-container .gender-girls .players-box .player-position,
 .hud-container .gender-girls .players-box .player-name,
-.hud-container .gender-girls .players-box .player-points {
-  color: #fff7fc !important;
-  text-shadow: 0 1px 3px rgba(70,0,35,.72) !important;
-}
+.hud-container .gender-girls .players-box .player-points { color: #fff7fc !important; text-shadow: 0 1px 3px rgba(70,0,35,.72) !important; }
 .hud-container .gender-boys .players-box .gamer-player { background: rgba(255,255,255,.11) !important; border-color: rgba(164,235,255,.20) !important; }
 .hud-container .gender-girls .players-box .gamer-player { background: rgba(255,255,255,.12) !important; border-color: rgba(255,220,239,.24) !important; }
