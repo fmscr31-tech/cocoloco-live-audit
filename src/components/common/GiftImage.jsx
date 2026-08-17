@@ -4,8 +4,8 @@ import "../overlay/cocazo.css";
 
 /**
  * GiftImage Component v1
- * Renders official TikTok Gift image with proportional scaling (`object-fit: contain`)
- * and a graceful fallback to emoji/icon if the image fails to load or is not defined.
+ * Renders official TikTok Gift image with proportional scaling (`object-fit: contain`).
+ * A null fallbackIcon explicitly suppresses any icon/emoji fallback.
  */
 export function GiftImage({ giftId, giftName, fallbackIcon = "🎁", style = {}, className = "" }) {
   const [hasError, setHasError] = useState(false);
@@ -14,6 +14,8 @@ export function GiftImage({ giftId, giftName, fallbackIcon = "🎁", style = {},
   const imageSrc = canonical?.image || (typeof giftId === "string" && giftId.startsWith("/") ? giftId : null);
 
   if (!imageSrc || hasError) {
+    if (fallbackIcon === null) return null;
+
     return (
       <span className={className} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", ...style }}>
         {canonical?.display?.icon || fallbackIcon}
