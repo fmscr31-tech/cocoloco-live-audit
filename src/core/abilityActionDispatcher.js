@@ -73,18 +73,10 @@ class AbilityActionDispatcher {
         teamId: targetTeam.id, teamSnapshot, abilityId: ability.abilityId, giftId: ability.giftId || null,
         canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY_FREEZE_REDIRECT"
       };
-
       eventBus.emit("game:score_updated", {
-        userId: player.id,
-        username: player.username || player.name,
-        pointsAdded: 0,
-        playerSnapshot: { ...player },
-        teamId: targetTeam.id,
-        teamSnapshot,
-        freezeRedirect: true,
-        redirectedFromTeamId: senderTeamId,
-        redirectedPoints: points,
-        timestamp: Date.now()
+        userId: player.id, username: player.username || player.name, pointsAdded: 0,
+        playerSnapshot: { ...player }, teamId: targetTeam.id, teamSnapshot,
+        freezeRedirect: true, redirectedFromTeamId: senderTeamId, redirectedPoints: points, timestamp: Date.now()
       });
       eventBus.emit("game:score_redirected", { originalTeam: senderTeamId, redirectedTeam: targetTeam.id, player: player.username || player.name, points, reason: "FREEZE", source: "ABILITY", canonicalGiftId: ability.canonicalGiftId || null });
       eventBus.publish("ability:score_executed", result);
@@ -122,19 +114,36 @@ class AbilityActionDispatcher {
       const targetTeam = frozenSender ? getTeam(senderTeamId) : this._getOpposingTeam(senderTeamId);
       if (!targetTeam) return { success: false, reason: "TEAM_TARGET_REQUIRED", senderTeamId };
 
-      const affected = getPlayers()
+      const targetPlayerIds = getPlayers()
         .filter(player => String(player.teamId) === String(targetTeam.id) && Number(player.points) > 0)
-        .map(player => addPoints(player.id, -Number(player.points)))
+        .map(player => player.id);
+      const affected = targetPlayerIds
+        .map(playerId => addPoints(playerId, -Number(getPlayer(playerId)?.points || 0)))
         .filter(Boolean)
         .map(player => player.id);
       const previousTeamPoints = Number(targetTeam.points) || 0;
       if (previousTeamPoints !== 0) addPointsToTeam(targetTeam.id, -previousTeamPoints);
 
+      const teamSnapshot = getTeam(targetTeam.id);
+      const postResetPlayers = getPlayers().filter(player => String(player.teamId) === String(targetTeam.id));
+      postResetPlayers.forEach(player => {
+        eventBus.emit("game:score_updated", {
+          userId: player.id,
+          username: player.username || player.name,
+          pointsAdded: 0,
+          playerSnapshot: { ...player },
+          teamId: targetTeam.id,
+          teamSnapshot,
+          resetByGift: true,
+          timestamp: Date.now()
+        });
+      });
+
       const result = {
         success: true, type: "RESET_SCORE", teamId: targetTeam.id, teamName: targetTeam.name,
         playersReset: affected.length, previousTeamPoints, senderTeamId,
-        targetWasSenderBecauseFrozen: frozenSender, abilityId: ability.abilityId,
-        giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
+        targetWasSenderBecauseFrozen: frozenSender, teamSnapshot,
+        abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
         source: frozenSender ? "ABILITY_FREEZE_INVERTED" : "ABILITY"
       };
       eventBus.publish("ability:score_executed", result);
@@ -143,11 +152,18 @@ class AbilityActionDispatcher {
     }
 
     const senderId = sender?.id || ability.playerId || ability.userId || null;
-    const affected = getPlayers()
+    const targetPlayerIds = getPlayers()
       .filter(player => player.id !== senderId && Number(player.points) > 0)
-      .map(player => addPoints(player.id, -Number(player.points)))
+      .map(player => player.id);
+    const affected = targetPlayerIds
+      .map(playerId => addPoints(playerId, -Number(getPlayer(playerId)?.points || 0)))
       .filter(Boolean)
       .map(player => player.id);
+    getPlayers().forEach(player => {
+      if (player.id === senderId) return;
+      eventBus.emit("game:score_updated", { userId: player.id, username: player.username || player.name, pointsAdded: 0, playerSnapshot: { ...player }, teamId: player.teamId || null, resetByGift: true, timestamp: Date.now() });
+    });
+
     const result = {
       success: true, type: "RESET_SCORE", teamId: null, playersReset: affected.length, senderId,
       abilityId: ability.abilityId, giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
@@ -177,18 +193,13 @@ class AbilityActionDispatcher {
       giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
       source: redirectedByFreeze ? "ABILITY_FREEZE_REDIRECT" : "ABILITY"
     };
-
     const playerSnapshot = sender ? { ...sender } : null;
     eventBus.emit("game:score_updated", {
       userId: sender?.id || ability.playerId || ability.userId || "",
       username: sender?.username || sender?.name || ability.username || ability.sender || "",
       pointsAdded: 0,
       playerSnapshot: playerSnapshot || { id: ability.playerId || ability.userId || "", username: ability.username || ability.sender || "", teamId: targetTeam.id, points: 0, wins: 0 },
-      teamId: targetTeam.id,
-      teamSnapshot,
-      roundsAdded: rounds,
-      roundGift: ability.canonicalGiftId || null,
-      timestamp: Date.now()
+      teamId: targetTeam.id, teamSnapshot, roundsAdded: rounds, roundGift: ability.canonicalGiftId || null, timestamp: Date.now()
     });
     eventBus.emit("ability:round_executed", result);
     eventBus.emit("gift:round_awarded", result);
