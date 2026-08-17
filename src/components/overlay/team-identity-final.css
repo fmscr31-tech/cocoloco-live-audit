@@ -1,0 +1,171 @@
+/* FINAL TEAM IDENTITY REPAIR
+   Visual-only. The TeamPanel already renders the real identity, command,
+   score and rounds. This file only gives those existing elements a stable
+   visual stack inside the existing marker; it does not change game state. */
+
+.hud-container .gender-team-wrapper > .team-card {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Identity and command share one exact visual slot. */
+.hud-container .gender-team-wrapper > .team-card > .team-name {
+  position: absolute !important;
+  top: 4px !important;
+  left: 4px !important;
+  right: 4px !important;
+  width: auto !important;
+  height: 25px !important;
+  min-height: 25px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 20 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+.hud-container .gender-team-wrapper > .team-card > .team-name > span {
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 21 !important;
+  white-space: nowrap !important;
+}
+
+/* Team name: unmistakable and above every decorative layer. */
+.hud-container .gender-team-wrapper > .team-card > .team-name > span:first-child {
+  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
+  font-size: 22px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  letter-spacing: 1px !important;
+}
+
+.hud-container .gender-team-wrapper.team-one > .team-card > .team-name > span:first-child,
+.hud-container .gender-team-wrapper.gender-boys > .team-card > .team-name > span:first-child {
+  color: #e9fbff !important;
+  -webkit-text-stroke: 1.2px #063b59 !important;
+  text-shadow: 0 2px 0 #032536, 0 0 7px #55d9ff, 0 0 16px rgba(72,211,255,.9) !important;
+}
+
+.hud-container .gender-team-wrapper.team-two > .team-card > .team-name > span:first-child,
+.hud-container .gender-team-wrapper.gender-girls > .team-card > .team-name > span:first-child {
+  color: #fff3fa !important;
+  -webkit-text-stroke: 1.2px #74104b !important;
+  text-shadow: 0 2px 0 #4d1235, 0 0 7px #ff62b3, 0 0 16px rgba(255,98,179,.9) !important;
+}
+
+/* Command state: explanatory words stay black; only the command is highlighted. */
+.hud-container .gender-team-wrapper > .team-card > .team-name > span[style*="text-transform"] {
+  color: #050505 !important;
+  background: rgba(255,255,255,.96) !important;
+  border: 1px solid rgba(0,0,0,.25) !important;
+  border-radius: 6px !important;
+  padding: 2px 7px !important;
+  font-size: 8.5px !important;
+  font-weight: 950 !important;
+  line-height: 1.05 !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35) !important;
+  text-shadow: none !important;
+}
+
+.hud-container .gender-team-wrapper.gender-boys > .team-card > .team-name > span[style*="text-transform"] strong {
+  color: #075985 !important;
+  background: #dff8ff !important;
+  border: 2px solid #4ed2ff !important;
+  border-radius: 5px !important;
+  padding: 1px 6px !important;
+  font-weight: 1000 !important;
+  box-shadow: 0 0 8px rgba(78,210,255,.75) !important;
+}
+
+.hud-container .gender-team-wrapper.gender-girls > .team-card > .team-name > span[style*="text-transform"] strong {
+  color: #b51772 !important;
+  background: #fff0f8 !important;
+  border: 2px solid #ff6ab5 !important;
+  border-radius: 5px !important;
+  padding: 1px 6px !important;
+  font-weight: 1000 !important;
+  box-shadow: 0 0 8px rgba(255,106,181,.75) !important;
+}
+
+/* Score is a separate visual row. It cannot cover the identity slot. */
+.hud-container .gender-team-wrapper > .team-card > .team-score {
+  position: absolute !important;
+  top: 29px !important;
+  left: 4px !important;
+  right: 4px !important;
+  width: auto !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 20 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Rounds remain immediately below the score, inside the same marker. */
+.hud-container .gender-team-wrapper > .team-card > .team-score + div {
+  position: absolute !important;
+  left: 4px !important;
+  right: 4px !important;
+  bottom: 4px !important;
+  width: auto !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 20 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.hud-container .gender-team-wrapper > .team-card .team-rounds-container {
+  position: relative !important;
+  z-index: 21 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Decorative pseudo-elements stay behind the actual UI. */
+.hud-container .gender-team-wrapper > .team-card::before,
+.hud-container .gender-team-wrapper > .team-card::after {
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+
+/* Do not let the decorative layer become a stacking context over the labels. */
+.hud-container .gender-team-wrapper > .team-card > .ability-layer {
+  z-index: 3 !important;
+}
+
+/* Gentle independent visibility pulse for the identity slot. */
+.hud-container .gender-team-wrapper > .team-card > .team-name > span:not([style*="text-transform"]) {
+  animation: finalTeamIdentityPulse 2.8s ease-in-out infinite !important;
+}
+
+.hud-container .gender-team-wrapper > .team-card > .team-name > span[style*="text-transform"] {
+  animation: finalTeamCommandPulse 3.8s ease-in-out infinite !important;
+}
+
+@keyframes finalTeamIdentityPulse {
+  0%,100% { transform: scale(1); opacity: .94; }
+  50% { transform: scale(1.035); opacity: 1; }
+}
+
+@keyframes finalTeamCommandPulse {
+  0%,100% { opacity: .92; }
+  50% { opacity: 1; }
+}
