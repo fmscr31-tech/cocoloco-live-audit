@@ -1,15 +1,22 @@
-import {
-  addPlayer,
-  players,
-  addWin,
-  getLeaderboard,
-  assignTeam,
-  removePlayer,
-  getPlayer
-} from "./playerManager";
-
-import { startRound, endRound } from "./roundManager";
+import { addPlayer, players, addWin, getLeaderboard, assignTeam, removePlayer, getPlayer } from "./playerManager";
+import { startRound, endRound, getCurrentRound } from "./roundManager";
 import { eventBus } from "./eventBus";
+import { startTimer, pauseTimer, resumeTimer, resetTimer, getTime } from "./timerManager";
+import { saveData, loadData } from "./storageManager";
+import { getBattle, addBattlePlayer, battlePlayerWin, removeBattlePlayer } from "./battleManager";
+import { createEvent } from "./eventManager";
+import { getTeams, removePlayerFromAllTeams, addPointsToTeam } from "./TeamManager";
+import { setPlayers, setRound, setBattle, setTeams, getState as getGlobalState } from "./stateManager";
+import { registrationManager } from "./registrationManager";
+import { commandConfigManager } from "./commandConfigManager";
+
+export const gameState = {
+  players,
+  round: getCurrentRound() || null,
+  timer: null,
+  battle: null,
+  teams: []
+};
 
 let roundWinners = new Set();
 eventBus.subscribe("round:started", () => { roundWinners.clear(); });
@@ -17,9 +24,7 @@ eventBus.subscribe("ROUND_STARTED", () => { roundWinners.clear(); });
 
 eventBus.subscribe("registration:cleared", () => {
   const previousPlayers = [...players];
-  previousPlayers.forEach(player => {
-    if (player?.id) removePlayer(player.id);
-  });
+  previousPlayers.forEach(player => { if (player?.id) removePlayer(player.id); });
   gameState.players.length = 0;
   gameState.teams = getTeams();
   setPlayers(gameState.players);
@@ -27,43 +32,6 @@ eventBus.subscribe("registration:cleared", () => {
   saveState();
   eventBus.emit("overlay:reset");
 });
-
-import {
-  startTimer,
-  pauseTimer,
-  resumeTimer,
-  resetTimer,
-  getTime
-} from "./timerManager";
-
-import { saveData, loadData } from "./storageManager";
-
-import {
-  getBattle,
-  addBattlePlayer,
-  battlePlayerWin,
-  removeBattlePlayer
-} from "./battleManager";
-
-import { createEvent } from "./eventManager";
-import { getTeams, removePlayerFromAllTeams, addPointsToTeam } from "./TeamManager";
-import {
-  setPlayers,
-  setRound,
-  setBattle,
-  setTeams,
-  getState as getGlobalState
-} from "./stateManager";
-import { registrationManager } from "./registrationManager";
-import { commandConfigManager } from "./commandConfigManager";
-
-export const gameState = {
-  players,
-  round: null,
-  timer: null,
-  battle: null,
-  teams: []
-};
 
 eventBus.subscribe("game:score_updated", payload => {
   if (!payload?.teamId) return;
@@ -79,7 +47,7 @@ function syncFromStorage() {
       gameState.players.length = 0;
       data.players.forEach(player => gameState.players.push(player));
     }
-    gameState.round = data.round || null;
+    gameState.round = getCurrentRound() || data.round || null;
     gameState.battle = data.battle || null;
   }
   gameState.teams = getTeams();
@@ -113,27 +81,11 @@ export function removeGamePlayer(playerId) {
 
 export function playerWin(id) {
   const canonicalPlayer = getPlayer(id);
-  if (!canonicalPlayer) {
-    console.error("[WIN LIMPIA FATAL] Cannot resolve player before scoring", { id });
-    return null;
-  }
-
+  if (!canonicalPlayer) return null;
   const canonicalId = canonicalPlayer.id;
-  if (roundWinners.has(canonicalId)) {
-    console.log("[GameEngine] Player already won this round, ignoring duplicate win:", canonicalId);
-    return canonicalPlayer;
-  }
-
+  if (roundWinners.has(canonicalId)) return canonicalPlayer;
   const player = addWin(canonicalId);
-  if (!player) {
-    console.error("[WIN LIMPIA FATAL] addWin failed after identity resolution", {
-      id,
-      canonicalId,
-      canonicalPlayer
-    });
-    return null;
-  }
-
+  if (!player) return null;
   roundWinners.add(player.id);
   if (getBattle()) battlePlayerWin(player.id);
 
@@ -145,12 +97,22 @@ export function playerWin(id) {
   }
 
   setPlayers(gameState.players);
-  createEvent("PLAYER_WIN", {
+  createEvent("PLAYER_WIN", { playerId: player.id, name: player.name, points: player.points, wins: player.wins });
+
+  const winPayload = {
+    winId: `win_${Date.now()}_${player.id}`,
     playerId: player.id,
+    tiktokId: player.tiktokId,
+    id: player.id,
     name: player.name,
+    username: player.username || player.name,
+    teamId: player.teamId || null,
     points: player.points,
-    wins: player.wins
-  });
+    wins: player.wins,
+    wordsFound: player.wordsFound,
+    teamPoints: teamSnapshot?.points ?? null,
+    timestamp: Date.now()
+  };
 
   eventBus.publish("game:score_updated", {
     playerId: player.id,
@@ -168,39 +130,8 @@ export function playerWin(id) {
     playerSnapshot: { ...player },
     teamSnapshot: teamSnapshot ? { ...teamSnapshot } : null
   });
-
-  const winPayload = {
-    winId: `win_${Date.now()}_${player.id}`,
-    playerId: player.id,
-    tiktokId: player.tiktokId,
-    id: player.id,
-    name: player.name,
-    username: player.username || player.name,
-    teamId: player.teamId || null,
-    points: player.points,
-    wins: player.wins,
-    wordsFound: player.wordsFound,
-    teamPoints: teamSnapshot?.points ?? null,
-    timestamp: Date.now()
-  };
-
   eventBus.emit("win:correct", winPayload);
   eventBus.emit("overlay:win", { ...winPayload, source: "WIN_LIMPIA" });
-
-  console.log("[WIN LIMPIA POINT APPLIED]", {
-    inputId: id,
-    canonicalId: player.id,
-    tiktokId: player.tiktokId,
-    player: player.name,
-    teamId: player.teamId || null,
-    points: player.points,
-    wins: player.wins,
-    teamPoints: teamSnapshot?.points ?? null,
-    wordsFound: player.wordsFound,
-    pointsAdded: 1,
-    teamPointsAdded: player.teamId ? 1 : 0
-  });
-
   saveState();
   return player;
 }
@@ -209,30 +140,17 @@ export function setPlayerTeam(playerId, teamId) {
   const player = assignTeam(playerId, teamId);
   if (!player) return null;
   setPlayers(gameState.players);
-  createEvent("PLAYER_TEAM_ASSIGNED", {
-    playerId: player.id,
-    teamId: player.teamId,
-    name: player.name
-  });
+  createEvent("PLAYER_TEAM_ASSIGNED", { playerId: player.id, teamId: player.teamId, name: player.name });
   saveState();
   return player;
 }
 
 export function beginRound(data) {
-  // In CHICOS VS CHICAS closeRegistration() is a no-op and keeps OPEN.
-  // Other modes retain their existing per-round registration lifecycle.
   registrationManager.closeRegistration();
   const regState = registrationManager.getRegistrationState();
-  if (regState && regState.players) {
+  if (regState?.players) {
     regState.players.forEach(p => {
-      const added = addPlayer({
-        name: p.displayName || p.username || p.playerId,
-        displayName: p.displayName || p.username,
-        username: p.username || p.displayName,
-        tiktokId: p.playerId || "",
-        avatar: p.avatar || p.profilePictureUrl || "",
-        teamId: p.teamId || null
-      });
+      const added = addPlayer({ name: p.displayName || p.username || p.playerId, displayName: p.displayName || p.username, username: p.username || p.displayName, tiktokId: p.playerId || "", avatar: p.avatar || p.profilePictureUrl || "", teamId: p.teamId || null });
       if (added && p.teamId) assignTeam(added.id, p.teamId);
     });
   }
@@ -242,18 +160,15 @@ export function beginRound(data) {
   gameState.round = startRound(data);
   gameState.timer = startTimer(data.duration);
   setRound(gameState.round);
-
   createEvent("ROUND_STARTED", { round: gameState.round });
-  const roundPayload = { round: { ...gameState.round }, timestamp: Date.now() };
-  eventBus.publish("ROUND_STARTED", roundPayload);
-
+  eventBus.publish("ROUND_STARTED", { round: { ...gameState.round }, timestamp: Date.now() });
   saveState();
   return gameState;
 }
 
 export function finishActiveRound() {
   const finished = endRound();
-  if (gameState.round && finished) gameState.round = { ...finished };
+  if (finished) gameState.round = { ...finished };
   registrationManager.openRegistration();
   gameState.teams = getTeams();
   setTeams(gameState.teams);
@@ -262,10 +177,10 @@ export function finishActiveRound() {
   return finished;
 }
 
-// The timer emits both ROUND_TIME_EXPIRED and timer:completed. Subscribe to
-// both so the round cannot remain active if one transport path is missed.
 const autoFinishRound = () => {
-  if (!gameState.round || gameState.round.status === "finished") return;
+  const activeRound = gameState.round || getCurrentRound();
+  if (!activeRound || activeRound.status === "finished") return;
+  gameState.round = activeRound;
   console.log("[GameEngine] Timer completed. Auto-finishing active round.");
   finishActiveRound();
 };
@@ -278,7 +193,6 @@ export function startGameTimer(minutes = 20) {
   gameState.timer = startTimer(minutes);
   return gameState.timer;
 }
-
 export function pauseGameTimer() { pauseTimer(); }
 export function resumeGameTimer() { resumeTimer(); }
 export function resetGameTimer(minutes) { resetTimer(minutes); }
@@ -295,36 +209,13 @@ export function getState() {
     points: p.points || 0,
     wins: p.wins || 0
   }));
-
   const activePlayers = leaderBoard.length > 0 ? leaderBoard : regPlayers;
   const configTeams = commandConfigManager.getConfig().teams || [];
   const teams = gameState.teams.length > 0 ? gameState.teams : configTeams;
-
-  return {
-    players: activePlayers,
-    registeredPlayers: regPlayers,
-    round: gameState.round,
-    timer: getTime(),
-    battle: getBattle(),
-    teams
-  };
+  gameState.round = gameState.round || getCurrentRound();
+  return { players: activePlayers, registeredPlayers: regPlayers, round: gameState.round, timer: getTime(), battle: getBattle(), teams };
 }
 
-export function getGlobalGameState() {
-  return getGlobalState();
-}
-
-export function loadGame() {
-  syncFromStorage();
-  return gameState;
-}
-
-export function saveState() {
-  saveData({
-    players: gameState.players,
-    round: gameState.round,
-    battle: gameState.battle,
-    teams: gameState.teams,
-    timer: getTime()
-  });
-}
+export function getGlobalGameState() { return getGlobalState(); }
+export function loadGame() { syncFromStorage(); return gameState; }
+export function saveState() { saveData({ players: gameState.players, round: gameState.round, battle: gameState.battle, teams: gameState.teams, timer: getTime() }); }
