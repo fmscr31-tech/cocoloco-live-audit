@@ -3,20 +3,29 @@ import { eventBus } from "../../core/eventBus";
 import { GiftImage } from "../common/GiftImage";
 import { GIFT_ABILITY_MAP } from "../../config/giftAbilityMap";
 import { ABILITY_REGISTRY } from "../../config/abilityRegistry";
+import { resolveCanonicalGiftId } from "../../config/canonicalGifts";
 
 const getGiftMeta = (item) => {
   const rawGift = item?.sourceGift || item?.giftName || item?.giftId || "Gift";
   const normalized = String(rawGift).toLowerCase();
+  const canonical = resolveCanonicalGiftId({
+    giftId: item?.giftId,
+    giftName: item?.giftName || item?.sourceGift,
+    rawInput: rawGift
+  });
   const mapping = GIFT_ABILITY_MAP.find(m =>
     m.giftId.toLowerCase() === normalized ||
     m.giftName.toLowerCase() === normalized ||
     (m.aliases || []).some(alias => alias.toLowerCase() === normalized)
   );
-  const abilityId = item?.abilityId || mapping?.abilityId || "generic_gift";
+  const abilityId = item?.abilityId || canonical?.abilityId || mapping?.abilityId || "generic_gift";
   const registry = ABILITY_REGISTRY[abilityId];
-  const giftName = mapping?.giftName || item?.sourceGift || item?.giftName || "Gift";
 
-  let effectText = registry?.display?.name || "REGALO RECIBIDO";
+  // The visible name always comes from the canonical catalog when available.
+  // This prevents aliases, TikTok payload labels, or internal IDs from appearing in the slide.
+  const giftName = canonical?.display?.name || canonical?.displayName?.replace(/\s+[\p{Extended_Pictographic}].*$/u, "") || mapping?.giftName || item?.sourceGift || item?.giftName || "Gift";
+
+  let effectText = registry?.display?.name || "RECIBIDO";
   if (abilityId === "silent_challenge") effectText = "EL MUDO • +1 PUNTO";
   else if (abilityId === "creative_challenge") effectText = "RETO CREATIVO";
   else if (abilityId === "ultimate_galaxy") effectText = "GALAXY • +1 RONDA";
@@ -102,12 +111,12 @@ export function GiftFeed() {
   return (
     <>
       <style>{`
-        /* Gift information slide: fixed, larger glass geometry with depth and a soft shimmer. */
+        /* Fixed glass slide: sized for the widest canonical name and kept stable between slides. */
         .timer-feed-compact-card {
-          width: 138px !important;
-          height: 116px !important;
-          min-height: 116px !important;
-          max-height: 116px !important;
+          width: 148px !important;
+          height: 120px !important;
+          min-height: 120px !important;
+          max-height: 120px !important;
           box-sizing: border-box !important;
           border-radius: 15px !important;
           background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(90,215,240,.11)) !important;
