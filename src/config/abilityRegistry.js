@@ -1,7 +1,6 @@
 /**
- * Ability Registry v4
- * Centralized configuration defining game abilities independently from gifts.
- * Point values are PER GIFT UNIT; the dispatcher multiplies by quantity/repeatCount.
+ * Ability Registry v5
+ * Every gameplay gift has a concrete ability definition with sound and duration.
  */
 export const ABILITY_REGISTRY = {
   silent_challenge: {
@@ -21,6 +20,15 @@ export const ABILITY_REGISTRY = {
     sound: "/Sounds/Sombrero Vaquero.mp3",
     enabled: true,
     duration: 2500
+  },
+  freeze: {
+    abilityId: "freeze",
+    display: { name: "Congelados", icon: "❄️", color: "ice", animation: "snowfall" },
+    gameAction: { type: "SPECIAL_EVENT", value: "FREEZE_TEAM" },
+    scoreAction: { type: "NONE", value: 0 },
+    sound: "/Sounds/Castigados.mp3",
+    enabled: true,
+    duration: 300000
   },
   ultimate_galaxy: {
     abilityId: "ultimate_galaxy",
@@ -48,6 +56,15 @@ export const ABILITY_REGISTRY = {
     sound: "/Sounds/Grito feo.mp3",
     enabled: true,
     duration: 3000
+  },
+  clue_hint: {
+    abilityId: "clue_hint",
+    display: { name: "Pista", icon: "🍦", color: "cream", animation: "cluePop" },
+    gameAction: { type: "VISUAL_EFFECT", value: "CLUE" },
+    scoreAction: { type: "NONE", value: 0 },
+    sound: "/Sounds/Ahh cute.mp3",
+    enabled: true,
+    duration: 2200
   },
   cocazo: {
     abilityId: "cocazo",
