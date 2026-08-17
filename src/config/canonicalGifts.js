@@ -22,7 +22,7 @@ export const CANONICAL_GIFTS = {
   },
   doughnut: {
     canonicalId: "doughnut", displayName: "Doughnut 🍩", aliases: ["donut", "doughnut", "donuts", "donas", "rosquilla"],
-    defaultPoints: 1, value: 1, action: "Add points", sound: "/mudo.mp3", animation: "silent_challenge", abilityId: "silent_challenge", supported: true, image: doughnutImg,
+    defaultPoints: 1, value: 1, action: "Add points", sound: "/Sounds/mudo.mp3", animation: "silent_challenge", abilityId: "silent_challenge", supported: true, image: doughnutImg,
     display: { icon: "🍩", name: "Donut" }
   },
   hat_and_mustache: {
