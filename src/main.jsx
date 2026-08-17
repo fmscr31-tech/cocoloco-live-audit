@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import "./index.css";
 import "./components/individual-points.css";
+import "./components/overlay/team-panel-polish.css";
 import { audioManager } from "./core/audioManager";
 import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
