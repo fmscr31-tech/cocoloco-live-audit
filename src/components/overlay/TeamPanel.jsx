@@ -10,6 +10,8 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
   }).slice(0,10);
   const [rankDeltas,setRankDeltas]=useState({});
   const prevRanksRef=useRef({});
+  const [showCommand,setShowCommand]=useState(false);
+  const commandPrompt = Array.isArray(team.commands) && team.commands.length > 0 ? String(team.commands[0]).trim() : "";
 
   useEffect(()=>{
     const newRanks={},deltas={};
@@ -25,6 +27,17 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
     if(Object.keys(deltas).length>0)setRankDeltas(prev=>({...prev,...deltas}));
   },[topPlayers]);
 
+  useEffect(()=>{
+    if(!commandPrompt || isFrozen || isDamaged || isGalaxyBenefited || isDonutActive || isCowboyActive) {
+      setShowCommand(false);
+      return undefined;
+    }
+    const intervalId=setInterval(()=>setShowCommand(prev=>!prev),4000);
+    return ()=>clearInterval(intervalId);
+  },[commandPrompt,isFrozen,isDamaged,isGalaxyBenefited,isDonutActive,isCowboyActive]);
+
+  const showCommandPrompt = !!commandPrompt && showCommand && !isFrozen && !isDamaged && !isGalaxyBenefited && !isDonutActive && !isCowboyActive;
+
   return (
     <div className={`team-wrapper ${wrapperClass}`} style={{position:"relative"}}>
       <div className={`team-card ${isFrozen?"punished":""} ${isDamaged?"damaged":""} ${isDonutActive?"donut-active":""} ${isCowboyActive?"cowboy-active":""} ${isGalaxyBenefited?"galaxy-active":""}`}>
@@ -34,9 +47,13 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
         {isGalaxyBenefited&&<div className="ability-layer ability-layer-galaxy" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:6,border:"2px solid #00ffff",borderRadius:"6px",boxShadow:"0 0 18px rgba(0,245,255,.9)"}}/>}
         {isFrozen&&<div className="ability-layer ability-layer-freeze" style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(white 1.2px,transparent 0),radial-gradient(white 1.8px,transparent 0)",backgroundSize:"14px 14px,22px 22px",backgroundPosition:"0 0,7px 7px",opacity:.7,animation:"snowfall 3.5s linear infinite",pointerEvents:"none",zIndex:7,border:"2px solid #00f0ff",borderRadius:"6px",background:"rgba(0,180,216,.25)"}}/>}
 
-        <div className="team-name" style={{color:isFrozen?"#fff":isDamaged?"#ffb4b4":isGalaxyBenefited?"#fff":isDonutActive?"#fff":isCowboyActive?"#fff":undefined,textShadow:isFrozen?"0 0 8px rgba(0,245,255,.9)":isDamaged?"0 0 10px rgba(255,0,0,.9)":isGalaxyBenefited?"0 0 10px rgba(125,211,252,.8)":isDonutActive?"0 0 10px rgba(255,105,180,.8)":isCowboyActive?"0 0 12px rgba(255,100,34,.9)":"0 2px 5px rgba(0,0,0,.9)",position:"relative",zIndex:8}}>
-          {isFrozen?`❄️ ${team.name} [CONGELADO] ❄️`:isDamaged?`💥 ${team.name} [DESTRUIDO]`:isGalaxyBenefited?`🌌 ${team.name} 🌌`:isDonutActive?`🍩 ${team.name} [EL MUDO]`:isCowboyActive?`🤠 ${team.name} [RETO]`:team.name}
+        <div className="team-name" style={{color:isFrozen?"#fff":isDamaged?"#ffb4b4":isGalaxyBenefited?"#fff":isDonutActive?"#fff":isCowboyActive?"#fff":undefined,textShadow:isFrozen?"0 0 8px rgba(0,245,255,.9)":isDamaged?"0 0 10px rgba(255,0,0,.9)":isGalaxyBenefited?"0 0 10px rgba(125,211,252,.8)":isDonutActive?"0 0 10px rgba(255,105,180,.8)":isCowboyActive?"0 0 12px rgba(255,100,34,.9)":"0 2px 5px rgba(0,0,0,.9)",position:"relative",zIndex:8,minHeight:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {showCommandPrompt
+            ? <span style={{fontSize:"9px",fontWeight:950,letterSpacing:".3px",textTransform:"uppercase",animation:"commandPromptPulse 1.8s ease-in-out infinite",whiteSpace:"nowrap"}}>📣 ESCRIBE {commandPrompt} PARA UNIRTE</span>
+            : (isFrozen?`❄️ ${team.name} [CONGELADO] ❄️`:isDamaged?`💥 ${team.name} [DESTRUIDO]`:isGalaxyBenefited?`🌌 ${team.name} 🌌`:isDonutActive?`🍩 ${team.name} [EL MUDO]`:isCowboyActive?`🤠 ${team.name} [RETO]`:team.name)}
         </div>
+
+        <style>{`@keyframes commandPromptPulse{0%,100%{opacity:.82;transform:scale(1)}50%{opacity:1;transform:scale(1.035)}}`}</style>
 
         <div className={`team-score ${isDonutActive?"clean-number-pop":""}`} style={{color:isFrozen?"#fff":isDamaged?"#ff6b6b":isGalaxyBenefited?"#fff":isDonutActive?"#fff":isCowboyActive?"#fff":"#fff",textShadow:isFrozen?"0 0 16px rgba(0,240,255,1)":isDamaged?"0 0 18px rgba(255,0,0,1)":isGalaxyBenefited?"0 0 15px rgba(255,255,255,.7)":isDonutActive?"0 0 15px rgba(255,105,180,.8)":isCowboyActive?"0 0 20px rgba(255,100,34,1)":"0 2px 8px rgba(0,0,0,.9)",position:"relative",zIndex:8}}>{score}</div>
 
