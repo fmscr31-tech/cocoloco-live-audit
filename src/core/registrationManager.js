@@ -6,13 +6,6 @@ import { isGenderTeamsMode } from "./genderTeamsMode";
 const STORAGE_KEY_PLAYERS = "cocoloco_registered_players_v2";
 const STORAGE_KEY_STATUS = "cocoloco_registration_status_v2";
 
-/**
- * Registration Manager v2
- *
- * Owns the registration lifecycle and keeps registration/playerManager in sync.
- * A completed round must be able to start a fresh registration cycle without
- * leaving the previous round's manual players in the overlay.
- */
 class RegistrationManager {
   constructor() {
     this.status = localStorage.getItem(STORAGE_KEY_STATUS) || "CLOSED";
@@ -63,9 +56,6 @@ class RegistrationManager {
       }
     });
 
-    // Chicos vs Chicas owns the initial team assignment. Existing participants
-    // remain registered for the whole LIVE session and are never re-added at
-    // the beginning of another round.
     eventBus.subscribe("normalized:chat", (event) => {
       const config = commandConfigManager.getConfig();
       if (!isGenderTeamsMode(config.gameRegistrationMode) || this.status !== "OPEN") return;
@@ -130,6 +120,13 @@ class RegistrationManager {
   }
 
   closeRegistration() {
+    if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
+      if (this.status !== "OPEN") {
+        this.status = "OPEN";
+        this.broadcastSync();
+      }
+      return true;
+    }
     if (this.status === "CLOSED") return true;
     this.status = "CLOSED";
     this.broadcastSync();
@@ -138,6 +135,13 @@ class RegistrationManager {
   }
 
   lockRegistration() {
+    if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
+      if (this.status !== "OPEN") {
+        this.status = "OPEN";
+        this.broadcastSync();
+      }
+      return true;
+    }
     if (this.status === "LOCKED") return true;
     this.status = "LOCKED";
     this.broadcastSync();
@@ -148,10 +152,8 @@ class RegistrationManager {
   registerPlayer(playerData) {
     const config = commandConfigManager.getConfig();
     const genderMode = isGenderTeamsMode(config.gameRegistrationMode);
-
-    // In gender mode a returning viewer is already a member of their team for
-    // the whole session. This is intentionally allowed even after round lock.
     const playerId = playerData.playerId || playerData.id || playerData.username || playerData.uniqueId;
+
     if (genderMode && playerId && this.registeredPlayers.has(playerId)) {
       return { success: true, player: this.registeredPlayers.get(playerId), alreadyRegistered: true };
     }
@@ -177,9 +179,7 @@ class RegistrationManager {
     for (const p of this.registeredPlayers.values()) {
       if (p.username?.toLowerCase() === username.toLowerCase() || p.displayName?.toLowerCase() === username.toLowerCase()) {
         eventBus.publish("registration:duplicate_attempt", { playerId, player: p, timestamp: Date.now() });
-        return genderMode
-          ? { success: true, player: p, alreadyRegistered: true }
-          : { success: false, reason: "ALREADY_REGISTERED" };
+        return genderMode ? { success: true, player: p, alreadyRegistered: true } : { success: false, reason: "ALREADY_REGISTERED" };
       }
     }
 
@@ -199,7 +199,6 @@ class RegistrationManager {
     }
 
     const avatar = playerData.avatar || playerData.profilePictureUrl || playerData.profilePicture || playerData.payload?.profilePictureUrl || playerData.payload?.data?.profilePictureUrl || playerData.payload?.avatar || "";
-
     const player = {
       playerId,
       displayName: playerData.displayName || playerData.name || username,
@@ -252,7 +251,7 @@ class RegistrationManager {
   }
 
   removePlayer(playerId) {
-    if (this.status === "LOCKED") return { success: false, reason: "REGISTRATION_LOCKED" };
+    if (this.status === "LOCKED" && !isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) return { success: false, reason: "REGISTRATION_LOCKED" };
     if (!this.registeredPlayers.has(playerId)) return { success: false, reason: "PLAYER_NOT_FOUND" };
 
     const player = this.registeredPlayers.get(playerId);
@@ -288,25 +287,16 @@ class RegistrationManager {
   }
 
   clearRegistration(options = {}) {
-    if (this.status === "LOCKED" && options.force !== true) return { success: false, reason: "REGISTRATION_LOCKED" };
+    if (this.status === "LOCKED" && options.force !== true && !isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) return { success: false, reason: "REGISTRATION_LOCKED" };
 
     const previousPlayers = Array.from(this.registeredPlayers.values());
     previousPlayers.forEach(player => removePlayer(player.playerId));
     this.registeredPlayers.clear();
     this.status = "OPEN";
 
-    eventBus.emit("players:reset", {
-      removedCount: previousPlayers.length,
-      reason: options.reason || "MANUAL_CLEAR",
-      timestamp: Date.now()
-    });
-
+    eventBus.emit("players:reset", { removedCount: previousPlayers.length, reason: options.reason || "MANUAL_CLEAR", timestamp: Date.now() });
     this.broadcastSync();
-    eventBus.publish("registration:cleared", {
-      timestamp: Date.now(),
-      removedCount: previousPlayers.length,
-      reason: options.reason || "MANUAL_CLEAR"
-    });
+    eventBus.publish("registration:cleared", { timestamp: Date.now(), removedCount: previousPlayers.length, reason: options.reason || "MANUAL_CLEAR" });
     return { success: true, removedCount: previousPlayers.length };
   }
 }
