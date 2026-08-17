@@ -4,9 +4,9 @@ import { players } from "../playerManager";
 import { getTeams } from "../TeamManager";
 
 /**
- * Battle Effect Engine v2
- * Twinkling Star is a five-minute TEAM freeze. A second Twinkling Star cancels
- * the active freeze. Coconut is deliberately not treated as a freeze trigger.
+ * Battle Effect Engine v3
+ * Twinkling Star and Coconut are TEAM freeze triggers. A second freeze gift
+ * counters the active freeze. Both routes share the same authoritative effect.
  */
 class BattleEffectEngine {
   constructor() {
@@ -25,8 +25,8 @@ class BattleEffectEngine {
       enabled: config.freeze?.enabled !== false,
       scope: "TEAM",
       duration: 300,
-      activationGift: "Twinkling Star",
-      counterGift: "Twinkling Star",
+      activationGift: "Twinkling Star / Coconut",
+      counterGift: "Twinkling Star / Coconut",
       sound: config.freeze?.sound || "/Sounds/Castigados.mp3"
     };
     configManager.set("battleEffects", config);
@@ -61,9 +61,7 @@ class BattleEffectEngine {
       if (direct) return direct;
     }
 
-    const key = this.normalize(
-      identity?.displayName || identity?.username || identity?.sender || identity
-    );
+    const key = this.normalize(identity?.displayName || identity?.username || identity?.sender || identity);
     if (!key) return null;
 
     const player = players.find(p => [p.displayName, p.name, p.username].some(v => this.normalize(v) === key));
@@ -71,19 +69,19 @@ class BattleEffectEngine {
     return getTeams().find(team => String(team.id) === String(player.teamId)) || null;
   }
 
-  isTwinklingStar(reward) {
+  isFreezeGift(reward) {
     const values = [reward?.canonicalGiftId, reward?.giftId, reward?.giftName, reward?.gift?.id, reward?.gift?.name]
       .map(value => this.normalize(value));
-    return values.some(value => ["twinkling_star", "twinkling star", "star", "estrella"].includes(value));
+    return values.some(value => ["twinkling_star", "twinkling star", "star", "estrella", "coconut", "coco"].includes(value));
   }
 
   handleGiftReceived(gift) {
-    if (!this.isTwinklingStar(gift)) return;
+    if (!this.isFreezeGift(gift)) return;
     this.handleFreezeActivation(gift);
   }
 
   handleRewardEffect(reward) {
-    if (!this.isTwinklingStar(reward)) return;
+    if (!this.isFreezeGift(reward)) return;
     this.handleFreezeActivation(reward);
   }
 
@@ -94,19 +92,20 @@ class BattleEffectEngine {
     this._cleanActivationCache();
     const eventId = this._getActivationEventId(reward);
     const sender = reward?.displayName || reward?.username || reward?.sender || "Viewer";
-    const dedupKey = eventId ? String(eventId) : `${this.normalize(sender)}:${this.normalize(reward?.canonicalGiftId || reward?.giftId || reward?.giftName)}:${Number(reward?.quantity || reward?.repeatCount || 1)}`;
+    const giftKey = reward?.canonicalGiftId || reward?.giftId || reward?.giftName || "freeze";
+    const dedupKey = eventId ? String(eventId) : `${this.normalize(sender)}:${this.normalize(giftKey)}:${Number(reward?.quantity || reward?.repeatCount || 1)}`;
     if (this.processedActivations.has(dedupKey)) return;
     this.processedActivations.set(dedupKey, Date.now());
 
     const senderTeam = this.getPlayerTeam(reward);
     if (!senderTeam) {
-      console.warn("[BattleEffectEngine] Twinkling Star sender is not assigned to a team:", sender);
+      console.warn("[BattleEffectEngine] Freeze gift sender is not assigned to a team:", sender);
       return;
     }
 
     if (this.activeEffect) {
       this.removeEffect("COUNTER_GIFT");
-      console.log("[BattleEffectEngine] Twinkling Star countered the active FREEZE.", { sender, senderTeamId: senderTeam.id });
+      console.log("[BattleEffectEngine] Freeze countered the active FREEZE.", { sender, senderTeamId: senderTeam.id });
       return;
     }
 
@@ -121,7 +120,7 @@ class BattleEffectEngine {
 
   activateEffect(type, scope, teamId, teamName, affectedPlayers, activatedBy) {
     const freezeConfig = configManager.get("battleEffects.freeze") || {};
-    const durationSec = 300;
+    const durationSec = Number(freezeConfig.duration) || 300;
     this.activeEffect = {
       type,
       scope: "TEAM",
@@ -129,7 +128,7 @@ class BattleEffectEngine {
       affectedTeamName: teamName,
       affectedPlayers,
       activatedBy,
-      activationGift: "Twinkling Star",
+      activationGift: "Twinkling Star / Coconut",
       sound: freezeConfig.sound || "/Sounds/Castigados.mp3",
       createdAt: Date.now(),
       expiresAt: Date.now() + durationSec * 1000,
@@ -170,17 +169,10 @@ class BattleEffectEngine {
     }
   }
 
-  getActiveEffects() {
-    return this.activeEffect ? [this.activeEffect] : [];
-  }
+  getActiveEffects() { return this.activeEffect ? [this.activeEffect] : []; }
 
   isTeamFrozen(teamId) {
-    return !!(
-      this.activeEffect &&
-      this.activeEffect.scope === "TEAM" &&
-      teamId &&
-      String(teamId) === String(this.activeEffect.affectedTeamId)
-    );
+    return !!(this.activeEffect && this.activeEffect.scope === "TEAM" && teamId && String(teamId) === String(this.activeEffect.affectedTeamId));
   }
 
   isUserFrozen(userId, teamId, username) {
