@@ -1,0 +1,50 @@
+/* Team mode command prompt + MVP container polish. */
+.hud-container .team-name > span[style*="text-transform"] {
+  color: #050505 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  animation: none !important;
+}
+.hud-container .team-name > span[style*="text-transform"] strong {
+  display: inline-block;
+  background: transparent !important;
+  padding: 0 3px !important;
+  border-radius: 2px !important;
+  text-shadow: none !important;
+  font-weight: 1000 !important;
+}
+.hud-container .gender-boys .team-name > span[style*="text-transform"] strong { color: #075985 !important; }
+.hud-container .gender-girls .team-name > span[style*="text-transform"] strong { color: #c21875 !important; }
+
+/* MVP / Top Players: replace the flat white box with a themed glass background. */
+.hud-container .gender-boys .players-box {
+  background: linear-gradient(145deg, rgba(8,55,92,.88), rgba(22,108,145,.76) 48%, rgba(47,113,78,.78)) !important;
+  border-color: rgba(103,216,244,.82) !important;
+  box-shadow: 0 4px 14px rgba(0,28,48,.55), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -12px 24px rgba(0,30,45,.20) !important;
+}
+.hud-container .gender-girls .players-box {
+  background: linear-gradient(145deg, rgba(123,22,76,.86), rgba(211,69,137,.76) 46%, rgba(74,151,181,.74) 76%, rgba(226,183,62,.72)) !important;
+  border-color: rgba(255,154,203,.86) !important;
+  box-shadow: 0 4px 14px rgba(74,10,45,.52), inset 0 1px 0 rgba(255,255,255,.20), inset 0 -12px 24px rgba(90,20,50,.18) !important;
+}
+.hud-container .gender-boys .players-box .players-title,
+.hud-container .gender-boys .players-box .player-position,
+.hud-container .gender-boys .players-box .player-name,
+.hud-container .gender-boys .players-box .player-points {
+  color: #f4fcff !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,.72) !important;
+}
+.hud-container .gender-girls .players-box .players-title,
+.hud-container .gender-girls .players-box .player-position,
+.hud-container .gender-girls .players-box .player-name,
+.hud-container .gender-girls .players-box .player-points {
+  color: #fff7fc !important;
+  text-shadow: 0 1px 3px rgba(70,0,35,.72) !important;
+}
+.hud-container .gender-boys .players-box .gamer-player { background: rgba(255,255,255,.11) !important; border-color: rgba(164,235,255,.20) !important; }
+.hud-container .gender-girls .players-box .gamer-player { background: rgba(255,255,255,.12) !important; border-color: rgba(255,220,239,.24) !important; }
