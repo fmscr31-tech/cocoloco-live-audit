@@ -11,7 +11,17 @@ class RegistrationManager {
     this.status = localStorage.getItem(STORAGE_KEY_STATUS) || "CLOSED";
     this.registeredPlayers = new Map();
     this.loadFromStorage();
+    this.ensureModeState();
     this.initListener();
+  }
+
+  ensureModeState() {
+    if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
+      // CHICOS VS CHICAS is permanently open during the active LIVE session.
+      // Persisted CLOSED/LOCKED values from older builds must never block chat registration.
+      this.status = "OPEN";
+      this.saveToStorage();
+    }
   }
 
   loadFromStorage() {
@@ -41,9 +51,17 @@ class RegistrationManager {
   }
 
   initListener() {
+    eventBus.subscribe("config:command_updated", () => {
+      this.ensureModeState();
+      this.broadcastSync();
+    });
+
     eventBus.subscribe("registration:state_synced", ({ players, status }) => {
-      console.log("[REGISTRATION SYNC RECEIVE]", { players, status });
-      if (status) this.status = status;
+      if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
+        this.status = "OPEN";
+      } else if (status) {
+        this.status = status;
+      }
       if (Array.isArray(players)) {
         this.registeredPlayers.clear();
         players.forEach(p => {
@@ -58,7 +76,9 @@ class RegistrationManager {
 
     eventBus.subscribe("normalized:chat", (event) => {
       const config = commandConfigManager.getConfig();
-      if (!isGenderTeamsMode(config.gameRegistrationMode) || this.status !== "OPEN") return;
+      const genderMode = isGenderTeamsMode(config.gameRegistrationMode);
+      if (genderMode) this.status = "OPEN";
+      if (!genderMode || this.status !== "OPEN") return;
 
       const message = String(event?.message || event?.comment || event?.text || "").trim().toLowerCase();
       const team = (config.teams || []).find(t =>
@@ -86,6 +106,7 @@ class RegistrationManager {
   }
 
   broadcastSync() {
+    this.ensureModeState();
     this.saveToStorage();
     const payload = { players: Array.from(this.registeredPlayers.values()), status: this.status };
     eventBus.emit("registration:state_synced", payload);
@@ -94,17 +115,16 @@ class RegistrationManager {
 
   getRegistrationState() {
     const config = commandConfigManager.getConfig();
+    const genderMode = isGenderTeamsMode(config.gameRegistrationMode);
+    if (genderMode) this.status = "OPEN";
     const players = Array.from(this.registeredPlayers.values());
     const readiness = this.checkRoundReadiness();
     const teamGroups = {};
 
-    if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM" || isGenderTeamsMode(config.gameRegistrationMode)) {
-      config.teams.forEach(t => {
-        teamGroups[t.id] = {
-          ...t,
-          players: players.filter(p => p.teamId === t.id),
-          count: players.filter(p => p.teamId === t.id).length
-        };
+    if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM" || genderMode) {
+      (config.teams || []).forEach(t => {
+        const teamPlayers = players.filter(p => p.teamId === t.id);
+        teamGroups[t.id] = { ...t, players: teamPlayers, count: teamPlayers.length };
       });
     }
 
@@ -112,7 +132,6 @@ class RegistrationManager {
   }
 
   openRegistration() {
-    if (this.status === "OPEN") return true;
     this.status = "OPEN";
     this.broadcastSync();
     eventBus.publish("registration:opened", { status: this.status, timestamp: Date.now() });
@@ -121,10 +140,8 @@ class RegistrationManager {
 
   closeRegistration() {
     if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
-      if (this.status !== "OPEN") {
-        this.status = "OPEN";
-        this.broadcastSync();
-      }
+      this.status = "OPEN";
+      this.broadcastSync();
       return true;
     }
     if (this.status === "CLOSED") return true;
@@ -136,10 +153,8 @@ class RegistrationManager {
 
   lockRegistration() {
     if (isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) {
-      if (this.status !== "OPEN") {
-        this.status = "OPEN";
-        this.broadcastSync();
-      }
+      this.status = "OPEN";
+      this.broadcastSync();
       return true;
     }
     if (this.status === "LOCKED") return true;
@@ -152,6 +167,8 @@ class RegistrationManager {
   registerPlayer(playerData) {
     const config = commandConfigManager.getConfig();
     const genderMode = isGenderTeamsMode(config.gameRegistrationMode);
+    if (genderMode) this.status = "OPEN";
+
     const playerId = playerData.playerId || playerData.id || playerData.username || playerData.uniqueId;
 
     if (genderMode && playerId && this.registeredPlayers.has(playerId)) {
@@ -163,10 +180,7 @@ class RegistrationManager {
       return { success: false, reason: "REGISTRATION_CLOSED" };
     }
 
-    if (!playerId) {
-      eventBus.publish("registration:rejected", { playerData, reason: "INVALID_PLAYER_ID", timestamp: Date.now() });
-      return { success: false, reason: "INVALID_PLAYER_ID" };
-    }
+    if (!playerId) return { success: false, reason: "INVALID_PLAYER_ID" };
 
     const username = playerData.username || playerData.displayName || playerData.uniqueId || playerId;
 
@@ -183,10 +197,9 @@ class RegistrationManager {
       }
     }
 
-    let assignedTeamId = playerData.teamId;
-
+    const assignedTeamId = playerData.teamId;
     if (config.gameRegistrationMode === "TEAMS" || config.gameRegistrationMode === "TEAM" || genderMode) {
-      const team = config.teams.find(t => t.id === assignedTeamId);
+      const team = (config.teams || []).find(t => t.id === assignedTeamId);
       if (!team) return { success: false, reason: "INVALID_TEAM" };
       const currentTeamCount = Array.from(this.registeredPlayers.values()).filter(p => p.teamId === assignedTeamId).length;
       if (currentTeamCount >= team.maxPlayers) {
@@ -212,16 +225,7 @@ class RegistrationManager {
     };
 
     this.registeredPlayers.set(playerId, player);
-
-    const gamePlayer = addPlayer({
-      name: player.displayName,
-      displayName: player.displayName,
-      username: player.username,
-      tiktokId: player.playerId,
-      avatar: player.avatar,
-      teamId: player.teamId
-    });
-
+    const gamePlayer = addPlayer({ name: player.displayName, displayName: player.displayName, username: player.username, tiktokId: player.playerId, avatar: player.avatar, teamId: player.teamId });
     if (gamePlayer && player.teamId && !gamePlayer.teamId) gamePlayer.teamId = player.teamId;
 
     this.broadcastSync();
@@ -232,20 +236,17 @@ class RegistrationManager {
   checkRoundReadiness() {
     const config = commandConfigManager.getConfig();
     const players = Array.from(this.registeredPlayers.values());
-
     if (config.gameRegistrationMode === "INDIVIDUAL") {
       const count = players.length;
       if (count < config.minPlayers) return { ready: false, message: `Faltan ${config.minPlayers - count} jugadores (Mínimo requerido: ${config.minPlayers}).` };
       if (count > config.maxPlayers) return { ready: false, message: `Se supera el máximo de jugadores permitido (${config.maxPlayers}).` };
       return { ready: true, message: "Listo para iniciar ronda individual." };
     }
-
-    const teams = config.teams;
+    const teams = config.teams || [];
     for (const t of teams) {
       const teamPlayers = players.filter(p => p.teamId === t.id);
-      const tCount = teamPlayers.length;
-      if (tCount < t.minPlayers) return { ready: false, message: `El equipo "${t.name}" necesita ${t.minPlayers - tCount} jugadores más (Mín: ${t.minPlayers}).` };
-      if (tCount > t.maxPlayers) return { ready: false, message: `El equipo "${t.name}" supera el máximo de jugadores (${t.maxPlayers}).` };
+      if (teamPlayers.length < t.minPlayers) return { ready: false, message: `El equipo "${t.name}" necesita ${t.minPlayers - teamPlayers.length} jugadores más (Mín: ${t.minPlayers}).` };
+      if (teamPlayers.length > t.maxPlayers) return { ready: false, message: `El equipo "${t.name}" supera el máximo de jugadores (${t.maxPlayers}).` };
     }
     return { ready: true, message: "Todos los equipos alcanzan sus mínimos. ¡Listo para iniciar ronda!" };
   }
@@ -253,7 +254,6 @@ class RegistrationManager {
   removePlayer(playerId) {
     if (this.status === "LOCKED" && !isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) return { success: false, reason: "REGISTRATION_LOCKED" };
     if (!this.registeredPlayers.has(playerId)) return { success: false, reason: "PLAYER_NOT_FOUND" };
-
     const player = this.registeredPlayers.get(playerId);
     this.registeredPlayers.delete(playerId);
     removePlayer(playerId);
@@ -266,7 +266,6 @@ class RegistrationManager {
 
   prepareNextRoundRegistration() {
     const config = commandConfigManager.getConfig();
-
     if (isGenderTeamsMode(config.gameRegistrationMode)) {
       this.status = "OPEN";
       this.broadcastSync();
@@ -278,7 +277,6 @@ class RegistrationManager {
     previousPlayers.forEach(player => removePlayer(player.playerId));
     this.registeredPlayers.clear();
     this.status = "OPEN";
-
     eventBus.emit("players:reset", { removedCount: previousPlayers.length, reason: "ROUND_FINISHED", timestamp: Date.now() });
     this.broadcastSync();
     eventBus.publish("registration:cleared", { timestamp: Date.now(), removedCount: previousPlayers.length, reason: "ROUND_FINISHED" });
@@ -288,12 +286,10 @@ class RegistrationManager {
 
   clearRegistration(options = {}) {
     if (this.status === "LOCKED" && options.force !== true && !isGenderTeamsMode(commandConfigManager.getConfig().gameRegistrationMode)) return { success: false, reason: "REGISTRATION_LOCKED" };
-
     const previousPlayers = Array.from(this.registeredPlayers.values());
     previousPlayers.forEach(player => removePlayer(player.playerId));
     this.registeredPlayers.clear();
     this.status = "OPEN";
-
     eventBus.emit("players:reset", { removedCount: previousPlayers.length, reason: options.reason || "MANUAL_CLEAR", timestamp: Date.now() });
     this.broadcastSync();
     eventBus.publish("registration:cleared", { timestamp: Date.now(), removedCount: previousPlayers.length, reason: options.reason || "MANUAL_CLEAR" });
