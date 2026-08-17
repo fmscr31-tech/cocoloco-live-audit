@@ -25,6 +25,102 @@ body {
   isolation: isolate;
 }
 
+/* Readability pass: larger, heavier typography with dark lettering on
+   high-contrast light broadcast cards. Functional geometry and timer/feed
+   behavior remain unchanged. */
+.hud-container {
+  min-height: 158px;
+}
+
+.hud-container .main-title {
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.hud-container .sub-title,
+.hud-container .battle-status {
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.hud-container .battle-name {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.hud-container .team-card {
+  min-height: 96px;
+  height: 96px;
+  padding: 7px 8px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(231,247,251,0.96));
+  border-color: rgba(14, 65, 105, 0.32);
+}
+
+.hud-container .team-name {
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 0.7px;
+  color: #102a43;
+  text-shadow: none;
+  line-height: 1.08;
+}
+
+.hud-container .team-score {
+  font-size: 32px;
+  font-weight: 950;
+  color: #102a43;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.9), 0 2px 5px rgba(14,65,105,0.2);
+}
+
+.hud-container .players-box {
+  padding: 6px 7px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.94), rgba(235,248,252,0.96));
+  border-color: rgba(14, 65, 105, 0.3);
+}
+
+.hud-container .players-title {
+  font-size: 10px;
+  font-weight: 950;
+  color: #102a43;
+  text-shadow: none;
+}
+
+.hud-container .gamer-player {
+  padding: 3px 5px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(14,65,105,0.07);
+  border: 1px solid rgba(14,65,105,0.1);
+}
+
+.hud-container .player-name {
+  color: #102a43;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.hud-container .player-points {
+  color: #102a43;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+/* Individual leaderboard text uses the same dark, heavy treatment. */
+.hud-container .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"] span {
+  font-weight: 950 !important;
+}
+
+/* Informational gift card: readable dark typography and no decorative emoji
+   fallback. Gift artwork itself remains the only graphic on gift slides. */
+.hud-container .timer-feed-compact-card {
+  min-height: 98px !important;
+  width: 104px !important;
+}
+
+.hud-container .timer-feed-compact-card > div:not(:has(img)) {
+  color: #102a43;
+}
+
 /* Cheerful tropical background accents. They stay behind the HUD content and
    never intercept input or alter the protected timer/feed geometry. */
 .hud-container::before,
@@ -77,8 +173,6 @@ body {
    The scrollbar belongs only to the player-list area.
    ================================================================ */
 
-/* Individual Mode player list. The selector targets the existing list
-   container without changing the protected timer/sidebar or HUD geometry. */
 .scoreboard > div:first-child > div[style*="flex-direction: column"][style*="gap: 3px"] {
   max-height: 184px;
   overflow-y: auto;
@@ -88,8 +182,6 @@ body {
   padding-right: 3px;
 }
 
-/* Team Mode MVP/player lists. Eight players remain visible; additional
-   players are available by scrolling inside the existing players box. */
 .players-box {
   max-height: 184px !important;
   overflow-y: auto !important;
