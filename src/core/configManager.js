@@ -1,3 +1,4 @@
+import { eventBus } from "./eventBus";
 import { GIFT_CONFIG } from "../config/gifts";
 import { GIFT_RULES_BY_MODE } from "../data/giftRules";
 import { ABILITY_REGISTRY } from "../config/abilityRegistry";
@@ -6,9 +7,12 @@ import { GIFT_ABILITY_MAP } from "../config/giftAbilityMap";
 const CONFIG_STORAGE_KEY = "cocoloco_system_config";
 const ABILITY_SOUND_MIGRATION_VERSION = 4;
 
+// Ice Cream Cone is a high-frequency clue gift. Keep its runtime identity
+// aligned with the canonical gift id/name used by GiftEventBridge so the
+// AudioManager can actually match and play the configured sound in the overlay.
 const DEFAULT_GIFT_SOUNDS = [
   { giftName: "Heart Me", giftId: "heart_me", sound: "/Sounds/mudo.mp3", enabled: true },
-  { giftName: "Ice Cream Cone", giftId: "ice_cream_cone", sound: "/Sounds/coconut-sfx.mp3", enabled: true }
+  { giftName: "Ice Cream", giftId: "ice_cream", sound: "/Sounds/coconut-sfx.mp3", enabled: true }
 ];
 
 const DEFAULT_FREEZE_CONFIG = {
@@ -20,17 +24,6 @@ const DEFAULT_FREEZE_CONFIG = {
   rescueCount: 2
 };
 
-/**
- * Configuration Manager: centralized configuration hub and persistent single
- * source of truth for runtime settings.
- *
- * IMPORTANT:
- * - Existing user configuration is preserved.
- * - Defaults repair missing structure only.
- * - User-selected ability/gift/freeze sounds are NEVER replaced by defaults.
- * - New authoritative abilities/maps are merged into older stored configs so
- *   adding a new supported gift cannot silently remain unavailable in LIVE.
- */
 class ConfigManager {
   constructor() {
     const stored = this.loadConfig();
@@ -87,7 +80,6 @@ class ConfigManager {
       this.config.abilities = { ...ABILITY_REGISTRY };
       changed = true;
     } else {
-      // Add new authoritative abilities without overwriting operator changes.
       for (const [abilityId, ability] of Object.entries(ABILITY_REGISTRY)) {
         if (!this.config.abilities[abilityId]) {
           this.config.abilities[abilityId] = { ...ability };
@@ -100,8 +92,6 @@ class ConfigManager {
       this.config.abilityGiftMap = GIFT_ABILITY_MAP.map(item => ({ ...item, aliases: [...(item.aliases || [])] }));
       changed = true;
     } else {
-      // Merge new mappings by gift/ability identity. Existing mappings remain
-      // authoritative so custom operator mappings are not overwritten.
       for (const mapping of GIFT_ABILITY_MAP) {
         const exists = this.config.abilityGiftMap.some(existing =>
           String(existing?.giftId || "").trim().toLowerCase() === String(mapping.giftId).trim().toLowerCase() ||
@@ -117,6 +107,34 @@ class ConfigManager {
     if (!Array.isArray(this.config.giftSounds)) {
       this.config.giftSounds = DEFAULT_GIFT_SOUNDS;
       changed = true;
+    } else {
+      // Repair the historical Ice Cream identity mismatch without overwriting
+      // any unrelated operator-configured gift sounds.
+      const iceCream = this.config.giftSounds.find(gs =>
+        String(gs?.giftId || "").trim().toLowerCase() === "ice_cream_cone" ||
+        String(gs?.giftName || "").trim().toLowerCase() === "ice cream cone"
+      );
+      if (iceCream) {
+        if (iceCream.giftId !== "ice_cream") {
+          iceCream.giftId = "ice_cream";
+          changed = true;
+        }
+        if (iceCream.giftName !== "Ice Cream") {
+          iceCream.giftName = "Ice Cream";
+          changed = true;
+        }
+        if (!iceCream.sound) {
+          iceCream.sound = "/Sounds/coconut-sfx.mp3";
+          changed = true;
+        }
+        if (iceCream.enabled === false) {
+          iceCream.enabled = true;
+          changed = true;
+        }
+      } else {
+        this.config.giftSounds.push({ ...DEFAULT_GIFT_SOUNDS[1] });
+        changed = true;
+      }
     }
 
     if (!this.config.battleEffects || typeof this.config.battleEffects !== "object") {
@@ -129,7 +147,6 @@ class ConfigManager {
       changed = true;
     } else {
       const freeze = this.config.battleEffects.freeze;
-
       if (!freeze.activationGift || freeze.activationGift === "STAR") {
         freeze.activationGift = DEFAULT_FREEZE_CONFIG.activationGift;
         changed = true;
@@ -177,19 +194,15 @@ class ConfigManager {
 
   set(path, value) {
     if (!path) return;
-
     const latest = this.loadConfig();
     if (latest && typeof latest === "object") this.config = latest;
-
     const parts = path.split(".");
     let current = this.config;
-
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       if (!current[part] || typeof current[part] !== "object") current[part] = {};
       current = current[part];
     }
-
     current[parts[parts.length - 1]] = value;
     this.persist();
   }
