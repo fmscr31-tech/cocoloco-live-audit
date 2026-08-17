@@ -5,6 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="/team-label-recovery.css" />
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('cocoloco_command_config_v3');
+          var cfg = raw ? JSON.parse(raw) : null;
+          var mode = String((cfg && cfg.gameRegistrationMode) || localStorage.getItem('cocoloco_game_mode') || '').toUpperCase();
+          if (mode === 'GENDER_TEAMS' || mode === 'GENDER-TEAMS' || mode.indexOf('CHICOS') >= 0 || mode.indexOf('CHICAS') >= 0) {
+            document.documentElement.classList.add('cocoloco-gender-teams');
+          }
+        } catch (_) {}
+      })();
+    </script>
     <title>cocoloco-live-manager</title>
   </head>
   <body>
