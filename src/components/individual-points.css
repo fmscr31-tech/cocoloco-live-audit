@@ -1,0 +1,6 @@
+/* Individual mode — player points readability only.
+   Overrides the inline cyan points styling without changing layout or logic. */
+.scoreboard > div:first-child > div:nth-child(3) > div > div:nth-child(2) {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+}
