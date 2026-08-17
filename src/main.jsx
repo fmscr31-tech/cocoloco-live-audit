@@ -10,7 +10,6 @@ import "./components/overlay/team-label-render-fix.css";
 import "./components/overlay/team-identity-hard-lock.css";
 import "./components/overlay/scoreboard-identity-hard-lock.css";
 import "./components/overlay/visual-motion-recovery.css";
-import "./components/overlay/scoreboard-marker-layout-repair.css";
 import { audioManager } from "./core/audioManager";
 import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
