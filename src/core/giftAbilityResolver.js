@@ -20,12 +20,8 @@ class GiftAbilityResolver {
         const defaultAbility = String(defaultMapping?.abilityId ?? "").trim().toLowerCase();
         return (runtimeId && defaultId === runtimeId) || (runtimeName && defaultName === runtimeName) || (runtimeAbility && defaultAbility === runtimeAbility);
       });
-      if (existingIndex >= 0) {
-        merged[existingIndex] = {
-          ...merged[existingIndex], ...runtimeMapping,
-          aliases: Array.from(new Set([...(merged[existingIndex].aliases || []), ...(runtimeMapping.aliases || [])]))
-        };
-      } else merged.push(runtimeMapping);
+      if (existingIndex >= 0) merged[existingIndex] = { ...merged[existingIndex], ...runtimeMapping, aliases: Array.from(new Set([...(merged[existingIndex].aliases || []), ...(runtimeMapping.aliases || [])])) };
+      else merged.push(runtimeMapping);
     });
     return merged;
   }
@@ -39,48 +35,50 @@ class GiftAbilityResolver {
       const mapping = this.getMap().find(m => {
         const mId = String(m.giftId ?? "").trim().toLowerCase();
         const mName = String(m.giftName ?? "").trim().toLowerCase();
-        return mId === canonicalId || mId === giftId || mId === giftName || mName === canonicalId || mName === giftId || mName === giftName ||
-          (m.aliases && m.aliases.some(a => [canonicalId, giftId, giftName].includes(String(a ?? "").trim().toLowerCase())));
+        return mId === canonicalId || mId === giftId || mId === giftName || mName === canonicalId || mName === giftId || mName === giftName || (m.aliases && m.aliases.some(a => [canonicalId, giftId, giftName].includes(String(a ?? "").trim().toLowerCase())));
       });
-      if (!mapping) {
-        console.log("[Ability Resolve Failed]", { canonicalGiftId: event.canonicalGiftId, giftId: event.giftId, giftName: event.giftName });
+
+      const abilityId = mapping?.abilityId || "generic_gift";
+      const abilityDefinition = abilityManager.getAbility(abilityId);
+      if (!abilityDefinition) {
+        console.error("[Ability Resolve Failed] Missing ability definition:", { abilityId, canonicalGiftId: event.canonicalGiftId, giftId: event.giftId, giftName: event.giftName });
         return null;
       }
 
-      // Display Name is the operator-facing identity. TikTok userId/uniqueId remain
-      // technical fields only and are preserved separately for deterministic lookup.
       const sender = event.displayName || event.username || "Viewer";
       const quantity = Math.max(1, Number(event.quantity || event.repeatCount || 1));
       const teamId = event.teamId || null;
+      const sourceGift = mapping?.giftName || event.giftName || event.canonicalGiftId || event.giftId || "Gift";
 
-      console.log("[ABILITY RESOLVED SUCCESS]", {
+      console.log(mapping ? "[ABILITY RESOLVED SUCCESS]" : "[GENERIC GIFT RESOLVED]", {
         canonicalGiftId: event.canonicalGiftId,
         giftId: event.giftId,
         giftName: event.giftName,
-        abilityId: mapping.abilityId,
+        abilityId,
         playerId: event.playerId,
         userId: event.userId,
         displayName: sender,
         quantity
       });
 
-      const ability = abilityManager.prepareAbilityPayload(mapping.abilityId, {
-        abilityId: mapping.abilityId,
-        sourceGift: mapping.giftName || mapping.giftId,
+      const ability = abilityManager.prepareAbilityPayload(abilityId, {
+        abilityId,
+        sourceGift,
         canonicalGiftId: event.canonicalGiftId,
         giftId: event.giftId,
-        giftName: event.giftName || mapping.giftName || mapping.giftId,
+        giftName: event.giftName || sourceGift,
         playerId: event.playerId || event.userId || "",
         userId: event.userId || event.playerId || "",
         teamId,
         sender,
         displayName: sender,
         avatar: event.avatar || "",
-        triggeredByGift: mapping.giftName || mapping.giftId,
-        username: sender,
+        triggeredByGift: sourceGift,
+        username: event.username || sender,
         quantity,
         repeatCount: quantity,
-        duration: abilityManager.getAbility(mapping.abilityId)?.duration || 10000
+        duration: abilityDefinition.duration || 10000,
+        genericGift: !mapping
       });
       if (ability && event.duration) ability.duration = event.duration;
       return ability;
