@@ -1,21 +1,20 @@
 import { eventBus } from "./eventBus";
 import { registrationManager } from "./registrationManager";
+import { resetTeamSessionScores } from "./TeamManager";
 
 const SESSION_STORAGE_KEY = "cocoloco_active_session";
 
-/**
- * Live Session Manager: Sole responsible for representing and tracking a complete streaming LIVE session
- * and aggregating overall session statistics.
- * 
- * Future Modules Integration:
- * - analyticsEngine: Consumes session metrics for post-stream analysis.
- * - statisticsEngine: Aggregates real-time KPIs during active sessions.
- * - rankingEngine: Computes final leaderboards based on session data.
- */
 class SessionManager {
   constructor() {
     this.currentSession = this.loadActiveSession() || this.createEmptySession();
     this.initListeners();
+
+    // Team wins/points belong to the current LIVE. If the previous session is
+    // not active, stale counters from an older browser session must not appear
+    // as the first round of the new LIVE.
+    if (!this.currentSession.isActive) {
+      resetTeamSessionScores(true);
+    }
   }
 
   createEmptySession() {
@@ -42,9 +41,7 @@ class SessionManager {
   }
 
   archiveRound(roundData) {
-    if (!this.currentSession.isActive) {
-      this.startSession();
-    }
+    if (!this.currentSession.isActive) this.startSession();
     const roundRecord = {
       roundId: roundData.id || Date.now(),
       roundNumber: (this.currentSession.rounds || []).length + 1,
@@ -61,18 +58,14 @@ class SessionManager {
       }
     };
 
-    if (!this.currentSession.rounds) {
-      this.currentSession.rounds = [];
-    }
+    if (!this.currentSession.rounds) this.currentSession.rounds = [];
     this.currentSession.rounds.push(roundRecord);
-
     this.currentSession.sessionSummary = {
       totalRounds: this.currentSession.rounds.length,
       totalPoints: (this.currentSession.sessionSummary?.totalPoints || 0) + (roundData.totalPoints || 0),
       totalGifts: (this.currentSession.sessionSummary?.totalGifts || 0) + (roundData.totalGifts || 0),
       totalParticipants: Object.keys(this.currentSession.participants || {}).length
     };
-
     this.persistSession();
   }
 
@@ -86,20 +79,12 @@ class SessionManager {
   }
 
   persistSession() {
-    try {
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(this.currentSession));
-    } catch (e) {
-      // fallback storage error suppression
-    }
+    try { localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(this.currentSession)); }
+    catch (e) {}
   }
 
-  /**
-   * Starts a new LIVE session.
-   */
   startSession(customSessionId = null) {
-    if (this.currentSession.isActive) {
-      return this.currentSession;
-    }
+    if (this.currentSession.isActive) return this.currentSession;
 
     const now = Date.now();
     this.currentSession = {
@@ -108,16 +93,17 @@ class SessionManager {
       endTime: null,
       duration: 0,
       isActive: true,
+      rounds: [],
       participants: {},
       eventsProcessed: 0,
       giftsReceived: 0,
       accumulatedPoints: 0,
       totalMessages: 0,
-      totalLikes: 0
+      totalLikes: 0,
+      sessionSummary: { totalRounds: 0, totalPoints: 0, totalGifts: 0, totalParticipants: 0 }
     };
 
-    // A new LIVE is the session boundary: clear any participant/team
-    // membership left from a previous LIVE before accepting registrations.
+    resetTeamSessionScores(true);
     registrationManager.clearRegistration({ force: true, reason: "SESSION_STARTED" });
 
     this.persistSession();
@@ -125,39 +111,24 @@ class SessionManager {
     return this.currentSession;
   }
 
-  /**
-   * Ends the active LIVE session.
-   */
   endSession() {
-    if (!this.currentSession.isActive) {
-      return null;
-    }
+    if (!this.currentSession.isActive) return null;
 
     const now = Date.now();
     this.currentSession.endTime = now;
     this.currentSession.duration = now - this.currentSession.startTime;
     this.currentSession.isActive = false;
 
+    resetTeamSessionScores(true);
     this.persistSession();
     eventBus.emit("session:ended", this.currentSession);
-
-    // A new LIVE must never inherit gender-team membership from this one.
     registrationManager.clearRegistration({ force: true, reason: "SESSION_ENDED" });
 
-    const ended = { ...this.currentSession };
-    return ended;
+    return { ...this.currentSession };
   }
 
-  /**
-   * Returns the currently active or last session.
-   */
-  getSession() {
-    return this.currentSession;
-  }
+  getSession() { return this.currentSession; }
 
-  /**
-   * Subscribes to eventBus to automatically react and aggregate stream metrics.
-   */
   initListeners() {
     eventBus.subscribe("player:created", (player) => {
       if (!this.currentSession.isActive) return;
@@ -171,8 +142,6 @@ class SessionManager {
       if (!this.currentSession.isActive) return;
       this.currentSession.participants[player.userId || player.id] = player;
       this.currentSession.eventsProcessed += 1;
-      
-      // Recalculate totals across participants
       let messages = 0;
       let likes = 0;
       let points = 0;
@@ -184,7 +153,6 @@ class SessionManager {
       this.currentSession.totalMessages = messages;
       this.currentSession.totalLikes = likes;
       this.currentSession.accumulatedPoints = points;
-
       this.persistSession();
       eventBus.emit("session:updated", this.currentSession);
     });
