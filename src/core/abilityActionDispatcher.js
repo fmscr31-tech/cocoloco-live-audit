@@ -74,8 +74,6 @@ class AbilityActionDispatcher {
         canonicalGiftId: ability.canonicalGiftId || null, source: "ABILITY_FREEZE_REDIRECT"
       };
 
-      // Reuse the DashboardAPI's authoritative score transport so browser-source
-      // overlays receive the redirected team total as well.
       eventBus.emit("game:score_updated", {
         userId: player.id,
         username: player.username || player.name,
@@ -94,8 +92,6 @@ class AbilityActionDispatcher {
       return result;
     }
 
-    // Update the team first so PlayerManager's score event observes the new
-    // team total and the dashboard snapshot is internally consistent.
     let teamSnapshot = null;
     if (player.teamId) teamSnapshot = addPointsToTeam(player.teamId, points);
     const updated = addPoints(player.id, points);
@@ -181,6 +177,19 @@ class AbilityActionDispatcher {
       giftId: ability.giftId || null, canonicalGiftId: ability.canonicalGiftId || null,
       source: redirectedByFreeze ? "ABILITY_FREEZE_REDIRECT" : "ABILITY"
     };
+
+    const playerSnapshot = sender ? { ...sender } : null;
+    eventBus.emit("game:score_updated", {
+      userId: sender?.id || ability.playerId || ability.userId || "",
+      username: sender?.username || sender?.name || ability.username || ability.sender || "",
+      pointsAdded: 0,
+      playerSnapshot: playerSnapshot || { id: ability.playerId || ability.userId || "", username: ability.username || ability.sender || "", teamId: targetTeam.id, points: 0, wins: 0 },
+      teamId: targetTeam.id,
+      teamSnapshot,
+      roundsAdded: rounds,
+      roundGift: ability.canonicalGiftId || null,
+      timestamp: Date.now()
+    });
     eventBus.emit("ability:round_executed", result);
     eventBus.emit("gift:round_awarded", result);
     eventBus.publish("gift:action_dispatched", result);
