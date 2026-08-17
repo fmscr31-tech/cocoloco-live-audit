@@ -13,6 +13,7 @@ import {
 } from "../core/eventManager";
 
 import { eventBus } from "../core/eventBus";
+import "../core/audioManager";
 
 import { ScoreBoard } from "./overlay/ScoreBoard";
 import { GiftFeed } from "./overlay/GiftFeed";
