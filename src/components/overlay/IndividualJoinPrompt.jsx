@@ -1,78 +1,102 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dashboardAPI } from "../../core/dashboardAPI";
 import { commandConfigManager } from "../../core/commandConfigManager";
+import { eventBus } from "../../core/eventBus";
 
 const readEnrollment = (dashboard) => {
   const registration = dashboard?.registration || {};
   const config = dashboard?.registrationConfig || dashboard?.commandConfig || dashboard?.game?.registration || commandConfigManager.getConfig?.() || {};
   const command = String(registration.command || registration.joinCommand || registration.entryCommand || config.individualCommand || config.command || config.joinCommand || config.entryCommand || "").trim();
   const giftName = String(registration.giftName || registration.entryGift || registration.registrationGift || config.individualRegistrationGift || config.individualGiftName || config.giftName || config.entryGift || "").trim();
-  const imageUrl = registration.giftImageUrl || registration.imageUrl || config.individualRegistrationGiftImage || config.giftImageUrl || config.imageUrl || "";
-  const giftAsset = String(config.individualRegistrationGiftAsset || "").trim();
-  const image = imageUrl || (giftAsset ? (giftAsset.startsWith("/") ? giftAsset : `/gifts/${giftAsset}`) : giftName ? `/gifts/${giftName}.gif` : "");
+  const imageUrl = String(registration.giftImageUrl || registration.imageUrl || config.individualRegistrationGiftImage || config.giftImageUrl || config.imageUrl || "").trim();
+  const giftAsset = String(config.individualRegistrationGiftAsset || registration.giftAsset || registration.asset || "").trim();
   const method = String(config.individualRegistrationMethod || registration.method || (giftName ? "gift" : "command")).toLowerCase() === "gift" ? "gift" : "command";
-  return { command, giftName, image, method };
+  return { command, giftName, imageUrl, giftAsset, method };
 };
 
+const buildGiftCandidates = ({ imageUrl, giftAsset, giftName }) => {
+  const candidates = [];
+  const add = value => {
+    if (!value) return;
+    const normalized = String(value).trim();
+    if (!normalized) return;
+    candidates.push(normalized.startsWith("/") || normalized.startsWith("http") ? normalized : `/gifts/${normalized}`);
+  };
+  add(imageUrl);
+  add(giftAsset);
+  if (giftName) {
+    const base = giftName.trim().replace(/\.(webp|png|jpg|jpeg|gif)$/i, "");
+    [".webp", ".png", ".gif", ".jpg", ".jpeg"].forEach(ext => add(`/gifts/${base}${ext}`));
+  }
+  return [...new Set(candidates)];
+};
+
+function GiftRegistrationImage({ enrollment }) {
+  const candidates = useMemo(() => buildGiftCandidates(enrollment), [enrollment]);
+  const [index, setIndex] = useState(0);
+  useEffect(() => setIndex(0), [candidates.join("|")]);
+  if (!candidates.length || index >= candidates.length) return <span style={{ fontSize: "24px", lineHeight: 1 }}>🎁</span>;
+  return <img src={candidates[index]} alt={enrollment.giftName || "Regalo de inscripción"} onError={() => setIndex(value => value + 1)} style={{ width: "54px", height: "54px", objectFit: "contain", display: "block", filter: "drop-shadow(0 0 8px rgba(255,255,255,.65))" }} />;
+}
+
 export function IndividualJoinPrompt() {
-  const [enrollment, setEnrollment] = useState(() => readEnrollment({}));
-  const [show, setShow] = useState(true);
+  const [dashboard, setDashboard] = useState(() => dashboardAPI.getLiveDashboard?.() || dashboardAPI.getState?.() || {});
+  const [enrollment, setEnrollment] = useState(() => readEnrollment(dashboard));
+  const [blink, setBlink] = useState(true);
+  const [winnerSuppressedUntil, setWinnerSuppressedUntil] = useState(0);
 
   useEffect(() => {
-    const apply = (dashboard) => setEnrollment(readEnrollment(dashboard));
-    const unsubscribe = dashboardAPI.subscribe?.(apply);
-    const refresh = () => apply(dashboardAPI.getState?.() || dashboardAPI.getDashboard?.() || {});
-    refresh();
-    const interval = setInterval(refresh, 1500);
-    window.addEventListener("storage", refresh);
-    return () => {
-      unsubscribe?.();
-      clearInterval(interval);
-      window.removeEventListener("storage", refresh);
+    const apply = nextDashboard => {
+      const next = nextDashboard || dashboardAPI.getLiveDashboard?.() || dashboardAPI.getState?.() || {};
+      setDashboard(next);
+      setEnrollment(readEnrollment(next));
     };
+    const unsubscribe = dashboardAPI.subscribe?.(apply);
+    const refresh = () => apply();
+    const interval = setInterval(refresh, 700);
+    window.addEventListener("storage", refresh);
+    return () => { unsubscribe?.(); clearInterval(interval); window.removeEventListener("storage", refresh); };
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => setShow((value) => !value), 4500);
-    return () => clearInterval(id);
+    const timer = setInterval(() => setBlink(value => !value), 900);
+    return () => clearInterval(timer);
   }, []);
 
-  if (!enrollment.command && !enrollment.giftName) return null;
+  useEffect(() => {
+    const hideForWinner = () => {
+      const until = Date.now() + 6000;
+      setWinnerSuppressedUntil(until);
+      window.setTimeout(() => setWinnerSuppressedUntil(current => current === until ? 0 : current), 6100);
+    };
+    const unsubWinner = eventBus.subscribe("round:winner_popup", hideForWinner);
+    const unsubPlayerWinner = eventBus.subscribe("PLAYER_WIN", hideForWinner);
+    return () => { unsubWinner?.(); unsubPlayerWinner?.(); };
+  }, []);
+
+  const game = dashboard?.game || {};
+  const registration = dashboard?.registration || {};
+  const mode = String(dashboard?.gameMode || dashboard?.gameRegistrationMode || "").toUpperCase();
+  const isIndividual = mode === "INDIVIDUAL" || mode === "INDIVIDUAL_MODE" || mode === "SOLO" || !mode;
+  const roundActive = !!game?.round?.active;
+  const registrationOpen = String(registration?.status || "").toUpperCase() === "OPEN";
+  const winnerSuppressed = Date.now() < winnerSuppressedUntil;
+  const visible = isIndividual && registrationOpen && !roundActive && !winnerSuppressed && !!(enrollment.command || enrollment.giftName);
+
+  if (!visible) return null;
   const isCommand = enrollment.method === "command";
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: "-34px",
-        left: "calc(50% + 18px)",
-        right: "auto",
-        zIndex: 90,
-        width: "184px",
-        minHeight: "34px",
-        padding: "5px 9px",
-        boxSizing: "border-box",
-        borderRadius: "8px",
-        background: "linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,245,210,.97))",
-        border: "2px solid rgba(16,42,67,.78)",
-        boxShadow: "0 3px 12px rgba(0,0,0,.38),0 0 10px rgba(255,209,102,.32)",
-        textAlign: "center",
-        transform: show ? "translate(-50%,0)" : "translate(-50%,-1px)",
-        opacity: show ? 1 : 0.86,
-        transition: "all .45s ease"
-      }}
-    >
-      <div style={{ fontSize: "7px", lineHeight: 1.1, fontWeight: 1000, color: "#111827", textTransform: "uppercase", letterSpacing: ".35px" }}>
-        {isCommand ? "INSCRÍBETE ESCRIBIENDO EN EL CHAT" : "ÚNETE CON"}
+    <div aria-live="polite" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 5000, width: isCommand ? "220px" : "250px", minHeight: isCommand ? "74px" : "112px", padding: isCommand ? "10px 18px" : "12px 20px", boxSizing: "border-box", borderRadius: "18px", background: blink ? "rgba(8,18,30,.38)" : "rgba(8,18,30,.22)", border: blink ? "1px solid rgba(255,255,255,.72)" : "1px solid rgba(255,255,255,.38)", boxShadow: blink ? "0 0 26px rgba(255,255,255,.24), inset 0 0 22px rgba(255,255,255,.06)" : "0 0 12px rgba(255,255,255,.10), inset 0 0 18px rgba(255,255,255,.035)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", textAlign: "center", opacity: blink ? 1 : .78, transition: "opacity .45s ease, border-color .45s ease, box-shadow .45s ease", pointerEvents: "none" }}>
+      <div style={{ fontSize: "10px", lineHeight: 1.15, fontWeight: 950, color: "#fff", textTransform: "uppercase", letterSpacing: ".7px", textShadow: "0 2px 5px rgba(0,0,0,.95)" }}>
+        {isCommand ? "INSCRÍBETE ESCRIBIENDO EN EL CHAT" : "INSCRÍBETE ENVIANDO ESTE REGALO"}
       </div>
       {isCommand ? (
-        <div style={{ marginTop: "3px", fontSize: "12px", lineHeight: 1.05, fontWeight: 1000, color: "#ffffff", background: "#111111", border: "1px solid #000000", borderRadius: "5px", padding: "3px 8px", textTransform: "uppercase", letterSpacing: ".7px", textShadow: "none", boxShadow: "0 1px 0 #fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {enrollment.command}
-        </div>
+        <div style={{ marginTop: "7px", display: "inline-block", maxWidth: "100%", padding: "4px 13px", borderRadius: "8px", background: "rgba(255,255,255,.90)", border: "2px solid #111827", color: "#e11d48", fontSize: "16px", lineHeight: 1, fontWeight: 1000, textTransform: "uppercase", letterSpacing: "1.2px", boxShadow: "0 2px 10px rgba(0,0,0,.45)" }}>{enrollment.command}</div>
       ) : (
-        <div style={{ marginTop: "3px", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-          {enrollment.image ? <img src={enrollment.image} alt={enrollment.giftName || "Regalo"} style={{ width: "22px", height: "22px", objectFit: "contain" }} /> : <span style={{ fontSize: "15px" }}>🎁</span>}
-          <span style={{ fontSize: "8px", lineHeight: 1.05, fontWeight: 1000, color: "#a21caf", textTransform: "uppercase" }}>{enrollment.giftName || "REGALO"}</span>
+        <div style={{ marginTop: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+          <GiftRegistrationImage enrollment={enrollment} />
+          <div style={{ maxWidth: "145px", fontSize: "12px", lineHeight: 1.05, fontWeight: 1000, color: "#fff", textTransform: "uppercase", textShadow: "0 2px 5px rgba(0,0,0,.95)" }}>{enrollment.giftName || "REGALO"}</div>
         </div>
       )}
     </div>
