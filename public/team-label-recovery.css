@@ -93,10 +93,8 @@
 @keyframes cocoloco-girls-name-command { 0%,45%{opacity:1} 50%,95%{opacity:0} 100%{opacity:1} }
 @keyframes cocoloco-girls-command { 0%,45%{opacity:0} 50%,95%{opacity:1} 100%{opacity:0} }
 
-/* HARD FALLBACK: the previous recovery depended on React adding
-   gender-boys/gender-girls. The persisted configuration can briefly lag the
-   dashboard mode during startup, so this independent selector guarantees the
-   labels whenever the page boot script identifies GENDER_TEAMS. */
+/* HARD FALLBACK: persisted configuration can briefly lag the dashboard
+   state during startup. */
 .cocoloco-gender-teams .team-one .team-name,
 .cocoloco-gender-teams .team-two .team-name {
   position: relative !important;
@@ -164,3 +162,85 @@
   box-shadow:0 1px 5px rgba(0,0,0,.45),0 0 7px rgba(255,106,181,.35) !important;
   animation:cocoloco-girls-command 8s ease-in-out infinite !important;
 }
+
+/* GENERIC TEAM MODE FALLBACK: use the authoritative configured names and
+   commands captured by the bootstrap script. This fixes team-id mismatches
+   between the dashboard state and TeamPanel without touching game logic. */
+.cocoloco-configured-teams .team-one .team-name,
+.cocoloco-configured-teams .team-two .team-name {
+  position: relative !important;
+  min-height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+  z-index: 40 !important;
+}
+.cocoloco-configured-teams .team-one .team-name > span,
+.cocoloco-configured-teams .team-two .team-name > span { visibility: hidden !important; }
+.cocoloco-configured-teams .team-one .team-name::before,
+.cocoloco-configured-teams .team-one .team-name::after,
+.cocoloco-configured-teams .team-two .team-name::before,
+.cocoloco-configured-teams .team-two .team-name::after {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+}
+.cocoloco-configured-teams .team-one .team-name::before {
+  content: var(--coco-team-one-name) !important;
+  color: #ffffff !important;
+  -webkit-text-stroke: 1px rgba(0,0,0,.75) !important;
+  text-shadow: 0 2px 5px rgba(0,0,0,.9), 0 0 8px rgba(255,255,255,.35) !important;
+  font-family: Impact, "Arial Black", sans-serif !important;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+  letter-spacing: .8px !important;
+  animation: cocoloco-generic-team-name 8s ease-in-out infinite !important;
+}
+.cocoloco-configured-teams .team-two .team-name::before {
+  content: var(--coco-team-two-name) !important;
+  color: #ffffff !important;
+  -webkit-text-stroke: 1px rgba(0,0,0,.75) !important;
+  text-shadow: 0 2px 5px rgba(0,0,0,.9), 0 0 8px rgba(255,255,255,.35) !important;
+  font-family: Impact, "Arial Black", sans-serif !important;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+  letter-spacing: .8px !important;
+  animation: cocoloco-generic-team-name 8s ease-in-out infinite !important;
+}
+.cocoloco-configured-teams .team-one .team-name::after {
+  content: var(--coco-team-one-command) !important;
+  color: #075985 !important;
+  background: rgba(255,255,255,.97) !important;
+  border: 2px solid #4ed2ff !important;
+  border-radius: 6px !important;
+  padding: 3px 9px !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 8.5px !important;
+  font-weight: 950 !important;
+  letter-spacing: .2px !important;
+  box-shadow: 0 1px 5px rgba(0,0,0,.45), 0 0 7px rgba(78,210,255,.35) !important;
+  animation: cocoloco-generic-team-command 8s ease-in-out infinite !important;
+}
+.cocoloco-configured-teams .team-two .team-name::after {
+  content: var(--coco-team-two-command) !important;
+  color: #c21875 !important;
+  background: rgba(255,255,255,.97) !important;
+  border: 2px solid #ff6ab5 !important;
+  border-radius: 6px !important;
+  padding: 3px 9px !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 8.5px !important;
+  font-weight: 950 !important;
+  letter-spacing: .2px !important;
+  box-shadow: 0 1px 5px rgba(0,0,0,.45), 0 0 7px rgba(255,106,181,.35) !important;
+  animation: cocoloco-generic-team-command 8s ease-in-out infinite !important;
+}
+@keyframes cocoloco-generic-team-name { 0%,45%{opacity:1} 50%,95%{opacity:0} 100%{opacity:1} }
+@keyframes cocoloco-generic-team-command { 0%,45%{opacity:0} 50%,95%{opacity:1} 100%{opacity:0} }
