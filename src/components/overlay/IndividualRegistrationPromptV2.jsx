@@ -69,7 +69,7 @@ export function IndividualRegistrationPromptV2() {
       window.setTimeout(() => {
         try {
           const mode = String(dashboardAPI.getGameMode?.() || "").toUpperCase();
-          if (mode === "INDIVIDUAL") registrationManager.openRegistration();
+          if (mode === "INDIVIDUAL") registrationManager.prepareNextRoundRegistration?.();
         } catch {}
         setTick(v => v + 1);
       }, 18100);
