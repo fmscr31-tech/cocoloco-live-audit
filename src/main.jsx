@@ -5,11 +5,10 @@ import App from "./App.jsx";
 import "./index.css";
 import "./components/individual-points.css";
 import { audioManager } from "./core/audioManager";
-
-// Initialize the live event listeners before the application starts.
 import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
 import "./core/roundContributionManager";
+import "./core/gameModeSync";
 
 window.__cocoAudioManager = audioManager;
 
