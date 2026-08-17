@@ -19,6 +19,7 @@ export function InformationRotationPanel() {
   }, []);
 
   const slide = BOTTOM_ROTATION_SLIDES[currentIndex] || BOTTOM_ROTATION_SLIDES[0];
+  const isGiftSlide = Boolean(slide?.giftId);
 
   return (
     <div
@@ -36,24 +37,27 @@ export function InformationRotationPanel() {
         width: "104px"
       }}
     >
-      <div style={{
-        width: "32px",
-        height: "32px",
-        marginBottom: "3px",
-        display: "inline-block",
-        filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.6))"
-      }}>
-        {slide.giftId ? (
-          <GiftImage giftId={slide.giftId} fallbackIcon="🎁" style={{ width: "32px", height: "32px" }} />
-        ) : (
-          <span style={{ fontSize: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px" }}>✓</span>
-        )}
-      </div>
+      {isGiftSlide && (
+        <div style={{
+          width: "32px",
+          height: "32px",
+          marginBottom: "3px",
+          display: "inline-block",
+          filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.6))"
+        }}>
+          <GiftImage
+            giftId={slide.giftId}
+            fallbackIcon={null}
+            style={{ width: "32px", height: "32px" }}
+          />
+        </div>
+      )}
+
       <div style={{
         fontSize: "0.74rem",
-        fontWeight: 900,
-        color: "#ffd700",
-        textShadow: "0 0 6px rgba(255,215,0,0.7)",
+        fontWeight: 950,
+        color: "#102a43",
+        textShadow: "none",
         textTransform: "uppercase",
         letterSpacing: "0.4px",
         textAlign: "center",
@@ -63,10 +67,12 @@ export function InformationRotationPanel() {
       }}>
         {slide.title}
       </div>
+
       <div style={{
         fontSize: "0.58rem",
-        fontWeight: 700,
-        color: "#ffffff",
+        fontWeight: 850,
+        color: "#17324d",
+        textShadow: "none",
         textTransform: "uppercase",
         letterSpacing: "0.2px",
         textAlign: "center",
