@@ -1,180 +1,65 @@
 /* Team mode command prompt + MVP container polish. */
 
-/* Existing team command/name styles remain unchanged above the decorative layer. */
+/* RESTORED: team identity and registration command share the exact same footprint. */
+.hud-container .team-name > span[style*="text-transform"] {
+  color: #050505 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  animation: teamCommandFade 3.8s ease-in-out infinite !important;
+}
+.hud-container .team-name > span[style*="text-transform"]::before,
+.hud-container .team-name > span[style*="text-transform"]::after { color: #050505 !important; }
+.hud-container .team-name > span[style*="text-transform"] strong {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  margin: 0 4px !important;
+  padding: 2px 7px !important;
+  border-radius: 5px !important;
+  font-weight: 1000 !important;
+  line-height: 1.05 !important;
+  text-shadow: 0 1px 1px rgba(255,255,255,.7) !important;
+  background: rgba(255,255,255,.96) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.18), 0 0 9px currentColor, inset 0 1px 0 rgba(255,255,255,.95) !important;
+  animation: commandBadgePulse 1.65s ease-in-out infinite !important;
+}
+.hud-container .gender-boys .team-name > span[style*="text-transform"] strong { color:#075985 !important; background:linear-gradient(180deg,#e7fbff,#9ee7f7) !important; }
+.hud-container .gender-girls .team-name > span[style*="text-transform"] strong { color:#c21875 !important; background:linear-gradient(180deg,#fff0f8,#ffc0df) !important; }
+.hud-container .team-name:not(:has(> span[style*="text-transform"])) { animation:teamNamePresence 3.2s ease-in-out infinite !important; }
+.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"])) { color:#e9fbff !important; text-shadow:0 0 3px #061b2a,0 0 8px #55d9ff,0 2px 2px #071b2b !important; }
+.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"])) { color:#fff3fa !important; text-shadow:0 0 3px #4d1235,0 0 9px #ff62b3,0 2px 2px #4d1235 !important; }
+.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"]))::after,
+.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"]))::after { content:"";position:absolute;left:22%;right:22%;bottom:-1px;height:2px;border-radius:999px;pointer-events:none;animation:identityLinePulse 2.6s ease-in-out infinite; }
+.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"]))::after { background:#74e4ff;box-shadow:0 0 6px #2ebde8,0 0 12px rgba(46,189,232,.65); }
+.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"]))::after { background:#ff9bcd;box-shadow:0 0 6px #ff4ca8,0 0 12px rgba(255,76,168,.65); }
+@keyframes commandBadgePulse { 0%,100%{transform:scale(1);filter:brightness(1)} 50%{transform:scale(1.07);filter:brightness(1.12)} }
+@keyframes teamCommandFade { 0%,100%{opacity:.96} 50%{opacity:1} }
+@keyframes teamNamePresence { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-1px)} }
+@keyframes identityLinePulse { 0%,100%{opacity:.55;transform:scaleX(.92)} 50%{opacity:1;transform:scaleX(1)} }
 
 .hud-container .gender-boys .players-box,
-.hud-container .gender-girls .players-box {
-  position: relative !important;
-  overflow: hidden !important;
-  isolation: isolate;
-}
-
-.hud-container .gender-boys .players-box::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: .72;
-  background-repeat: no-repeat;
-  background-image:
-    linear-gradient(135deg, transparent 0 38%, rgba(126,230,139,.15) 39% 41%, transparent 42% 100%),
-    linear-gradient(45deg, transparent 0 58%, rgba(116,228,255,.14) 59% 61%, transparent 62% 100%),
-    radial-gradient(circle at 12% 22%, rgba(116,228,255,.8) 0 1px, transparent 2px),
-    radial-gradient(circle at 86% 72%, rgba(125,230,139,.75) 0 1px, transparent 2px);
-  background-size: 100% 100%, 100% 100%, 34px 34px, 43px 43px;
-  animation: teamMotifDrift 9s ease-in-out infinite alternate;
-}
-
-.hud-container .gender-girls .players-box::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: .4;
-  background:
-    radial-gradient(circle at 18% 24%, rgba(255,230,109,.28) 0 6px, transparent 7px),
-    radial-gradient(circle at 78% 68%, rgba(125,228,255,.26) 0 7px, transparent 8px),
-    radial-gradient(circle at 38% 78%, rgba(255,120,183,.25) 0 6px, transparent 7px);
-  animation: girlsAmbientDrift 11s ease-in-out infinite alternate;
-}
-
-/* IMPORTANT: decorative objects are individual elements, not one animated text strip.
-   Each object gets its own independent path, speed, phase and bounce. */
-.hud-container .gender-girls .players-box .players-title::after {
-  content: "♥";
-  position: absolute;
-  left: 8%;
-  top: 12%;
-  z-index: 1;
-  pointer-events: none;
-  font-size: clamp(24px, 3.4vw, 38px);
-  line-height: 1;
-  color: #ffb7dd;
-  text-shadow: 0 0 6px #ff359d, 0 0 14px rgba(255,53,157,.92), 0 0 24px rgba(255,225,95,.62);
-  animation: heartRoamOne 7.1s linear infinite;
-}
-
-.hud-container .gender-girls .players-box .players-title::before {
-  content: "✿";
-  position: absolute;
-  left: 72%;
-  top: 66%;
-  z-index: 1;
-  pointer-events: none;
-  font-size: clamp(25px, 3.6vw, 40px);
-  line-height: 1;
-  color: #ffe66d;
-  text-shadow: 0 0 6px #ff4aa8, 0 0 14px rgba(255,74,168,.9), 0 0 24px rgba(112,220,255,.58);
-  animation: flowerRoamOne 8.4s linear infinite;
-}
-
-/* Extra free-roaming layer behind the content. The two independent objects use
-   different timing so they continually cross paths instead of moving as a unit. */
-.hud-container .gender-girls .players-box::after {
-  content: "❀";
-  position: absolute;
-  left: 42%;
-  top: 18%;
-  z-index: 1;
-  pointer-events: none;
-  font-size: clamp(23px, 3.2vw, 36px);
-  line-height: 1;
-  color: #9eeaff;
-  text-shadow: 0 0 6px #ff43a7, 0 0 14px rgba(255,67,167,.85), 0 0 24px rgba(125,228,255,.7);
-  animation: flowerRoamTwo 9.7s linear infinite;
-}
-
-.hud-container .gender-girls .players-box > *,
-.hud-container .gender-boys .players-box > * { position: relative; z-index: 2; }
-
-@keyframes teamMotifDrift {
-  0% { transform: translate3d(-2px,0,0) scale(1); }
-  100% { transform: translate3d(4px,-3px,0) scale(1.025); }
-}
-
-@keyframes girlsAmbientDrift {
-  0% { transform: translate3d(-8px,6px,0) scale(1); }
-  100% { transform: translate3d(10px,-8px,0) scale(1.08); }
-}
-
-/* Each animation describes a closed roaming route. The object repeatedly reaches
-   different edges, changes direction there, and returns through a new route. */
-@keyframes heartRoamOne {
-  0%   { transform: translate(0%,0%) rotate(-8deg) scale(.88); }
-  12%  { transform: translate(48%,8%) rotate(10deg) scale(1.05); }
-  24%  { transform: translate(82%,34%) rotate(-4deg) scale(.96); }
-  36%  { transform: translate(64%,70%) rotate(8deg) scale(1.10); }
-  48%  { transform: translate(22%,82%) rotate(-10deg) scale(.92); }
-  61%  { transform: translate(-3%,55%) rotate(7deg) scale(1.04); }
-  74%  { transform: translate(30%,28%) rotate(-5deg) scale(.97); }
-  87%  { transform: translate(8%,3%) rotate(11deg) scale(1.08); }
-  100% { transform: translate(0%,0%) rotate(-8deg) scale(.88); }
-}
-
-@keyframes flowerRoamOne {
-  0%   { transform: translate(0%,0%) rotate(0deg) scale(.9); }
-  15%  { transform: translate(-46%,-20%) rotate(18deg) scale(1.08); }
-  29%  { transform: translate(-70%,26%) rotate(-13deg) scale(.96); }
-  43%  { transform: translate(-20%,72%) rotate(15deg) scale(1.12); }
-  58%  { transform: translate(48%,62%) rotate(-18deg) scale(.94); }
-  72%  { transform: translate(76%,18%) rotate(12deg) scale(1.06); }
-  86%  { transform: translate(35%,-22%) rotate(-10deg) scale(.98); }
-  100% { transform: translate(0%,0%) rotate(0deg) scale(.9); }
-}
-
-@keyframes flowerRoamTwo {
-  0%   { transform: translate(0%,0%) rotate(-15deg) scale(.92); }
-  14%  { transform: translate(70%,-4%) rotate(13deg) scale(1.05); }
-  28%  { transform: translate(95%,58%) rotate(-8deg) scale(.9); }
-  43%  { transform: translate(45%,92%) rotate(16deg) scale(1.1); }
-  57%  { transform: translate(-28%,74%) rotate(-12deg) scale(.97); }
-  71%  { transform: translate(-72%,22%) rotate(9deg) scale(1.06); }
-  85%  { transform: translate(-25%,-30%) rotate(-16deg) scale(.94); }
-  100% { transform: translate(0%,0%) rotate(-15deg) scale(.92); }
-}
-
-/* Existing boys decorative ribbon retained. */
-.hud-container .gender-boys .players-box::after {
-  content: "✦  ◆  ✧  ◆  ✦";
-  position: absolute;
-  inset: auto -8px 2px -8px;
-  z-index: 1;
-  font-size: 12px;
-  letter-spacing: 20px;
-  line-height: 1;
-  text-align: center;
-  white-space: nowrap;
-  color: rgba(215,248,255,.32);
-  text-shadow: 0 0 7px rgba(72,211,255,.55), 0 0 12px rgba(125,230,139,.25);
-  pointer-events: none;
-  animation: motifRibbon 7s ease-in-out infinite alternate-reverse;
-}
-
-@keyframes motifRibbon {
-  0% { transform: translateX(-8px); opacity: .28; }
-  100% { transform: translateX(8px); opacity: .58; }
-}
-
-/* MVP / Top Players: themed glass background. */
-.hud-container .gender-boys .players-box {
-  background: linear-gradient(145deg, rgba(8,55,92,.88), rgba(22,108,145,.76) 48%, rgba(47,113,78,.78)) !important;
-  border-color: rgba(103,216,244,.82) !important;
-  box-shadow: 0 4px 14px rgba(0,28,48,.55), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -12px 24px rgba(0,30,45,.20) !important;
-}
-.hud-container .gender-girls .players-box {
-  background: linear-gradient(145deg, rgba(123,22,76,.86), rgba(211,69,137,.76) 46%, rgba(74,151,181,.74) 76%, rgba(226,183,62,.72)) !important;
-  border-color: rgba(255,154,203,.86) !important;
-  box-shadow: 0 4px 14px rgba(74,10,45,.52), inset 0 1px 0 rgba(255,255,255,.20), inset 0 -12px 24px rgba(90,20,50,.18) !important;
-}
-.hud-container .gender-boys .players-box .players-title,
-.hud-container .gender-boys .players-box .player-position,
-.hud-container .gender-boys .players-box .player-name,
-.hud-container .gender-boys .players-box .player-points { color: #f4fcff !important; text-shadow: 0 1px 3px rgba(0,0,0,.72) !important; }
-.hud-container .gender-girls .players-box .players-title,
-.hud-container .gender-girls .players-box .player-position,
-.hud-container .gender-girls .players-box .player-name,
-.hud-container .gender-girls .players-box .player-points { color: #fff7fc !important; text-shadow: 0 1px 3px rgba(70,0,35,.72) !important; }
-.hud-container .gender-boys .players-box .gamer-player { background: rgba(255,255,255,.11) !important; border-color: rgba(164,235,255,.20) !important; }
-.hud-container .gender-girls .players-box .gamer-player { background: rgba(255,255,255,.12) !important; border-color: rgba(255,220,239,.24) !important; }
+.hud-container .gender-girls .players-box { position:relative !important; overflow:hidden !important; isolation:isolate; }
+.hud-container .gender-boys .players-box::before { content:"";position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.72;background-repeat:no-repeat;background-image:linear-gradient(135deg,transparent 0 38%,rgba(126,230,139,.15) 39% 41%,transparent 42% 100%),linear-gradient(45deg,transparent 0 58%,rgba(116,228,255,.14) 59% 61%,transparent 62% 100%),radial-gradient(circle at 12% 22%,rgba(116,228,255,.8) 0 1px,transparent 2px),radial-gradient(circle at 86% 72%,rgba(125,230,139,.75) 0 1px,transparent 2px);background-size:100% 100%,100% 100%,34px 34px,43px 43px;animation:teamMotifDrift 9s ease-in-out infinite alternate; }
+.hud-container .gender-girls .players-box::before { content:"";position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.4;background:radial-gradient(circle at 18% 24%,rgba(255,230,109,.28) 0 6px,transparent 7px),radial-gradient(circle at 78% 68%,rgba(125,228,255,.26) 0 7px,transparent 8px),radial-gradient(circle at 38% 78%,rgba(255,120,183,.25) 0 6px,transparent 7px);animation:girlsAmbientDrift 11s ease-in-out infinite alternate; }
+.hud-container .gender-girls .players-box .players-title::after { content:"♥";position:absolute;left:8%;top:12%;z-index:1;pointer-events:none;font-size:clamp(24px,3.4vw,38px);line-height:1;color:#ffb7dd;text-shadow:0 0 6px #ff359d,0 0 14px rgba(255,53,157,.92),0 0 24px rgba(255,225,95,.62);animation:heartRoamOne 7.1s linear infinite; }
+.hud-container .gender-girls .players-box .players-title::before { content:"✿";position:absolute;left:72%;top:66%;z-index:1;pointer-events:none;font-size:clamp(25px,3.6vw,40px);line-height:1;color:#ffe66d;text-shadow:0 0 6px #ff4aa8,0 0 14px rgba(255,74,168,.9),0 0 24px rgba(112,220,255,.58);animation:flowerRoamOne 8.4s linear infinite; }
+.hud-container .gender-girls .players-box::after { content:"❀";position:absolute;left:42%;top:18%;z-index:1;pointer-events:none;font-size:clamp(23px,3.2vw,36px);line-height:1;color:#9eeaff;text-shadow:0 0 6px #ff43a7,0 0 14px rgba(255,67,167,.85),0 0 24px rgba(125,228,255,.7);animation:flowerRoamTwo 9.7s linear infinite; }
+.hud-container .gender-girls .players-box > *, .hud-container .gender-boys .players-box > * { position:relative;z-index:2; }
+@keyframes teamMotifDrift { 0%{transform:translate3d(-2px,0,0) scale(1)} 100%{transform:translate3d(4px,-3px,0) scale(1.025)} }
+@keyframes girlsAmbientDrift { 0%{transform:translate3d(-8px,6px,0) scale(1)} 100%{transform:translate3d(10px,-8px,0) scale(1.08)} }
+@keyframes heartRoamOne { 0%{transform:translate(0%,0%) rotate(-8deg) scale(.88)} 12%{transform:translate(48%,8%) rotate(10deg) scale(1.05)} 24%{transform:translate(82%,34%) rotate(-4deg) scale(.96)} 36%{transform:translate(64%,70%) rotate(8deg) scale(1.10)} 48%{transform:translate(22%,82%) rotate(-10deg) scale(.92)} 61%{transform:translate(-3%,55%) rotate(7deg) scale(1.04)} 74%{transform:translate(30%,28%) rotate(-5deg) scale(.97)} 87%{transform:translate(8%,3%) rotate(11deg) scale(1.08)} 100%{transform:translate(0%,0%) rotate(-8deg) scale(.88)} }
+@keyframes flowerRoamOne { 0%{transform:translate(0%,0%) rotate(0deg) scale(.9)} 15%{transform:translate(-46%,-20%) rotate(18deg) scale(1.08)} 29%{transform:translate(-70%,26%) rotate(-13deg) scale(.96)} 43%{transform:translate(-20%,72%) rotate(15deg) scale(1.12)} 58%{transform:translate(48%,62%) rotate(-18deg) scale(.94)} 72%{transform:translate(76%,18%) rotate(12deg) scale(1.06)} 86%{transform:translate(35%,-22%) rotate(-10deg) scale(.98)} 100%{transform:translate(0%,0%) rotate(0deg) scale(.9)} }
+@keyframes flowerRoamTwo { 0%{transform:translate(0%,0%) rotate(-15deg) scale(.92)} 14%{transform:translate(70%,-4%) rotate(13deg) scale(1.05)} 28%{transform:translate(95%,58%) rotate(-8deg) scale(.9)} 43%{transform:translate(45%,92%) rotate(16deg) scale(1.1)} 57%{transform:translate(-28%,74%) rotate(-12deg) scale(.97)} 71%{transform:translate(-72%,22%) rotate(9deg) scale(1.06)} 85%{transform:translate(-25%,-30%) rotate(-16deg) scale(.94)} 100%{transform:translate(0%,0%) rotate(-15deg) scale(.92)} }
+.hud-container .gender-boys .players-box::after { content:"✦  ◆  ✧  ◆  ✦";position:absolute;inset:auto -8px 2px -8px;z-index:1;font-size:12px;letter-spacing:20px;line-height:1;text-align:center;white-space:nowrap;color:rgba(215,248,255,.32);text-shadow:0 0 7px rgba(72,211,255,.55),0 0 12px rgba(125,230,139,.25);pointer-events:none;animation:motifRibbon 7s ease-in-out infinite alternate-reverse; }
+@keyframes motifRibbon { 0%{transform:translateX(-8px);opacity:.28} 100%{transform:translateX(8px);opacity:.58} }
+.hud-container .gender-boys .players-box { background:linear-gradient(145deg,rgba(8,55,92,.88),rgba(22,108,145,.76) 48%,rgba(47,113,78,.78)) !important;border-color:rgba(103,216,244,.82) !important;box-shadow:0 4px 14px rgba(0,28,48,.55),inset 0 1px 0 rgba(255,255,255,.18),inset 0 -12px 24px rgba(0,30,45,.20) !important; }
+.hud-container .gender-girls .players-box { background:linear-gradient(145deg,rgba(123,22,76,.86),rgba(211,69,137,.76) 46%,rgba(74,151,181,.74) 76%,rgba(226,183,62,.72)) !important;border-color:rgba(255,154,203,.86) !important;box-shadow:0 4px 14px rgba(74,10,45,.52),inset 0 1px 0 rgba(255,255,255,.20),inset 0 -12px 24px rgba(90,20,50,.18) !important; }
+.hud-container .gender-boys .players-box .players-title,.hud-container .gender-boys .players-box .player-position,.hud-container .gender-boys .players-box .player-name,.hud-container .gender-boys .players-box .player-points { color:#f4fcff !important;text-shadow:0 1px 3px rgba(0,0,0,.72) !important; }
+.hud-container .gender-girls .players-box .players-title,.hud-container .gender-girls .players-box .player-position,.hud-container .gender-girls .players-box .player-name,.hud-container .gender-girls .players-box .player-points { color:#fff7fc !important;text-shadow:0 1px 3px rgba(70,0,35,.72) !important; }
+.hud-container .gender-boys .players-box .gamer-player { background:rgba(255,255,255,.11) !important;border-color:rgba(164,235,255,.20) !important; }
+.hud-container .gender-girls .players-box .gamer-player { background:rgba(255,255,255,.12) !important;border-color:rgba(255,220,239,.24) !important; }
