@@ -2,6 +2,73 @@ import { useState, useEffect, useRef } from "react";
 import { getPlayerMvpRounds, getPlayerContributionPoints } from "../../core/mvpLeaderboardManager";
 import { eventBus } from "../../core/eventBus";
 
+function FloatingGirlsDecor() {
+  const boxRef = useRef(null);
+  const itemsRef = useRef([
+    { icon: "♥", x: 4, y: 12, vx: 0.48, vy: 0.22, size: 30, color: "#ffb7dd", glow: "#ff359d", phase: 0 },
+    { icon: "✿", x: 72, y: 70, vx: -0.36, vy: 0.31, size: 34, color: "#ffe66d", glow: "#ff4aa8", phase: 1.7 },
+    { icon: "❀", x: 38, y: 25, vx: 0.29, vy: -0.34, size: 31, color: "#9eeaff", glow: "#ff43a7", phase: 3.1 },
+    { icon: "♡", x: 82, y: 42, vx: -0.43, vy: -0.19, size: 27, color: "#ff8fc9", glow: "#ff2f9d", phase: 4.8 },
+    { icon: "✾", x: 18, y: 76, vx: 0.34, vy: -0.28, size: 29, color: "#fff09a", glow: "#6edcff", phase: 6.2 }
+  ]);
+  const [, forceFrame] = useState(0);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return undefined;
+    let raf = 0;
+    let last = performance.now();
+    let width = box.clientWidth;
+    let height = box.clientHeight;
+
+    const resize = () => {
+      width = box.clientWidth;
+      height = box.clientHeight;
+    };
+    resize();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
+    observer?.observe(box);
+
+    const tick = now => {
+      const dt = Math.min(32, now - last);
+      last = now;
+      const items = itemsRef.current;
+      const pad = 3;
+      items.forEach((item, index) => {
+        // Small steering changes make every object feel independently alive,
+        // while the edge collision keeps it inside the whole card like a fish tank.
+        const t = now / 1000 + item.phase;
+        item.vx += Math.sin(t * (0.31 + index * 0.017)) * 0.0012;
+        item.vy += Math.cos(t * (0.27 + index * 0.013)) * 0.0012;
+        const speed = Math.hypot(item.vx, item.vy) || 1;
+        const targetSpeed = 0.45 + (index % 3) * 0.08;
+        item.vx = (item.vx / speed) * targetSpeed;
+        item.vy = (item.vy / speed) * targetSpeed;
+        item.x += item.vx * dt / 10;
+        item.y += item.vy * dt / 10;
+
+        const maxX = Math.max(pad, 100 - pad);
+        const maxY = Math.max(pad, 100 - pad);
+        if (item.x <= pad) { item.x = pad; item.vx = Math.abs(item.vx) * 1.03; }
+        if (item.x >= maxX) { item.x = maxX; item.vx = -Math.abs(item.vx) * 1.03; }
+        if (item.y <= pad) { item.y = pad; item.vy = Math.abs(item.vy) * 1.03; }
+        if (item.y >= maxY) { item.y = maxY; item.vy = -Math.abs(item.vy) * 1.03; }
+      });
+      forceFrame(v => (v + 1) % 2);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return <div ref={boxRef} aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 1 }}>
+    {itemsRef.current.map((item, index) => <span key={`${item.icon}-${index}`} style={{ position: "absolute", left: `${item.x}%`, top: `${item.y}%`, transform: `translate(-50%, -50%) rotate(${Math.sin(item.phase + performance.now() / 1800) * 12}deg)`, fontSize: `${item.size}px`, lineHeight: 1, color: item.color, fontWeight: 900, opacity: .9, textShadow: `0 0 5px ${item.glow}, 0 0 12px ${item.glow}, 0 0 22px rgba(255,220,120,.45)`, willChange: "left,top,transform" }}>{item.icon}</span>)}
+  </div>;
+}
+
 export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen, roundMvpTitle, frozenDetails, isDamaged, isGalaxyBenefited, galaxyPopup, isDonutActive, isCowboyActive }) {
   if (!team) return null;
   const topPlayers=(players||[]).filter(p=>p.teamId===team.id).sort((a,b)=>{if((b.points||0)!==(a.points||0))return(b.points||0)-(a.points||0);if((b.wins||0)!==(a.wins||0))return(b.wins||0)-(a.wins||0);return(b.messages||0)-(a.messages||0);}).slice(0,10);
@@ -36,7 +103,7 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
   const genderSymbol=isGirlsTeam?"♥ ❀ ♥":"▲ ◆ ⚑";
   return <div className={`team-wrapper ${wrapperClass} ${isGenderBattle?"gender-team-wrapper":""} ${isGirlsTeam?"gender-girls":""} ${isBoysTeam?"gender-boys":""}`} style={{position:"relative"}}>
     <div className={`team-card ${isFrozen?"punished":""} ${isDamaged?"damaged":""} ${isDonutActive?"donut-active":""} ${isCowboyActive?"cowboy-active":""} ${isGalaxyBenefited?"galaxy-active":""}`} style={genderTheme&&!isFrozen&&!isDamaged&&!isGalaxyBenefited&&!isDonutActive&&!isCowboyActive?{background:genderTheme.background,border:`2px solid ${genderTheme.border}`,boxShadow:`0 0 20px ${genderTheme.glow},inset 0 0 28px rgba(255,255,255,.13),inset 0 -10px 24px rgba(0,0,0,.18)`,animation:"genderCardFloat 4.2s ease-in-out infinite",overflow:"hidden"}:{}}>
-      {genderDecor&&<><div style={genderDecor}/><div style={{position:"absolute",left:"10px",bottom:"4px",zIndex:2,pointerEvents:"none",fontSize:"12px",letterSpacing:"5px",fontWeight:900,color:"rgba(255,255,255,.28)",textShadow:"0 2px 4px rgba(0,0,0,.35)",animation:"genderSymbolPulse 4s ease-in-out infinite"}}>{genderSymbol}</div><div style={{position:"absolute",right:"10px",top:"4px",zIndex:2,pointerEvents:"none",fontSize:"11px",letterSpacing:"5px",fontWeight:900,color:"rgba(255,255,255,.27)",textShadow:"0 2px 4px rgba(0,0,0,.35)",transform:"rotate(-8deg)",animation:"genderSymbolPulse 4.8s ease-in-out infinite reverse"}}>{genderSymbol}</div></>}
+      {genderDecor&&<><div style={genderDecor}/>{isGirlsTeam?<FloatingGirlsDecor/>:<><div style={{position:"absolute",left:"10px",bottom:"4px",zIndex:2,pointerEvents:"none",fontSize:"12px",letterSpacing:"5px",fontWeight:900,color:"rgba(255,255,255,.28)",textShadow:"0 2px 4px rgba(0,0,0,.35)",animation:"genderSymbolPulse 4s ease-in-out infinite"}}>{genderSymbol}</div><div style={{position:"absolute",right:"10px",top:"4px",zIndex:2,pointerEvents:"none",fontSize:"11px",letterSpacing:"5px",fontWeight:900,color:"rgba(255,255,255,.27)",textShadow:"0 2px 4px rgba(0,0,0,.35)",transform:"rotate(-8deg)",animation:"genderSymbolPulse 4.8s ease-in-out infinite reverse"}}>{genderSymbol}</div></>}</>}
       {isDamaged&&<div className="ability-layer ability-layer-money" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:3,overflow:"hidden"}}><div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 15% 25%,rgba(255,0,0,.6) 0%,transparent 35%),radial-gradient(circle at 85% 75%,rgba(255,100,0,.6) 0%,transparent 35%)",opacity:.95}}/><div style={{position:"absolute",top:"5px",left:"10px",fontSize:"11px",transform:"rotate(-12deg)"}}>💥</div><div style={{position:"absolute",top:"10px",right:"18px",fontSize:"10px",transform:"rotate(25deg)"}}>💥</div></div>}
       {isCowboyActive&&<div className="ability-layer ability-layer-cowboy" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:4,border:"2px solid #ff6622",borderRadius:"6px",boxShadow:"0 0 15px rgba(255,100,34,.8)"}}/>}
       {isDonutActive&&<div className="ability-layer ability-layer-donut" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:5,border:"2px solid #ff69b4",borderRadius:"6px",boxShadow:"0 0 15px rgba(255,105,180,.8)"}}/>}
