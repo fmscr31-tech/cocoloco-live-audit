@@ -102,24 +102,25 @@ export function GiftFeed() {
   return (
     <>
       <style>{`
-        /* Gift information slide: fixed geometry, transparent/glass presentation. */
+        /* Gift information slide: fixed enlarged glass geometry. */
         .timer-feed-compact-card {
-          width: 104px !important;
-          height: 98px !important;
-          min-height: 98px !important;
-          max-height: 98px !important;
+          width: 124px !important;
+          height: 108px !important;
+          min-height: 108px !important;
+          max-height: 108px !important;
           box-sizing: border-box !important;
           border-radius: 14px !important;
-          background: linear-gradient(135deg, rgba(255,255,255,.10), rgba(70,220,190,.08)) !important;
-          border: 1.5px solid rgba(185,255,194,.48) !important;
-          box-shadow: 0 0 16px rgba(120,255,145,.16), inset 0 0 18px rgba(255,255,255,.035) !important;
+          background: linear-gradient(135deg, rgba(255,255,255,.11), rgba(90,215,240,.10)) !important;
+          border: 1.5px solid rgba(103,199,255,.72) !important;
+          box-shadow: 0 0 12px rgba(103,199,255,.20), 0 0 26px rgba(103,199,255,.12), inset 0 0 18px rgba(255,255,255,.045) !important;
           backdrop-filter: blur(2px) !important;
           -webkit-backdrop-filter: blur(2px) !important;
           overflow: hidden !important;
+          animation: giftSlideGlow 2.8s ease-in-out infinite !important;
         }
         .timer-feed-compact-card .compact-title {
-          color: #ffffff !important;
-          text-shadow: 0 2px 5px rgba(0,0,0,.78) !important;
+          color: #dff9ff !important;
+          text-shadow: 0 2px 5px rgba(0,0,0,.78), 0 0 7px rgba(103,199,255,.48) !important;
         }
         .timer-feed-compact-card .donor-name,
         .timer-feed-compact-card .effect-badge,
@@ -127,8 +128,18 @@ export function GiftFeed() {
           text-shadow: 0 2px 5px rgba(0,0,0,.82) !important;
         }
         .timer-feed-compact-card .effect-badge {
-          background: rgba(255,255,255,.08) !important;
-          border-color: rgba(185,255,194,.30) !important;
+          background: rgba(103,199,255,.10) !important;
+          border-color: rgba(103,199,255,.34) !important;
+        }
+        @keyframes giftSlideGlow {
+          0%, 100% {
+            border-color: rgba(103,199,255,.58);
+            box-shadow: 0 0 9px rgba(103,199,255,.16), 0 0 20px rgba(103,199,255,.08), inset 0 0 16px rgba(255,255,255,.035);
+          }
+          50% {
+            border-color: rgba(190,241,255,.96);
+            box-shadow: 0 0 15px rgba(103,199,255,.34), 0 0 32px rgba(103,199,255,.18), inset 0 0 20px rgba(255,255,255,.07);
+          }
         }
       `}</style>
 
