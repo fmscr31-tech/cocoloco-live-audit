@@ -9,7 +9,7 @@ export const ABILITY_REGISTRY = {
     display: { name: "El Mudo", icon: "🔇", color: "cyan", animation: "donutPulse" },
     gameAction: { type: "CHALLENGE", value: "MUTE_WORD" },
     scoreAction: { type: "ADD_POINTS", value: 1 },
-    sound: "/mudo.mp3",
+    sound: "/Sounds/mudo.mp3",
     enabled: true,
     duration: 2500
   },
