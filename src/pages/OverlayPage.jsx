@@ -27,7 +27,27 @@ function OverlayPage() {
     document.body.style.overflow = "hidden";
     document.body.style.background = "transparent";
 
+    const fitPopupToOverlay = () => {
+      if (window.opener && !window.closed) {
+        const contentWidth = document.documentElement.scrollWidth;
+        const contentHeight = document.documentElement.scrollHeight;
+        const browserChromeWidth = Math.max(0, window.outerWidth - window.innerWidth);
+        const browserChromeHeight = Math.max(0, window.outerHeight - window.innerHeight);
+
+        window.resizeTo(
+          contentWidth + browserChromeWidth,
+          contentHeight + browserChromeHeight
+        );
+      }
+    };
+
+    const resizeTimer = window.setTimeout(fitPopupToOverlay, 120);
+    window.addEventListener("load", fitPopupToOverlay);
+
     return () => {
+      window.clearTimeout(resizeTimer);
+      window.removeEventListener("load", fitPopupToOverlay);
+
       document.documentElement.style.margin = "";
       document.documentElement.style.padding = "";
       document.documentElement.style.width = "";
