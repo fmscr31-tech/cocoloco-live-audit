@@ -7,32 +7,24 @@ import { commandConfigManager } from "./commandConfigManager";
 import { isGenderTeamsMode } from "./genderTeamsMode";
 import { playRoundEndBuzzer } from "./roundEndSound";
 import { beginRoundContributionTracking, getRoundContributions, clearRoundContributions } from "./roundContributionManager";
+import { recordRoundMvp } from "./mvpLeaderboardManager";
 
-const ROUND_STORAGE_KEY = "cocoloco_active_round_v2";
-let currentRound = null;
-let lastFinishedRoundId = null;
-
+const ROUND_STORAGE_KEY="cocoloco_active_round_v2";
+let currentRound=null;
+let lastFinishedRoundId=null;
 function persistRound(){try{if(currentRound)localStorage.setItem(ROUND_STORAGE_KEY,JSON.stringify(currentRound));else localStorage.removeItem(ROUND_STORAGE_KEY);}catch(e){}}
-function restoreRound(){try{const raw=localStorage.getItem(ROUND_STORAGE_KEY);if(!raw)return;const saved=JSON.parse(raw);if(saved&&saved.status==="active"){currentRound=saved;console.log("[ROUND] Restored active round after page reload",currentRound);}}catch(e){console.warn("[ROUND] Failed to restore active round:",e);}}
+function restoreRound(){try{const raw=localStorage.getItem(ROUND_STORAGE_KEY);if(!raw)return;const saved=JSON.parse(raw);if(saved&&saved.status==="active")currentRound=saved;}catch(e){}}
 restoreRound();
 
 export function startRound(data={}){
-  currentRound={id:data.id||Date.now(),name:data.name||"Ronda Principal",duration:data.duration||20,entryGift:data.entryGift,prize:data.prize,gameMode:data.gameMode||"TEAM",status:"active",active:true,startTime:new Date()};
-  lastFinishedRoundId=null;
-  persistRound();
-  beginRoundContributionTracking(currentRound.id);
-  eventBus.publish("round:started",{round:{...currentRound},timestamp:Date.now()});
-  return currentRound;
+  currentRound={id:data.id||Date.now(),name:data.name||"Ronda Principal",duration:data.duration||20,entryGift:data.entryGift,prize:data.prize,gameMode:data.gameMode||commandConfigManager.getConfig().gameRegistrationMode||"TEAM",status:"active",active:true,startTime:new Date()};
+  lastFinishedRoundId=null;persistRound();beginRoundContributionTracking(currentRound.id);eventBus.publish("round:started",{round:{...currentRound},timestamp:Date.now()});return currentRound;
 }
 
 export function endRound(){
   if(!currentRound||currentRound.status==="finished")return currentRound;
   if(lastFinishedRoundId===currentRound.id)return currentRound;
-  lastFinishedRoundId=currentRound.id;
-  currentRound.status="finished";
-  currentRound.active=false;
-  currentRound.endTime=new Date();
-
+  lastFinishedRoundId=currentRound.id;currentRound.status="finished";currentRound.active=false;currentRound.endTime=new Date();
   const currentPlayers=getPlayers?getPlayers():[];
   const sorted=[...currentPlayers].sort((a,b)=>(b.points||0)-(a.points||0));
   const topPlayer=sorted[0]||null;
@@ -59,26 +51,18 @@ export function endRound(){
 
   if(winningTeam&&winningScore>runnerUpScore){
     const awardedTeam=addWinToTeam(winningTeam.id);
-    currentRound.winningTeamId=winningTeam.id;
-    currentRound.winningTeamName=winningTeam.name;
-    currentRound.winningTeamScore=winningScore;
-    currentRound.roundAwarded=true;
+    currentRound.winningTeamId=winningTeam.id;currentRound.winningTeamName=winningTeam.name;currentRound.winningTeamScore=winningScore;currentRound.roundAwarded=true;
     currentRound.roundAward={teamId:winningTeam.id,teamName:winningTeam.name,score:winningScore,wins:awardedTeam?.wins||0};
     eventBus.publish("round:awarded",{roundId:currentRound.id,teamId:winningTeam.id,teamName:winningTeam.name,score:winningScore,wins:awardedTeam?.wins||0,timestamp:Date.now()});
-  }else{
-    currentRound.roundAwarded=false;
-    currentRound.roundAward=null;
-  }
+  }else{currentRound.roundAwarded=false;currentRound.roundAward=null;}
 
+  if(currentRound.mvp)recordRoundMvp(currentRound);
   playRoundEndBuzzer();
   sessionManager.archiveRound(currentRound);
   resetRoundTeamScores(genderMode);
   registrationManager.prepareNextRoundRegistration();
-
   eventBus.publish("round:finished",{roundId:currentRound.id,roundName:currentRound.name,winningTeamId:currentRound.winningTeamId||null,winningTeamName:currentRound.winningTeamName||null,roundAwarded:currentRound.roundAwarded===true,mvp:currentRound.mvp||null,mvpContributions:currentRound.mvpContributions,timestamp:Date.now()});
-  persistRound();
-  clearRoundContributions();
-  return currentRound;
+  persistRound();clearRoundContributions();return currentRound;
 }
 
 export function getCurrentRound(){return currentRound;}
