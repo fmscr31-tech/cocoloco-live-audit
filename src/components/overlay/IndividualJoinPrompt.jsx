@@ -53,6 +53,44 @@ export function IndividualJoinPrompt() {
   const [isDuplicate, setIsDuplicate] = useState(false);
 
   useEffect(() => {
+    const styleId = "cocoloco-team-identity-visibility";
+    let style = document.getElementById(styleId);
+    if (!style) {
+      style = document.createElement("style");
+      style.id = styleId;
+      style.textContent = `
+        .scoreboard .team-wrapper .team-card .team-name,
+        .scoreboard .team-wrapper .team-card .team-name span {
+          display:flex !important;
+          visibility:visible !important;
+          opacity:1 !important;
+          position:relative !important;
+          z-index:200 !important;
+        }
+        .scoreboard .team-wrapper .team-card .team-name {
+          min-height:20px !important;
+          width:100% !important;
+          align-items:center !important;
+          justify-content:center !important;
+          overflow:visible !important;
+          isolation:isolate !important;
+        }
+        .scoreboard .team-wrapper .team-card .team-score,
+        .scoreboard .team-wrapper .team-card .team-rounds-container {
+          position:relative !important;
+          z-index:200 !important;
+        }
+        .scoreboard .team-one.gender-boys .team-name { color:#8feaff !important; text-shadow:0 2px 0 #031d34,0 0 10px rgba(135,235,255,.9) !important; }
+        .scoreboard .team-two.gender-girls .team-name { color:#ff4fa6 !important; text-shadow:0 2px 0 #4b092b,0 0 10px rgba(255,159,211,.9) !important; }
+        .scoreboard .gender-boys .team-name span:not(:has(strong)),
+        .scoreboard .gender-girls .team-name span:not(:has(strong)) { font-weight:1000 !important; }
+      `;
+      document.head.appendChild(style);
+    }
+    return () => { /* keep global style for the overlay lifetime */ };
+  }, []);
+
+  useEffect(() => {
     const markDuplicate = () => {
       const nodes = Array.from(document.querySelectorAll('[data-cocoloco-registration-prompt="true"]'));
       const ownNode = promptRef.current;
