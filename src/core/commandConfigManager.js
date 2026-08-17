@@ -89,8 +89,27 @@ class CommandConfigManager {
 
   _ensureGenderTeamsConfig() {
     if (!Array.isArray(this.config.teams)) this.config.teams = [];
-    if (isGenderTeamsMode(this.config.gameRegistrationMode) && this.config.teams.length < 2) {
-      this.config.teams = getDefaultGenderTeams();
+
+    if (isGenderTeamsMode(this.config.gameRegistrationMode)) {
+      const defaults = getDefaultGenderTeams();
+      if (this.config.teams.length < 2) {
+        this.config.teams = defaults;
+        return;
+      }
+
+      // CHICOS VS CHICAS has canonical visible identity. Never allow a stale
+      // team label or stale registration command to erase the overlay labels.
+      this.config.teams = this.config.teams.slice(0, 2).map((team, index) => ({
+        ...team,
+        id: team.id || defaults[index].id,
+        name: index === 0 ? "Chicos" : "Chicas",
+        gender: index === 0 ? "male" : "female",
+        color: index === 0 ? "#3182ce" : "#e83e8c",
+        commands: index === 0 ? ["chico"] : ["chica"],
+        minPlayers: Number(team.minPlayers) || 1,
+        maxPlayers: Number(team.maxPlayers) || 100,
+        gifts: Array.isArray(team.gifts) ? team.gifts : []
+      }));
     }
   }
 
