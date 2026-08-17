@@ -48,15 +48,44 @@
   text-shadow: 0 2px 0 #430820, 0 0 8px rgba(255,180,220,.95), 0 0 16px rgba(255,74,165,.45) !important;
 }
 
+/* Command state: visually authoritative text, independent of stale config labels. */
 .scoreboard .gender-team-wrapper .team-card .team-name:has(strong) > span {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  position: relative !important;
+  font-size: 0 !important;
+}
+
+.scoreboard .gender-team-wrapper.team-one .team-card .team-name:has(strong)::before,
+.scoreboard .gender-team-wrapper.team-two .team-card .team-name:has(strong)::before {
+  content: "ESCRIBE CHICO PARA UNIRTE" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   visibility: visible !important;
   opacity: 1 !important;
   z-index: 1002 !important;
+  pointer-events: none !important;
+  color: #050505 !important;
+  background: rgba(255,255,255,.97) !important;
+  border: 2px solid #4ed2ff !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
+  padding: 3px 8px !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 8.5px !important;
+  font-weight: 950 !important;
+  letter-spacing: .25px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35) !important;
 }
 
-.scoreboard .gender-team-wrapper .team-card .team-name:has(strong)::before {
-  display: none !important;
-  content: none !important;
+.scoreboard .gender-team-wrapper.team-two .team-card .team-name:has(strong)::before {
+  content: "ESCRIBE CHICA PARA UNIRTE" !important;
+  border-color: #ff6ab5 !important;
 }
 
 .scoreboard .gender-team-wrapper .team-card .team-name::after {
