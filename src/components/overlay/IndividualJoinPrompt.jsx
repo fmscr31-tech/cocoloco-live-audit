@@ -82,12 +82,25 @@ export function IndividualJoinPrompt() {
         }
         .scoreboard .team-one.gender-boys .team-name { color:#8feaff !important; text-shadow:0 2px 0 #031d34,0 0 10px rgba(135,235,255,.9) !important; }
         .scoreboard .team-two.gender-girls .team-name { color:#ff4fa6 !important; text-shadow:0 2px 0 #4b092b,0 0 10px rgba(255,159,211,.9) !important; }
-        .scoreboard .gender-boys .team-name span:not(:has(strong)),
-        .scoreboard .gender-girls .team-name span:not(:has(strong)) { font-weight:1000 !important; }
       `;
       document.head.appendChild(style);
     }
-    return () => { /* keep global style for the overlay lifetime */ };
+
+    const repairBlankTeamIdentity = () => {
+      document.querySelectorAll(".scoreboard .team-wrapper").forEach((wrapper, index) => {
+        const nameNode = wrapper.querySelector(".team-card .team-name");
+        if (!nameNode || nameNode.textContent.trim()) return;
+        const isGirls = wrapper.classList.contains("gender-girls");
+        const isBoys = wrapper.classList.contains("gender-boys");
+        nameNode.textContent = isGirls ? "CHICAS" : isBoys ? "CHICOS" : index === 0 ? "EQUIPO 1" : "EQUIPO 2";
+      });
+    };
+
+    repairBlankTeamIdentity();
+    const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(repairBlankTeamIdentity) : null;
+    observer?.observe(document.body, { childList: true, subtree: true });
+    const interval = window.setInterval(repairBlankTeamIdentity, 1000);
+    return () => { observer?.disconnect(); window.clearInterval(interval); };
   }, []);
 
   useEffect(() => {
