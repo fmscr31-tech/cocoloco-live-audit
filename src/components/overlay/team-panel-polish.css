@@ -1,4 +1,10 @@
 /* Team mode command prompt + MVP container polish. */
+
+/*
+ * The two states deliberately occupy the same footprint:
+ * 1) TEAM NAME = branded/glowing identity state.
+ * 2) COMMAND = compact glass prompt, with ONLY the command highlighted.
+ */
 .hud-container .team-name > span[style*="text-transform"] {
   color: #050505 !important;
   background: transparent !important;
@@ -8,18 +14,101 @@
   box-shadow: none !important;
   text-shadow: none !important;
   filter: none !important;
-  animation: none !important;
+  animation: teamCommandFade 3.8s ease-in-out infinite !important;
 }
+
+/* Keep ESCRIBE / PARA UNIRTE plain black. */
+.hud-container .team-name > span[style*="text-transform"]::before,
+.hud-container .team-name > span[style*="text-transform"]::after {
+  color: #050505 !important;
+}
+
+/* The actual command is the only highlighted element. */
 .hud-container .team-name > span[style*="text-transform"] strong {
-  display: inline-block;
-  background: transparent !important;
-  padding: 0 3px !important;
-  border-radius: 2px !important;
-  text-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  margin: 0 4px !important;
+  padding: 2px 7px !important;
+  border-radius: 5px !important;
   font-weight: 1000 !important;
+  line-height: 1.05 !important;
+  text-shadow: 0 1px 1px rgba(255,255,255,.7) !important;
+  background: rgba(255,255,255,.96) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.18), 0 0 9px currentColor, inset 0 1px 0 rgba(255,255,255,.95) !important;
+  animation: commandBadgePulse 1.65s ease-in-out infinite !important;
 }
-.hud-container .gender-boys .team-name > span[style*="text-transform"] strong { color: #075985 !important; }
-.hud-container .gender-girls .team-name > span[style*="text-transform"] strong { color: #c21875 !important; }
+
+.hud-container .gender-boys .team-name > span[style*="text-transform"] strong {
+  color: #075985 !important;
+  background: linear-gradient(180deg, #e7fbff, #9ee7f7) !important;
+}
+
+.hud-container .gender-girls .team-name > span[style*="text-transform"] strong {
+  color: #c21875 !important;
+  background: linear-gradient(180deg, #fff0f8, #ffc0df) !important;
+}
+
+/* Team-name state: same position, completely different visual language. */
+.hud-container .team-name:not(:has(> span[style*="text-transform"])) {
+  animation: teamNamePresence 3.2s ease-in-out infinite !important;
+}
+
+.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"])) {
+  color: #e9fbff !important;
+  text-shadow: 0 0 3px #061b2a, 0 0 8px #55d9ff, 0 2px 2px #071b2b !important;
+}
+
+.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"])) {
+  color: #fff3fa !important;
+  text-shadow: 0 0 3px #4d1235, 0 0 9px #ff62b3, 0 2px 2px #4d1235 !important;
+}
+
+/* Thin identity underline reinforces that this is the team-name state. */
+.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"]))::after,
+.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"]))::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  pointer-events: none;
+  animation: identityLinePulse 2.6s ease-in-out infinite;
+}
+
+.hud-container .gender-boys .team-name:not(:has(> span[style*="text-transform"]))::after {
+  background: #74e4ff;
+  box-shadow: 0 0 6px #2ebde8, 0 0 12px rgba(46,189,232,.65);
+}
+
+.hud-container .gender-girls .team-name:not(:has(> span[style*="text-transform"]))::after {
+  background: #ff9bcd;
+  box-shadow: 0 0 6px #ff4ca8, 0 0 12px rgba(255,76,168,.65);
+}
+
+@keyframes commandBadgePulse {
+  0%,100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.07); filter: brightness(1.12); }
+}
+
+@keyframes teamCommandFade {
+  0%,100% { opacity: .96; }
+  50% { opacity: 1; }
+}
+
+@keyframes teamNamePresence {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+
+@keyframes identityLinePulse {
+  0%,100% { opacity: .55; transform: scaleX(.92); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
 
 /* MVP / Top Players: replace the flat white box with a themed glass background. */
 .hud-container .gender-boys .players-box {
