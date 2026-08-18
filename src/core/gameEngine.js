@@ -60,7 +60,21 @@ export function startGameTimer(minutes=DEFAULT_TEAM_ROUND_MINUTES){
 export function pauseGameTimer(){pauseTimer();}
 export function resumeGameTimer(){resumeTimer();}
 export function resetGameTimer(minutes){resetTimer(minutes,"ROUND");}
-export function getState(){const leaderBoard=getLeaderboard();const regPlayers=registrationManager.getRegisteredPlayers().map(p=>({id:p.playerId||p.id,name:p.displayName||p.name||p.username,displayName:p.displayName||p.name||p.username,username:p.username||p.displayName,avatar:p.avatar,teamId:p.teamId,points:p.points||0,wins:p.wins||0}));const activePlayers=leaderBoard.length>0?leaderBoard:regPlayers;const configTeams=commandConfigManager.getConfig().teams||[];const teams=gameState.teams.length>0?gameState.teams:configTeams;gameState.round=gameState.round||getCurrentRound();return{players:activePlayers,registeredPlayers:regPlayers,round:gameState.round,timer:{...getTime(),phase:getPersistedPhase()},battle:getBattle(),teams};}
+export function getState(){
+  const leaderBoard=getLeaderboard();
+  const regPlayers=registrationManager.getRegisteredPlayers().map(p=>({id:p.playerId||p.id,name:p.displayName||p.name||p.username,displayName:p.displayName||p.name||p.username,username:p.username||p.displayName,avatar:p.avatar,teamId:p.teamId,points:p.points||0,wins:p.wins||0}));
+  const activePlayers=leaderBoard.length>0?leaderBoard:regPlayers;
+  const config=commandConfigManager.getConfig();
+  const configTeams=Array.isArray(config.teams)?config.teams:[];
+  const rawTeams=gameState.teams.length>0?gameState.teams:configTeams;
+  const teams=rawTeams.slice(0,2).map((team,index)=>{
+    const configured=configTeams.find(t=>String(t?.id||"")===String(team?.id||"")||String(t?.teamId||"")===String(team?.id||""))||configTeams[index]||{};
+    const name=String(team?.name||team?.teamName||team?.displayName||team?.label||configured?.name||(isGenderTeamsMode(config.gameRegistrationMode)?(index===0?"Chicos":"Chicas"):`Equipo ${index+1}`)).trim()||(index===0?"Equipo 1":"Equipo 2");
+    return {...configured,...team,id:team?.id||configured?.id||`team_${index+1}`,name,teamName:name,displayName:name,label:name,points:Number(team?.points??configured?.points??0)||0,wins:Number(team?.wins??configured?.wins??0)||0,commands:Array.isArray(team?.commands)&&team.commands.length?team.commands:(Array.isArray(configured?.commands)?configured.commands:[])};
+  });
+  gameState.round=gameState.round||getCurrentRound();
+  return{players:activePlayers,registeredPlayers:regPlayers,round:gameState.round,timer:{...getTime(),phase:getPersistedPhase()},battle:getBattle(),teams};
+}
 export function getGlobalGameState(){return getGlobalState();}
 export function loadGame(){syncFromStorage();return gameState;}
 export function saveState(){saveData({players:gameState.players,round:gameState.round,battle:gameState.battle,teams:gameState.teams,timer:getTime()});}
