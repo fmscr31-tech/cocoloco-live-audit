@@ -1,7 +1,7 @@
-import { eventBus } from "../eventBus";
-import { configManager } from "../configManager";
-import { players } from "../playerManager";
-import { getTeams } from "../TeamManager";
+import { eventBus } from "../eventBus.js";
+import { configManager } from "../configManager.js";
+import { players } from "../playerManager.js";
+import { getTeams } from "../TeamManager.js";
 
 /**
  * Battle Effect Engine v3

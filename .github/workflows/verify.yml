@@ -1,0 +1,38 @@
+name: Verify CocoLoco Live Manager
+
+on:
+  push:
+    branches:
+      - main
+      - final-clean-2026-08-17
+      - final-clean-verify
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install bridge dependencies
+        working-directory: bridge
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Validate bridge JavaScript syntax
+        run: node --check bridge/server.js
+
+      - name: Verify production output
+        run: test -d dist && test -f dist/index.html && test -f dist/preview.html

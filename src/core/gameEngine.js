@@ -3,7 +3,7 @@ import { startRound, endRound, getCurrentRound } from "./roundManager";
 import { eventBus } from "./eventBus";
 import { startTimer, pauseTimer, resumeTimer, resetTimer, getTime } from "./timerManager";
 import { saveData, loadData } from "./storageManager";
-import { getBattle, addBattlePlayer, battlePlayerWin, removeBattlePlayer } from "./battleManager";
+import { getBattle, addBattlePlayer, battlePlayerWin, removeBattlePlayer } from "./battlemanager";
 import { createEvent } from "./eventManager";
 import { getTeams, removePlayerFromAllTeams, addPointsToTeam } from "./TeamManager";
 import { setPlayers, setRound, setBattle, setTeams, getState as getGlobalState } from "./stateManager";
