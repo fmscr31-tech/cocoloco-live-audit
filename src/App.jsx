@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import { getState, loadGame, beginRound, finishActiveRound, startGameTimer, pauseGameTimer, resumeGameTimer, resetGameTimer } from "./core/gameEngine";
-import { createBattle, startBattle, finishBattle } from "./core/battleManager";
-import { createTeam, getTeams } from "./core/teamManager";
+import { createBattle, startBattle, finishBattle } from "./core/battlemanager";
+import { createTeam, getTeams } from "./core/TeamManager";
 import { dashboardAPI } from "./core/dashboardAPI";
 import { registrationManager } from "./core/registrationManager";
 import OverlayPage from "./pages/OverlayPage";
