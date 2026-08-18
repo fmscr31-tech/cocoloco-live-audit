@@ -103,17 +103,22 @@ function ensurePlayer(item) {
   return existing;
 }
 
-export function recordMvpContribution({ player, source = "WIN_LIMPIA", points = 1, roundId = null } = {}) {
+export function recordMvpContribution({ player, source = "WIN_LIMPIA", points = 1, roundId = null, contributionId = null } = {}) {
   if (!player) return null;
   load();
   const sourcePlayer = player?.id ? (getPlayer(player.id) || player) : player;
   const existing = ensurePlayer(sourcePlayer);
   if (!existing) return null;
 
-  const contributionKey = `${roundId || "manual"}:${source}:${canonicalPlayerKey(existing)}`;
-  if (existing._contributionKeys.includes(contributionKey)) return { ...existing };
+  // Only deduplicate when the caller supplies a stable event/contribution id.
+  // Manual attribution clicks are intentionally separate contributions and must
+  // continue adding points even when the same player is selected repeatedly.
+  const contributionKey = contributionId
+    ? `${roundId || "manual"}:${source}:${canonicalPlayerKey(existing)}:${contributionId}`
+    : null;
+  if (contributionKey && existing._contributionKeys.includes(contributionKey)) return { ...existing };
+  if (contributionKey) existing._contributionKeys.push(contributionKey);
 
-  existing._contributionKeys.push(contributionKey);
   existing.contributionPoints = Number(existing.contributionPoints || 0) + Math.max(0, Number(points) || 0);
   if (source === "WIN_LIMPIA") existing.winRounds = Number(existing.winRounds || 0) + 1;
   if (source === "GIFT") existing.giftRounds = Number(existing.giftRounds || 0) + 1;
@@ -127,9 +132,9 @@ export function recordRoundMvp(round) {
   const contributions = round?.contributions || {};
   const mvp = round?.mvp;
   const candidates = [];
-  if (contributions.winLimpia?.playerId) candidates.push({ player: contributions.winLimpia, source: "WIN_LIMPIA", points: Number(contributions.winLimpia.points) || 1 });
-  if (contributions.gift?.playerId) candidates.push({ player: contributions.gift, source: "GIFT", points: 1 });
-  if (!candidates.length && mvp?.id) candidates.push({ player: mvp, source: mvp.source || "TOP_SCORE", points: Number(mvp.points) || 0 });
+  if (contributions.winLimpia?.playerId) candidates.push({ player: contributions.winLimpia, source: "WIN_LIMPIA", points: Number(contributions.winLimpia.points) || 1, contributionId: contributions.winLimpia.id || null });
+  if (contributions.gift?.playerId) candidates.push({ player: contributions.gift, source: "GIFT", points: 1, contributionId: contributions.gift.id || null });
+  if (!candidates.length && mvp?.id) candidates.push({ player: mvp, source: mvp.source || "TOP_SCORE", points: Number(mvp.points) || 0, contributionId: mvp.id || null });
   if (!candidates.length) return null;
 
   const sessionId = getSessionId();
@@ -138,7 +143,7 @@ export function recordRoundMvp(round) {
 
   let last = null;
   for (const item of candidates) {
-    const recorded = recordMvpContribution({ player: item.player, source: item.source, points: item.points, roundId: round?.id || null });
+    const recorded = recordMvpContribution({ player: item.player, source: item.source, points: item.points, roundId: round?.id || null, contributionId: item.contributionId });
     if (recorded) last = recorded;
   }
   save();
@@ -146,9 +151,6 @@ export function recordRoundMvp(round) {
 }
 
 export function getMvpLeaderboard() {
-  // Overlay and Admin are separate browser contexts. Always reload the persisted
-  // canonical leaderboard before reading it; otherwise the overlay kept a stale
-  // in-memory snapshot even though the attribution had already been saved.
   load();
   return Object.values(state.players)
     .sort((a, b) => Number(b.contributionPoints || 0) - Number(a.contributionPoints || 0) || Number(b.mvpRounds || 0) - Number(a.mvpRounds || 0))
