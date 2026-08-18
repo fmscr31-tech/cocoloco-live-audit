@@ -5,7 +5,7 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./engines/powerUpEngine";
+import { powerUpEngine } from "./powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -23,12 +23,6 @@ const stableJson = value => {
   try { return JSON.stringify(value ?? null); } catch { return String(value); }
 };
 
-const TRANSIENT_MVP_EVENTS = new Set([
-  "mvp:contribution_pending",
-  "mvp:gift_contribution",
-  "mvp:recipient_selected"
-]);
-
 class DashboardAPI {
   constructor() {
     this.subscribers = new Set();
@@ -37,6 +31,7 @@ class DashboardAPI {
     this.pendingMvpSnapshotTimer = null;
     this.pendingMvpPayload = null;
     this.lastMvpSnapshotSignature = null;
+    this.lastTimerSnapshotSecond = null;
     this.initReactiveBridge();
     eventBus.subscribe("dashboard:snapshot", (dashboard) => {
       if (!dashboard || typeof dashboard !== "object") return;
@@ -64,10 +59,8 @@ class DashboardAPI {
 
   publishSnapshot(payload, eventName = null, isRemote = false) {
     if (isRemote) return;
-
     this.invalidateCache();
     const data = this.getLiveDashboard();
-
     const snapshot = eventName === "game:score_updated" ? payload?.playerSnapshot : eventName === "overlay:win" || eventName === "win:correct" ? {
       id: payload?.id || payload?.playerId,
       playerId: payload?.playerId || payload?.id,
@@ -95,15 +88,9 @@ class DashboardAPI {
       if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
       else if (snapshotId || snapshot.username) currentPlayers.push({ ...snapshot });
       data.game = { ...data.game, players: currentPlayers };
-
       if (payload?.teamId || payload?.team?.id || payload?.winningTeamId || payload?.winningTeam?.id) {
         const teamId = String(payload.teamId || payload.team?.id || payload.winningTeamId || payload.winningTeam?.id);
-        const teamPayload = payload.teamSnapshot || payload.team || {
-          id: teamId,
-          name: payload.teamName || payload.team?.name || payload.winningTeamName || payload.winningTeam?.name,
-          points: Number(payload.newTeamTotal ?? payload.teamPoints ?? payload.team?.points ?? payload.points ?? 0),
-          wins: Number(payload.wins ?? payload.teamWins ?? payload.team?.wins ?? 0)
-        };
+        const teamPayload = payload.teamSnapshot || payload.team || { id: teamId, name: payload.teamName || payload.team?.name || payload.winningTeamName || payload.winningTeam?.name, points: Number(payload.newTeamTotal ?? payload.teamPoints ?? payload.team?.points ?? payload.points ?? 0), wins: Number(payload.wins ?? payload.teamWins ?? payload.team?.wins ?? 0) };
         const currentTeams = Array.isArray(data?.game?.teams) ? [...data.game.teams] : [];
         const teamIndex = currentTeams.findIndex(team => String(team?.id || team?.teamId) === teamId);
         if (teamIndex >= 0) currentTeams[teamIndex] = { ...currentTeams[teamIndex], ...teamPayload };
@@ -111,7 +98,6 @@ class DashboardAPI {
         data.game = { ...data.game, teams: currentTeams };
       }
     }
-
     data.timestamp = Date.now();
     const finalSnapshot = { ...data, timestamp: data.timestamp };
     eventBus.emit("dashboard:snapshot", finalSnapshot);
@@ -125,12 +111,7 @@ class DashboardAPI {
       this.pendingMvpSnapshotTimer = null;
       const pending = this.pendingMvpPayload;
       this.pendingMvpPayload = null;
-      const signature = stableJson({
-        recipientId: pending?.recipientId || pending?.playerId || pending?.recipient?.id || null,
-        contributionId: pending?.giftEventId || pending?.eventId || pending?.giftId || null,
-        amount: pending?.amount || pending?.points || pending?.value || null,
-        teamId: pending?.teamId || pending?.team?.id || null
-      });
+      const signature = stableJson({ recipientId: pending?.recipientId || pending?.playerId || pending?.recipient?.id || null, contributionId: pending?.giftEventId || pending?.eventId || pending?.giftId || null, amount: pending?.amount || pending?.points || pending?.value || null, teamId: pending?.teamId || pending?.team?.id || null });
       if (signature === this.lastMvpSnapshotSignature) return;
       this.lastMvpSnapshotSignature = signature;
       this.publishSnapshot(pending, "mvp:gift_contribution", false);
@@ -144,47 +125,36 @@ class DashboardAPI {
       "powerup:activated","powerup:expired","powerup:removed","live:phase_changed","registration:updated","registration:opened","registration:closed",
       "registration:locked","registration:cleared","registration:player_registered","registration:player_removed","registration:state_synced",
       "round:started","ROUND_STARTED","round:finished","round:winner_popup","config:command_updated","SESSION_STATUS_CHANGED",
-      "timer:started","timer:tick","timer:paused","timer:resumed","timer:stopped","timer:reset","team:updated","teams:updated","team:created","team:removed"
+      "timer:started","timer:paused","timer:resumed","timer:stopped","timer:reset","team:updated","teams:updated","team:created","team:removed"
     ];
-
     reactiveEvents.forEach(name => eventBus.subscribe(name, (p, isRemote) => this.publishSnapshot(p, name, isRemote)));
+
+    eventBus.subscribe("timer:tick", (p, isRemote) => {
+      if (isRemote) return;
+      const second = Number(p?.timer?.remainingSeconds);
+      if (!Number.isFinite(second)) return;
+      if (this.lastTimerSnapshotSecond === second) return;
+      this.lastTimerSnapshotSecond = second;
+      this.publishSnapshot(p, "timer:tick", false);
+    });
 
     eventBus.subscribe("game:score_updated", (p, isRemote) => this.publishSnapshot(p, "game:score_updated", isRemote));
     eventBus.subscribe("overlay:win", (p, isRemote) => this.publishSnapshot(p, "overlay:win", isRemote));
     eventBus.subscribe("win:correct", (p, isRemote) => this.publishSnapshot(p, "win:correct", isRemote));
-
-    eventBus.subscribe("mvp:contribution_pending", (p, isRemote) => {
-      if (isRemote) return;
-      this.scheduleMvpSnapshot(p);
-    });
-    eventBus.subscribe("mvp:gift_contribution", (p, isRemote) => {
-      if (isRemote) return;
-      this.scheduleMvpSnapshot(p);
-    });
-    eventBus.subscribe("mvp:recipient_selected", (p, isRemote) => {
-      if (isRemote) return;
-      this.scheduleMvpSnapshot(p);
-    });
-
+    eventBus.subscribe("mvp:contribution_pending", (p, isRemote) => { if (!isRemote) this.scheduleMvpSnapshot(p); });
+    eventBus.subscribe("mvp:gift_contribution", (p, isRemote) => { if (!isRemote) this.scheduleMvpSnapshot(p); });
+    eventBus.subscribe("mvp:recipient_selected", (p, isRemote) => { if (!isRemote) this.scheduleMvpSnapshot(p); });
     eventBus.subscribe("GAME_MODE_CHANGED", (p, isRemote) => {
       if (isRemote) return;
       const m = p?.mode || p;
-      if (typeof m === "string") {
-        currentMode = m;
-        localStorage.setItem('cocoloco_game_mode', m);
-      }
+      if (typeof m === "string") { currentMode = m; localStorage.setItem('cocoloco_game_mode', m); }
       this.publishSnapshot(p, "GAME_MODE_CHANGED", false);
     });
   }
 
   subscribe(callback) {
-    if (typeof callback === "function") {
-      this.subscribers.add(callback);
-      callback(this.getLiveDashboard());
-      return () => this.subscribers.delete(callback);
-    }
+    if (typeof callback === "function") { this.subscribers.add(callback); callback(this.getLiveDashboard()); return () => this.subscribers.delete(callback); }
   }
-
   getCurrentSession() { return sessionManager.getSession(); }
 
   getLiveDashboard() {
@@ -202,7 +172,6 @@ class DashboardAPI {
     let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){}
     let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){}
     let game={};try{game=getState()||{};}catch(e){}
-
     const registeredPlayers=Array.isArray(registration?.players)?registration.players:[];
     const gamePlayers=Array.isArray(game?.players)?game.players:[];
     if(registeredPlayers.length>0){
@@ -211,18 +180,12 @@ class DashboardAPI {
         const rid=r?.playerId||r?.id||r?.tiktokId||r?.username;
         const ru=String(r?.username||"").trim().toLowerCase();
         const rn=String(r?.displayName||r?.name||"").trim().toLowerCase();
-        const i=merged.findIndex(p=>{
-          const pid=p?.id||p?.playerId||p?.tiktokId;
-          const pu=String(p?.username||"").trim().toLowerCase();
-          const pn=String(p?.displayName||p?.name||"").trim().toLowerCase();
-          return(rid&&pid&&String(pid)===String(rid))||(ru&&pu&&ru===pu)||(rn&&pn&&rn===pn);
-        });
+        const i=merged.findIndex(p=>{const pid=p?.id||p?.playerId||p?.tiktokId;const pu=String(p?.username||"").trim().toLowerCase();const pn=String(p?.displayName||p?.name||"").trim().toLowerCase();return(rid&&pid&&String(pid)===String(rid))||(ru&&pu&&ru===pu)||(rn&&pn&&rn===pn);});
         if(i>=0) merged[i]={...merged[i],teamId:r.teamId||merged[i].teamId||null,teamName:r.teamName||merged[i].teamName||null,displayName:r.displayName||merged[i].displayName,username:r.username||merged[i].username,avatar:r.avatar||merged[i].avatar||""};
         else merged.push({id:rid,playerId:r.playerId||r.id||rid,tiktokId:r.playerId||r.id||r.tiktokId||"",name:r.displayName||r.name||r.username||rid,displayName:r.displayName||r.name||r.username||rid,username:r.username||r.displayName||rid,avatar:r.avatar||"",teamId:r.teamId||null,teamName:r.teamName||null,points:Number(r.points)||0,wins:Number(r.wins)||0,wordsFound:Number(r.wordsFound)||0,messages:Number(r.messages)||0});
       });
       game={...game,players:merged};
     }
-
     this.cachedDashboard={session,stats,statistics:stats,rankings,rules,missions,battleEffects:this.stableSection("battleEffects", battleEffects),powerUps:this.stableSection("powerUps", powerUps),historical,historicalLeaderboard:historical,livePhase,registration,commandConfig,game,recentActivity:[],gameMode:currentMode,liveActive:liveSessionActive,timestamp:Date.now()};
     return this.cachedDashboard;
   }
