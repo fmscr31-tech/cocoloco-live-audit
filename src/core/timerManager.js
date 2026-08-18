@@ -1,10 +1,17 @@
 import { eventBus } from "./eventBus.js";
 
 const TIMER_STORAGE_KEY = "cocoloco_active_timer_v2";
+const IS_OVERLAY_RUNTIME = typeof window !== "undefined" && (
+  String(window.location.pathname || "").includes("/overlay") ||
+  String(window.location.pathname || "").includes("/preview") ||
+  document.body?.dataset?.cocoOverlay === "true"
+);
+
 let completionTimeout = null;
 let timer = { remainingSeconds: 0, interval: null, running: false, initialMinutes: 0, endAt: null, phase: "IDLE" };
 
 function persistTimer() {
+  if (IS_OVERLAY_RUNTIME) return;
   try {
     localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify({
       remainingSeconds: timer.remainingSeconds,
@@ -17,6 +24,7 @@ function persistTimer() {
 }
 
 function clearPersistedTimer() {
+  if (IS_OVERLAY_RUNTIME) return;
   try { localStorage.removeItem(TIMER_STORAGE_KEY); } catch (e) {}
 }
 
@@ -33,6 +41,7 @@ function clearCompletionTimeout() {
 
 function scheduleCompletion() {
   clearCompletionTimeout();
+  if (IS_OVERLAY_RUNTIME) return;
   if (timer.running && timer.endAt) {
     const delay = Math.max(0, timer.endAt - Date.now());
     completionTimeout = setTimeout(() => {
@@ -42,6 +51,7 @@ function scheduleCompletion() {
 }
 
 function finishTimer() {
+  if (IS_OVERLAY_RUNTIME) return;
   if (timer.interval) {
     clearInterval(timer.interval);
     timer.interval = null;
@@ -53,8 +63,6 @@ function finishTimer() {
   timer.remainingSeconds = 0;
   timer.running = false;
   timer.endAt = null;
-  // A completed timer is never still in ROUND phase. This was the source of
-  // stale persisted ROUND state and accidental timer restarts after completion.
   timer.phase = "IDLE";
   persistTimer();
 
@@ -72,6 +80,7 @@ function finishTimer() {
 }
 
 function startInterval() {
+  if (IS_OVERLAY_RUNTIME) return;
   if (timer.interval) clearInterval(timer.interval);
   timer.interval = setInterval(() => {
     if (!timer.running) return;
@@ -97,7 +106,7 @@ function startInterval() {
 }
 
 function restoreTimer() {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || IS_OVERLAY_RUNTIME) return;
   try {
     const raw = localStorage.getItem(TIMER_STORAGE_KEY);
     if (!raw) return;
@@ -109,7 +118,6 @@ function restoreTimer() {
     timer.running = saved.running === true;
     timer.remainingSeconds = Number(saved.remainingSeconds) || 0;
 
-    // Never resurrect a completed/idle timer just because an old duration is stored.
     if (timer.phase !== "ROUND") {
       timer.running = false;
       timer.endAt = null;
@@ -143,10 +151,14 @@ if (typeof window !== "undefined") {
   ["timer:started", "timer:tick", "timer:paused", "timer:resumed", "timer:stopped", "timer:reset"]
     .forEach(n => eventBus.subscribe(n, sync));
 
+  // The Admin is the single timer authority. Overlay/preview windows are
+  // read-only consumers and must never restore/start their own interval.
   restoreTimer();
 }
 
 export function startTimer(minutes = 0, phase = "ROUND") {
+  if (IS_OVERLAY_RUNTIME) return getTimer();
+
   const normalizedPhase = String(phase || "ROUND").toUpperCase();
   if (normalizedPhase !== "ROUND") {
     resetTimer(0, "IDLE");
@@ -174,6 +186,7 @@ export function startTimer(minutes = 0, phase = "ROUND") {
 }
 
 export function pauseTimer() {
+  if (IS_OVERLAY_RUNTIME) return getTimer();
   if (timer.interval) {
     clearInterval(timer.interval);
     timer.interval = null;
@@ -188,7 +201,7 @@ export function pauseTimer() {
 }
 
 export function resumeTimer() {
-  // IDLE means the previous round is over. Resume must never create a new round.
+  if (IS_OVERLAY_RUNTIME) return getTimer();
   if (String(timer.phase || "IDLE").toUpperCase() !== "ROUND") return getTimer();
   if (timer.running) return getTimer();
   if (timer.remainingSeconds <= 0) return getTimer();
@@ -203,6 +216,7 @@ export function resumeTimer() {
 }
 
 export function stopTimer() {
+  if (IS_OVERLAY_RUNTIME) return getTimer();
   if (timer.interval) {
     clearInterval(timer.interval);
     timer.interval = null;
@@ -217,6 +231,7 @@ export function stopTimer() {
 }
 
 export function resetTimer(minutes, phase = timer.phase) {
+  if (IS_OVERLAY_RUNTIME) return getTimer();
   if (timer.interval) clearInterval(timer.interval);
   timer.interval = null;
   clearCompletionTimeout();
@@ -234,6 +249,7 @@ export function resetTimer(minutes, phase = timer.phase) {
 }
 
 export function clearTimerPersistence() {
+  if (IS_OVERLAY_RUNTIME) return;
   clearPersistedTimer();
   clearCompletionTimeout();
   if (timer.interval) clearInterval(timer.interval);
