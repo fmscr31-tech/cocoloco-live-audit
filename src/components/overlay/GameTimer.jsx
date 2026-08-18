@@ -13,7 +13,16 @@ export function GameTimer({ timer: initialTimer }) {
       const t = payload?.timer || payload;
       if (t) setTimer(t);
     };
-    const names = ["timer:tick", "timer:started", "timer:paused", "timer:resumed", "timer:stopped", "timer:reset"];
+
+    const names = [
+      "timer:tick",
+      "timer:started",
+      "timer:paused",
+      "timer:resumed",
+      "timer:stopped",
+      "timer:reset"
+    ];
+
     const unsubs = names.map(name => eventBus.subscribe(name, handleTimerUpdate));
     return () => unsubs.forEach(unsub => unsub && unsub());
   }, []);
@@ -23,15 +32,17 @@ export function GameTimer({ timer: initialTimer }) {
   const secs = remainingSeconds % 60;
   const formattedMins = String(mins).padStart(2, "0");
   const formattedSecs = String(secs).padStart(2, "0");
-  const isIntermission = String(timer?.phase || "").toUpperCase() === "INTERMISSION";
 
-  // From exactly 05:00 downward the timer enters the urgency state.
-  const isFiveMinuteAlert = !isIntermission && remainingSeconds <= 300 && remainingSeconds > 0;
-  const isLastMinute = !isIntermission && remainingSeconds <= 60 && remainingSeconds > 0;
-  const isPaused = timer?.running === false && remainingSeconds > 0;
+  const phase = String(timer?.phase || "IDLE").toUpperCase();
+  const isRound = phase === "ROUND";
+  const isIntermission = phase === "INTERMISSION";
+  const isRunning = timer?.running === true;
 
-  const alertStroke = "1px #ffffff, 2px #160b0b";
-  const alertShadow = "0 1px 0 #160b0b, 0 0 2px #ffffff, 0 0 5px #ffffff, 0 0 10px #ff3030, 0 0 20px rgba(239,48,48,.95)";
+  // The urgency state begins exactly at 05:00 and remains active through 00:01.
+  // It is intentionally tied to remainingSeconds, not to elapsed time or render count.
+  const isFiveMinuteAlert = isRound && remainingSeconds > 0 && remainingSeconds <= 300;
+  const isLastMinute = isRound && remainingSeconds > 0 && remainingSeconds <= 60;
+  const isPaused = !isRunning && isRound && remainingSeconds > 0;
 
   return (
     <div
@@ -41,49 +52,81 @@ export function GameTimer({ timer: initialTimer }) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        width: "86px",
-        minWidth: "86px",
-        flex: "0 0 86px",
-        position: "relative"
+        width: isFiveMinuteAlert ? "104px" : "94px",
+        minWidth: isFiveMinuteAlert ? "104px" : "94px",
+        flex: "0 0 auto",
+        position: "relative",
+        overflow: "visible"
       }}
     >
       <style>{`
-        @keyframes cocoTimerDangerPulse {
-          0%,100% {
-            transform:scale(1);
-            filter:drop-shadow(0 0 3px rgba(80,0,0,.8)) drop-shadow(0 0 7px rgba(220,20,20,.75));
-          }
-          12% { transform:scale(1.075); }
-          24% { transform:scale(1); }
-          36% { transform:scale(1.045); }
-          52% { transform:scale(1); }
+        @keyframes cocoTimerHeartbeat {
+          0%, 100% { transform: scale(1); }
+          10% { transform: scale(1.10); }
+          18% { transform: scale(1.02); }
+          28% { transform: scale(1.07); }
+          42%, 100% { transform: scale(1); }
         }
-        @keyframes cocoTimerUrgencyBackground {
-          0%,100% {
-            background:linear-gradient(145deg,rgba(90,8,8,.96),rgba(35,4,7,.98));
-            border-color:rgba(255,75,75,.75);
-            box-shadow:0 0 10px rgba(239,48,48,.28),inset 0 0 10px rgba(255,40,40,.08);
+
+        @keyframes cocoTimerDangerBackground {
+          0%, 100% {
+            background: linear-gradient(145deg, rgba(72,5,8,.98), rgba(18,2,5,.99));
+            border-color: rgba(255,255,255,.78);
+            box-shadow:
+              0 0 10px rgba(255,25,25,.45),
+              0 0 24px rgba(255,25,25,.22),
+              inset 0 0 12px rgba(255,35,35,.12);
           }
           50% {
-            background:linear-gradient(145deg,rgba(175,18,18,.98),rgba(70,5,10,.99));
-            border-color:rgba(255,110,110,1);
-            box-shadow:0 0 22px rgba(239,48,48,.78),0 0 42px rgba(239,48,48,.28),inset 0 0 16px rgba(255,80,80,.18);
+            background: linear-gradient(145deg, rgba(190,12,18,1), rgba(58,3,8,1));
+            border-color: rgba(255,255,255,1);
+            box-shadow:
+              0 0 18px rgba(255,40,40,.85),
+              0 0 40px rgba(255,20,20,.42),
+              inset 0 0 18px rgba(255,110,110,.24);
           }
         }
-        @keyframes cocoIntermissionPulse { 0%,100% { opacity:.92; } 50% { opacity:1; } }
+
+        @keyframes cocoTimerGlow {
+          0%, 100% { opacity: .72; transform: scale(.94); }
+          50% { opacity: 1; transform: scale(1.08); }
+        }
+
+        @keyframes cocoIntermissionPulse {
+          0%, 100% { opacity: .92; }
+          50% { opacity: 1; }
+        }
       `}</style>
+
+      {isFiveMinuteAlert && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: "-8px -6px",
+            borderRadius: "14px",
+            background: "rgba(255,20,20,.18)",
+            filter: "blur(8px)",
+            animation: "cocoTimerGlow 1.05s ease-in-out infinite",
+            pointerEvents: "none",
+            zIndex: 0
+          }}
+        />
+      )}
 
       {isIntermission && (
         <div style={{
-          fontSize:"9px",
-          lineHeight:1,
-          fontWeight:1000,
-          color:"#ffd166",
-          letterSpacing:"1px",
-          textTransform:"uppercase",
-          marginBottom:"3px",
-          animation:"cocoIntermissionPulse 1s ease-in-out infinite",
-          textShadow:"0 0 8px rgba(255,209,102,.75)"
+          fontSize: "9px",
+          lineHeight: 1,
+          fontWeight: 1000,
+          color: "#ffd166",
+          letterSpacing: "1px",
+          textTransform: "uppercase",
+          marginBottom: "3px",
+          animation: "cocoIntermissionPulse 1s ease-in-out infinite",
+          textShadow: "0 0 8px rgba(255,209,102,.75)",
+          position: "relative",
+          zIndex: 2
         }}>
           NUEVA RONDA
         </div>
@@ -92,34 +135,40 @@ export function GameTimer({ timer: initialTimer }) {
       <div
         className={`timer ${isFiveMinuteAlert ? "timer-five-minute-alert" : ""} ${isLastMinute ? "timer-last-minute-alert" : ""}`}
         style={{
-          width: isFiveMinuteAlert ? "84px" : "82px",
-          minWidth: isFiveMinuteAlert ? "84px" : "82px",
-          height: isFiveMinuteAlert ? "48px" : "42px",
+          width: isFiveMinuteAlert ? "96px" : "88px",
+          minWidth: isFiveMinuteAlert ? "96px" : "88px",
+          height: isFiveMinuteAlert ? "54px" : "46px",
           boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
-          fontSize: isFiveMinuteAlert ? "31px" : "29px",
+          fontSize: isFiveMinuteAlert ? "35px" : "31px",
           lineHeight: 1,
-          fontWeight: "900",
+          fontWeight: 1000,
           fontVariantNumeric: "tabular-nums",
           fontFeatureSettings: '"tnum" 1',
-          color: isIntermission ? "#ffd166" : isFiveMinuteAlert ? "#ff3030" : "#ffffff",
-          WebkitTextStroke: isIntermission ? "0.4px #3a2100" : isFiveMinuteAlert ? alertStroke : "0px transparent",
-          textShadow: isIntermission ? "0 0 8px rgba(255,209,102,.7)" : isFiveMinuteAlert ? alertShadow : "0 0 12px rgba(0,245,255,0.6)",
+          color: isIntermission ? "#ffd166" : isFiveMinuteAlert ? "#ff2525" : "#ffffff",
+          WebkitTextStroke: isFiveMinuteAlert ? "1.2px #ffffff" : isIntermission ? "0.5px #3a2100" : "0px transparent",
+          textShadow: isFiveMinuteAlert
+            ? "-1px -1px 0 #050505, 1px -1px 0 #050505, -1px 1px 0 #050505, 1px 1px 0 #050505, 0 0 4px #ffffff, 0 0 10px #ff2020, 0 0 22px rgba(255,20,20,.95)"
+            : isIntermission
+              ? "0 0 8px rgba(255,209,102,.7)"
+              : "0 0 12px rgba(0,245,255,.6)",
           background: isIntermission
             ? "rgba(40,25,5,.35)"
             : isFiveMinuteAlert
-              ? "linear-gradient(145deg,rgba(120,10,10,.97),rgba(45,4,8,.99))"
+              ? "linear-gradient(145deg, rgba(105,6,10,.98), rgba(34,2,6,.99))"
               : "rgba(5,18,30,.35)",
-          border: isFiveMinuteAlert ? "1.5px solid rgba(255,85,85,.85)" : "1px solid rgba(125,211,252,.16)",
-          borderRadius: "7px",
+          border: isFiveMinuteAlert ? "2px solid #ffffff" : "1px solid rgba(125,211,252,.16)",
+          borderRadius: "9px",
           boxShadow: isFiveMinuteAlert
-            ? "0 0 14px rgba(239,48,48,.42), inset 0 0 12px rgba(255,60,60,.1)"
+            ? "0 0 16px rgba(255,25,25,.65), 0 0 34px rgba(255,15,15,.3), inset 0 0 14px rgba(255,60,60,.15)"
             : "0 0 8px rgba(0,245,255,.08)",
           transition: "width .25s ease, height .25s ease, font-size .25s ease, color .2s ease, background .25s ease, box-shadow .25s ease",
-          animation: isFiveMinuteAlert ? "cocoTimerDangerPulse 1.05s ease-in-out infinite, cocoTimerUrgencyBackground 1.05s ease-in-out infinite" : "none",
+          animation: isFiveMinuteAlert
+            ? "cocoTimerHeartbeat 1.05s ease-in-out infinite, cocoTimerDangerBackground 1.05s ease-in-out infinite"
+            : "none",
           transformOrigin: "center center",
           whiteSpace: "nowrap",
           flex: "0 0 auto",
@@ -129,24 +178,28 @@ export function GameTimer({ timer: initialTimer }) {
       >
         <span>{formattedMins}:</span>
         <span style={{
-          color: isLastMinute ? "#ff2020" : "inherit",
-          WebkitTextStroke: isLastMinute ? alertStroke : "inherit",
+          color: isLastMinute ? "#ff1010" : "inherit",
+          WebkitTextStroke: isFiveMinuteAlert ? "1.2px #ffffff" : "inherit",
           display: "inline-block",
           fontVariantNumeric: "tabular-nums",
-          textShadow: isLastMinute ? alertShadow : "inherit"
+          textShadow: isLastMinute
+            ? "-1px -1px 0 #050505, 1px -1px 0 #050505, -1px 1px 0 #050505, 1px 1px 0 #050505, 0 0 5px #ffffff, 0 0 14px #ff1010"
+            : "inherit"
         }}>
           {formattedSecs}
         </span>
       </div>
 
-      {isPaused && !isIntermission && (
+      {isPaused && (
         <span style={{
-          fontSize:"9px",
-          color:"#ed8936",
-          fontWeight:"800",
-          letterSpacing:"1px",
-          textTransform:"uppercase",
-          marginTop:"2px"
+          fontSize: "9px",
+          color: "#ed8936",
+          fontWeight: "800",
+          letterSpacing: "1px",
+          textTransform: "uppercase",
+          marginTop: "2px",
+          position: "relative",
+          zIndex: 2
         }}>
           PAUSED
         </span>
