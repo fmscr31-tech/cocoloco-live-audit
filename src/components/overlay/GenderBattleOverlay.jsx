@@ -141,11 +141,9 @@ export default function GenderBattleOverlay({
             <span className="gbo-team-icon" aria-hidden="true">{team.icon}</span>
             <div className="gbo-team-title-wrap">
               <div className="gbo-team-name">{team.name}</div>
-              <div className="gbo-team-meta">{team.players.length} JUGADORES</div>
             </div>
           </div>
 
-          <div className="gbo-team-score-label">PUNTOS</div>
           <div className="gbo-team-score">{team.points}</div>
 
           <div className="gbo-round-badge">
