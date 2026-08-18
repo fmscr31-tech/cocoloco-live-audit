@@ -2,7 +2,7 @@ import { eventBus } from "./eventBus";
 import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
 
-const MODE = "GENDER_TEAMS";
+const SUPPORTED_MODES = new Set(["GENDER_TEAMS", "TEAMS", "TEAM"]);
 
 const normalize = value => String(value || "")
   .normalize("NFD")
@@ -12,15 +12,30 @@ const normalize = value => String(value || "")
   .trim()
   .toLowerCase();
 
+const giftCandidates = event => [
+  event?.canonicalGiftId,
+  event?.giftName,
+  event?.giftDisplayName,
+  event?.giftId,
+  event?.rawInput
+].map(normalize).filter(Boolean);
+
+const configuredGiftCandidates = team => {
+  const configured = team?.registrationGift ?? team?.registrationGiftId ?? team?.registrationGiftName ?? "";
+  const values = Array.isArray(configured) ? configured : [configured];
+  return values.map(normalize).filter(Boolean);
+};
+
 let installed = false;
 
-function getGenderTeams() {
+function getConfiguredTeams() {
   const config = commandConfigManager.refreshFromStorage();
-  if (String(config.gameRegistrationMode || "").toUpperCase() !== MODE) return [];
+  const mode = String(config.gameRegistrationMode || "").toUpperCase();
+  if (!SUPPORTED_MODES.has(mode)) return [];
   return Array.isArray(config.teams) ? config.teams.slice(0, 2) : [];
 }
 
-function registerForGenderTeam(event, team) {
+function registerForTeam(event, team, source, registrationMethod) {
   if (!event || !team) return;
 
   const result = registrationManager.registerPlayer({
@@ -29,37 +44,43 @@ function registerForGenderTeam(event, team) {
     username: event.username || event.uniqueId || event.displayName || "Viewer",
     avatar: event.profilePictureUrl || event.avatar || event.profilePicture || "",
     teamId: team.id,
-    source: "CHAT_GENDER_TEAM"
+    source
+  });
+
+  const acceptedEvent = registrationMethod === "GIFT"
+    ? "gift:registration_accepted"
+    : "chat:command_accepted";
+  const rejectedEvent = registrationMethod === "GIFT"
+    ? "gift:registration_rejected"
+    : "chat:command_rejected";
+
+  eventBus.publish(result?.success ? acceptedEvent : rejectedEvent, {
+    event,
+    player: result?.player,
+    teamId: team.id,
+    registrationMethod,
+    alreadyRegistered: result?.alreadyRegistered === true,
+    reason: result?.reason,
+    giftName: event.giftName,
+    giftId: event.giftId
   });
 
   if (result?.success) {
-    eventBus.publish("chat:command_accepted", {
-      event,
+    eventBus.publish("registration:team_registered", {
       player: result.player,
       teamId: team.id,
-      registrationMethod: "COMMAND",
-      genderTeam: true
-    });
-    eventBus.publish("registration:gender_team_registered", {
-      player: result.player,
-      teamId: team.id,
-      command: event.message || event.comment || ""
-    });
-  } else {
-    eventBus.publish("chat:command_rejected", {
-      event,
-      reason: result?.reason || "REGISTRATION_FAILED",
-      teamId: team.id,
-      registrationMethod: "COMMAND",
-      genderTeam: true
+      registrationMethod,
+      command: registrationMethod === "COMMAND" ? (event.message || event.comment || "") : undefined,
+      giftName: registrationMethod === "GIFT" ? event.giftName : undefined,
+      giftId: registrationMethod === "GIFT" ? event.giftId : undefined
     });
   }
 }
 
 function handleChat(event) {
   if (!event || event.type !== "CHAT") return;
-  const teams = getGenderTeams();
-  if (teams.length < 2) return;
+  const teams = getConfiguredTeams();
+  if (teams.length < 1) return;
 
   const message = normalize(event.message || event.comment || event.text);
   if (!message) return;
@@ -67,13 +88,32 @@ function handleChat(event) {
   const team = teams.find(t => Array.isArray(t.commands) && t.commands.some(command => normalize(command) === message));
   if (!team) return;
 
-  registerForGenderTeam(event, team);
+  registerForTeam(event, team, "CHAT_TEAM", "COMMAND");
+}
+
+function handleGift(event) {
+  const teams = getConfiguredTeams();
+  if (teams.length < 1) return;
+
+  const received = giftCandidates(event);
+  if (!received.length) return;
+
+  const team = teams.find(candidate => {
+    if (candidate?.registrationGiftEnabled !== true) return false;
+    const expected = configuredGiftCandidates(candidate);
+    if (!expected.length) return false;
+    return received.some(value => expected.some(gift => value === gift || value.includes(gift) || gift.includes(value)));
+  });
+
+  if (!team) return;
+  registerForTeam(event, team, "GIFT_TEAM", "GIFT");
 }
 
 if (!installed) {
   installed = true;
   eventBus.subscribe("normalized:chat", handleChat);
-  console.log("[GENDER TEAM REGISTRATION] Command bridge installed.");
+  eventBus.subscribe("normalized:gift", handleGift);
+  console.log("[TEAM REGISTRATION] Command + gift registration bridge installed.");
 }
 
-export { handleChat as handleGenderTeamRegistration };
+export { handleChat as handleGenderTeamRegistration, handleGift as handleTeamGiftRegistration };
