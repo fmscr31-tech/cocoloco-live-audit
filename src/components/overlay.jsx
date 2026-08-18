@@ -12,11 +12,13 @@ import { PowerUpFeed } from "./overlay/PowerUpFeed";
 import { BattleAnnouncement } from "./overlay/BattleAnnouncement";
 import { LivePhaseTimer } from "./overlay/LivePhaseTimer";
 import { IndividualJoinPrompt } from "./overlay/IndividualJoinPrompt";
+import GenderBattleOverlay from "./overlay/GenderBattleOverlay";
 import "./overlay.css";
 
 const normalizeMode = (m) => {
   const upper = String(m || "").toUpperCase();
-  if (upper === "TEAM" || upper === "TEAMS" || upper === "EQUIPOS" || upper === "GENDER_TEAMS" || upper === "GENDER-TEAMS" || upper === "CHICOS_VS_CHICAS" || upper === "CHICOS VS CHICAS") return "team";
+  if (upper === "CHICOS_VS_CHICAS" || upper === "CHICOS VS CHICAS" || upper === "GENDER_TEAMS" || upper === "GENDER-TEAMS") return "gender";
+  if (upper === "TEAM" || upper === "TEAMS" || upper === "EQUIPOS") return "team";
   return "individual";
 };
 
@@ -80,48 +82,25 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
       const icon = item.display?.icon || (item.abilityId === "epic_impact" ? "💥" : item.abilityId === "ultimate_galaxy" ? "🌌" : item.abilityId === "creative_challenge" ? "🤠" : item.abilityId === "susto_coco" ? "😱" : item.abilityId === "clue_hint" ? "🍦" : item.abilityId === "freeze" ? "❄️" : item.abilityId === "generic_gift" ? "🎁" : "🍩");
       setEpicGift({ giftName, username: item.sender || "FERNANDO", icon });
       setTimeout(() => setEpicGift(null), 1200);
-
-      if (item.abilityId === "silent_challenge") {
-        setDonutTeamId(item.teamId || "team1"); setEpicEvent({ giftDisplay: `🍩 ${giftName.toUpperCase()}`, tagline: "EL MUDO • RETO ACTIVO", username: item.sender || "ANNA" }); setAlert(`🔇 [EL MUDO] ¡RETO ACTIVO LANZADO POR ${item.sender || "ANNA"}!`);
-      } else if (item.abilityId === "creative_challenge") {
-        setHatTeamId(item.teamId || "team1"); setEpicEvent({ giftDisplay: `🤠 ${giftName.toUpperCase()}`, tagline: "RETO CREATIVO • MODO ARTISTA", username: item.sender || "FERNANDO" }); setAlert(`🤠 [RETO CREATIVO] ¡ACTIVADO POR ${item.sender || "FERNANDO"}!`);
-      } else if (item.abilityId === "ultimate_galaxy") {
-        setGalaxyTeamId(item.teamId || "team1"); setGalaxyPopup({ sender: item.sender || "FERNANDO", phrase: "⚡ ULTIMATE ACTIVATED ⚡" }); setEpicEvent({ giftDisplay: `🌌 ${giftName.toUpperCase()}`, tagline: "ULTIMATE GALAXY ENERGY", username: item.sender || "FERNANDO" }); setAlert(`🌌 [ULTIMATE ENERGY] ¡GALAXY LANZADA POR ${item.sender || "FERNANDO"}!`);
-      } else if (item.abilityId === "epic_impact") {
-        setMoneyGunTeamId(item.teamId || "team2"); setEpicEvent({ giftDisplay: `💥 ${giftName.toUpperCase()}`, tagline: "EPIC IMPACT BULLET STORM", username: item.sender || "FERNANDO" }); setAlert("🔫 [MONEY GUN] ¡MARCADOR OPONENTE DESTRUIDO!");
-      } else if (item.abilityId === "susto_coco") {
-        setScareActive(true); setEpicEvent({ giftDisplay: "😱 AMPED UP", tagline: "SUSTO A COCO", username: item.sender || "FERNANDO" }); setAlert(`😱 [SUSTO] ¡COCO SE ASUSTÓ POR ${item.sender || "FERNANDO"}!`);
-      } else if (item.abilityId === "clue_hint") {
-        setClueActive(true); setEpicEvent({ giftDisplay: "🍦 ICE CREAM CONE", tagline: "PISTA DESBLOQUEADA", username: item.sender || "FERNANDO" }); setAlert(`🍦 [PISTA] ¡REGALO DE ${item.sender || "FERNANDO"}!`);
-      } else if (item.abilityId === "freeze") {
-        setAlert(`❄️ [CONGELADOS] ¡${item.sender || "FERNANDO"} ACTIVÓ FREEZE!`);
-      } else if (item.abilityId === "generic_gift") {
-        setGenericGiftActive(true); setEpicEvent({ giftDisplay: `🎁 ${giftName.toUpperCase()}`, tagline: "¡REGALO RECIBIDO!", username: item.sender || "FERNANDO" }); setAlert(`🎁 ¡${item.sender || "FERNANDO"} ENVIÓ ${giftName.toUpperCase()}!`);
-      }
+      if (item.abilityId === "silent_challenge") { setDonutTeamId(item.teamId || "team1"); setEpicEvent({ giftDisplay: `🍩 ${giftName.toUpperCase()}`, tagline: "EL MUDO • RETO ACTIVO", username: item.sender || "ANNA" }); setAlert(`🔇 [EL MUDO] ¡RETO ACTIVO LANZADO POR ${item.sender || "ANNA"}!`); }
+      else if (item.abilityId === "creative_challenge") { setHatTeamId(item.teamId || "team1"); setEpicEvent({ giftDisplay: `🤠 ${giftName.toUpperCase()}`, tagline: "RETO CREATIVO • MODO ARTISTA", username: item.sender || "FERNANDO" }); setAlert(`🤠 [RETO CREATIVO] ¡ACTIVADO POR ${item.sender || "FERNANDO"}!`); }
+      else if (item.abilityId === "ultimate_galaxy") { setGalaxyTeamId(item.teamId || "team1"); setGalaxyPopup({ sender: item.sender || "FERNANDO", phrase: "⚡ ULTIMATE ACTIVATED ⚡" }); setEpicEvent({ giftDisplay: `🌌 ${giftName.toUpperCase()}`, tagline: "ULTIMATE GALAXY ENERGY", username: item.sender || "FERNANDO" }); setAlert(`🌌 [ULTIMATE ENERGY] ¡GALAXY LANZADA POR ${item.sender || "FERNANDO"}!`); }
+      else if (item.abilityId === "epic_impact") { setMoneyGunTeamId(item.teamId || "team2"); setEpicEvent({ giftDisplay: `💥 ${giftName.toUpperCase()}`, tagline: "EPIC IMPACT BULLET STORM", username: item.sender || "FERNANDO" }); setAlert("🔫 [MONEY GUN] ¡MARCADOR OPONENTE DESTRUIDO!"); }
+      else if (item.abilityId === "susto_coco") { setScareActive(true); setEpicEvent({ giftDisplay: "😱 AMPED UP", tagline: "SUSTO A COCO", username: item.sender || "FERNANDO" }); setAlert(`😱 [SUSTO] ¡COCO SE ASUSTÓ POR ${item.sender || "FERNANDO"}!`); }
+      else if (item.abilityId === "clue_hint") { setClueActive(true); setEpicEvent({ giftDisplay: "🍦 ICE CREAM CONE", tagline: "PISTA DESBLOQUEADA", username: item.sender || "FERNANDO" }); setAlert(`🍦 [PISTA] ¡REGALO DE ${item.sender || "FERNANDO"}!`); }
+      else if (item.abilityId === "freeze") setAlert(`❄️ [CONGELADOS] ¡${item.sender || "FERNANDO"} ACTIVÓ FREEZE!`);
+      else if (item.abilityId === "generic_gift") { setGenericGiftActive(true); setEpicEvent({ giftDisplay: `🎁 ${giftName.toUpperCase()}`, tagline: "¡REGALO RECIBIDO!", username: item.sender || "FERNANDO" }); setAlert(`🎁 ¡${item.sender || "FERNANDO"} ENVIÓ ${giftName.toUpperCase()}!`); }
     });
-
     const unsubFinished = eventBus.subscribe("ability:finished", (item) => {
-      if (item.abilityId === "silent_challenge") setDonutTeamId(null);
-      else if (item.abilityId === "creative_challenge") setHatTeamId(null);
-      else if (item.abilityId === "ultimate_galaxy") { setGalaxyTeamId(null); setGalaxyPopup(null); }
-      else if (item.abilityId === "epic_impact") setMoneyGunTeamId(null);
-      else if (item.abilityId === "susto_coco") setScareActive(false);
-      else if (item.abilityId === "clue_hint") setClueActive(false);
-      else if (item.abilityId === "generic_gift") setGenericGiftActive(false);
+      if (item.abilityId === "silent_challenge") setDonutTeamId(null); else if (item.abilityId === "creative_challenge") setHatTeamId(null); else if (item.abilityId === "ultimate_galaxy") { setGalaxyTeamId(null); setGalaxyPopup(null); } else if (item.abilityId === "epic_impact") setMoneyGunTeamId(null); else if (item.abilityId === "susto_coco") setScareActive(false); else if (item.abilityId === "clue_hint") setClueActive(false); else if (item.abilityId === "generic_gift") setGenericGiftActive(false);
       setEpicEvent(null); setAlert(null);
     });
-
-    const unsubActivated = eventBus.subscribe("effect:activated", (effect) => {
-      if (effect.type === "FREEZE") { setFrozenTeamId(effect.affectedTeamId || "team1"); setFrozenDetails({ remainingTime: effect.totalDuration || 300, activatedBy: effect.activatedBy || "FERNANDO" }); setAlert(`❄️ ¡${effect.affectedTeamName || "EQUIPO"} ESTÁ CONGELADO!`); }
-    });
+    const unsubActivated = eventBus.subscribe("effect:activated", (effect) => { if (effect.type === "FREEZE") { setFrozenTeamId(effect.affectedTeamId || "team1"); setFrozenDetails({ remainingTime: effect.totalDuration || 300, activatedBy: effect.activatedBy || "FERNANDO" }); setAlert(`❄️ ¡${effect.affectedTeamName || "EQUIPO"} ESTÁ CONGELADO!`); } });
     const unsubUpdated = eventBus.subscribe("effect:updated", (effect) => { if (effect.type === "FREEZE") setFrozenDetails(prev => prev ? { ...prev, remainingTime: effect.remainingTime } : { remainingTime: effect.remainingTime, activatedBy: effect.activatedBy }); });
     const unsubRemoved = eventBus.subscribe("effect:removed", () => { setFrozenTeamId(null); setFrozenDetails(null); setAlert(null); });
     const unsubExpired = eventBus.subscribe("effect:expired", () => { setFrozenTeamId(null); setFrozenDetails(null); setAlert(null); });
     const unsubHighlight = eventBus.subscribe("player:highlight", (data) => { if (data?.playerId) { setHighlightedPlayerId(data.playerId); setTimeout(() => setHighlightedPlayerId(null), 1400); } });
-    const unsubReset = eventBus.subscribe("overlay:reset", () => {
-      setState({ players: [], battle: null, teams: [], round: null, timer: { minutes: 0, seconds: 0 }, liveActive: false });
-      setShowWin(false); setWinner(null); setDonutTeamId(null); setHatTeamId(null); setGalaxyTeamId(null); setGalaxyPopup(null); setMoneyGunTeamId(null); setFrozenTeamId(null); setFrozenDetails(null); setEpicEvent(null); setEpicGift(null); setAlert(null); setScareActive(false); setClueActive(false); setGenericGiftActive(false);
-    });
+    const unsubReset = eventBus.subscribe("overlay:reset", () => { setState({ players: [], battle: null, teams: [], round: null, timer: { minutes: 0, seconds: 0 }, liveActive: false }); setShowWin(false); setWinner(null); setDonutTeamId(null); setHatTeamId(null); setGalaxyTeamId(null); setGalaxyPopup(null); setMoneyGunTeamId(null); setFrozenTeamId(null); setFrozenDetails(null); setEpicEvent(null); setEpicGift(null); setAlert(null); setScareActive(false); setClueActive(false); setGenericGiftActive(false); });
     return () => { unsubStarted(); unsubFinished(); unsubActivated(); unsubUpdated(); unsubRemoved(); unsubExpired(); unsubHighlight(); unsubReset(); };
   }, []);
 
@@ -139,10 +118,7 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
       setTimeout(() => setAlert(null), 3000);
     }
     const oldState = stateRef.current;
-    if (newState.players?.length) {
-      const changed = newState.players.find(player => { const oldPlayer = oldState.players.find(p => p.id === player.id); return player.wins > (oldPlayer ? oldPlayer.wins : 0); });
-      if (changed) { setWinner(changed); setShowWin(true); setTimeout(() => setShowWin(false), 3000); }
-    }
+    if (newState.players?.length) { const changed = newState.players.find(player => { const oldPlayer = oldState.players.find(p => p.id === player.id); return player.wins > (oldPlayer ? oldPlayer.wins : 0); }); if (changed) { setWinner(changed); setShowWin(true); setTimeout(() => setShowWin(false), 3000); } }
     const isRoundActive = newState.round && newState.round.active;
     const hasRegisteredPlayers = Array.isArray(dashboard?.registration?.players) && dashboard.registration.players.length > 0;
     const registrationOpen = dashboard?.registration?.status === "OPEN";
@@ -151,6 +127,10 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
     const activePlayers = newState.players?.length > 0 ? newState.players : regPlayers;
     const updated = { players: activePlayers, battle: newState.battle, teams: newState.teams || [], round: newState.round, timer: newState.timer || { minutes: 0, seconds: 0 }, liveActive: dashboard.liveActive };
     stateRef.current = updated; setState(updated);
+  }
+
+  if (currentMode === "gender") {
+    return <GenderBattleOverlay players={effectivePlayers} teams={effectiveTeams} timer={effectiveTimer} alert={alert} epicEvent={effectiveEpicEvent} epicGift={effectiveEpicGift} frozenTeamId={effectiveFrozenTeamId} frozenDetails={effectiveFrozenDetails} highlightedPlayerId={effectiveHighlightedPlayerId} showWin={effectiveShowWin} winner={effectiveWinner} powerUps={powerUps} battleEffects={battleEffects} liveActive={effectiveLiveActive} effectiveDonut={effectiveDonut} effectiveHat={effectiveHat} effectiveGalaxy={effectiveGalaxy} effectiveMoneyGun={effectiveMoneyGun} />;
   }
 
   return (
