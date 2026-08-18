@@ -32,9 +32,9 @@ export function GameTimer({ timer: initialTimer }) {
 
   return (
     <div className="timer-container" style={{
-      width: urgent ? "112px" : "108px",
-      minWidth: urgent ? "112px" : "108px",
-      height: urgent ? "66px" : "62px",
+      width: "112px",
+      minWidth: "112px",
+      height: "58px",
       flex: "0 0 auto",
       display: "flex",
       alignItems: "center",
@@ -44,100 +44,72 @@ export function GameTimer({ timer: initialTimer }) {
       isolation: "isolate"
     }}>
       <style>{`
-        @keyframes cocoTimerCuteHeartbeat {
+        @keyframes cocoCuteHeartbeat {
           0%, 100% { transform: scale(1); }
-          10% { transform: scale(1.045); }
-          20% { transform: scale(1.012); }
-          30% { transform: scale(1.032); }
-          45%, 100% { transform: scale(1); }
+          12% { transform: scale(1.055); }
+          24% { transform: scale(1.018); }
+          36% { transform: scale(1.045); }
+          52% { transform: scale(1); }
         }
-        @keyframes cocoTimerCuteGlow {
-          0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,.42), 0 0 7px rgba(255,92,110,.22), inset 0 1px 2px rgba(255,255,255,.22); }
-          50% { box-shadow: 0 5px 17px rgba(0,0,0,.46), 0 0 15px rgba(255,72,92,.48), inset 0 1px 3px rgba(255,255,255,.3); }
+        @keyframes cocoCuteGlow {
+          0%, 100% { opacity: .45; }
+          50% { opacity: .8; }
         }
-        @keyframes cocoTimerPaused {
-          0%,100% { opacity:.58; }
-          50% { opacity:1; }
-        }
+        @keyframes cocoPaused { 0%,100% { opacity:.62; } 50% { opacity:1; } }
       `}</style>
 
-      <div
-        className={urgent ? "timer-five-minute-alert" : "timer-standard"}
-        style={{
-          width: "100%",
-          height: "100%",
-          boxSizing: "border-box",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          zIndex: 2,
-          borderRadius: "18px",
-          border: urgent ? "2px solid rgba(255,255,255,.92)" : "2px solid rgba(125,211,252,.72)",
-          background: isIntermission
-            ? "linear-gradient(180deg,#382507,#160d02)"
-            : urgent
-              ? "linear-gradient(180deg,rgba(255,244,246,.98),rgba(255,225,231,.98))"
-              : "linear-gradient(180deg,rgba(9,31,48,.98),rgba(3,13,23,.99))",
-          boxShadow: urgent
-            ? "0 4px 14px rgba(0,0,0,.42), 0 0 7px rgba(255,92,110,.22), inset 0 1px 2px rgba(255,255,255,.22)"
-            : "0 5px 18px rgba(0,0,0,.55), inset 0 1px 2px rgba(255,255,255,.12)",
-          animation: urgent ? "cocoTimerCuteHeartbeat 1.25s ease-in-out infinite, cocoTimerCuteGlow 1.25s ease-in-out infinite" : "none",
-          transition: "width .25s ease, height .25s ease, border .25s ease, box-shadow .25s ease",
-          transformOrigin: "center center",
-          overflow: "hidden"
-        }}
-      >
-        <div aria-hidden="true" style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "3px",
-          background: urgent ? "linear-gradient(90deg,transparent,#ff7185,transparent)" : "linear-gradient(90deg,transparent,#7dd3fc,transparent)",
-          opacity: .8
-        }} />
+      {urgent && <div aria-hidden="true" style={{
+        position: "absolute",
+        width: "82px",
+        height: "42px",
+        borderRadius: "50%",
+        background: "rgba(255,88,108,.16)",
+        filter: "blur(10px)",
+        animation: "cocoCuteGlow 1.35s ease-in-out infinite",
+        zIndex: 0,
+        pointerEvents: "none"
+      }} />}
 
+      <div style={{
+        position: "relative",
+        zIndex: 2,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "transparent",
+        animation: urgent ? "cocoCuteHeartbeat 1.35s ease-in-out infinite" : "none",
+        transformOrigin: "center center",
+        padding: "2px 6px"
+      }}>
         <span style={{
-          fontFamily: "'Trebuchet MS', 'Arial Rounded MT Bold', Arial, sans-serif",
+          fontFamily: "'Trebuchet MS', 'Arial Rounded MT Bold', system-ui, sans-serif",
           fontSize: urgent ? "38px" : "35px",
           lineHeight: 1,
           fontWeight: 900,
-          letterSpacing: "-1.2px",
+          letterSpacing: "-1.5px",
           fontVariantNumeric: "tabular-nums",
-          color: isIntermission ? "#ffd166" : urgent ? "#e91e3f" : "#ffffff",
-          WebkitTextStroke: urgent ? "0.8px #ffffff" : "0px transparent",
+          color: isIntermission ? "#ffd166" : urgent ? "#ff4d67" : "#ffffff",
+          WebkitTextStroke: urgent ? "1px #ffffff" : "0.5px rgba(0,0,0,.65)",
           textShadow: urgent
-            ? "1px 1px 0 #111827, -1px -1px 0 #111827, 0 2px 5px rgba(0,0,0,.28)"
-            : "0 0 12px rgba(0,245,255,.65)",
+            ? "2px 2px 0 #18070b, -1px -1px 0 #18070b, 0 0 5px rgba(255,255,255,.9), 0 0 13px rgba(255,77,103,.75)"
+            : "2px 2px 0 rgba(0,0,0,.8), 0 0 8px rgba(0,245,255,.48)",
           whiteSpace: "nowrap"
         }}>
           {formatted}
         </span>
-
-        {urgent && <div aria-hidden="true" style={{
-          position: "absolute",
-          top: "5px",
-          right: "8px",
-          width: "7px",
-          height: "7px",
-          borderRadius: "50%",
-          background: "#ff5c73",
-          boxShadow: "0 0 6px rgba(255,92,115,.65)",
-          opacity: .85
-        }} />}
       </div>
 
       {paused && <span style={{
         position: "absolute",
-        bottom: "-12px",
-        fontSize: "8px",
+        bottom: "-9px",
+        fontSize: "7px",
         fontWeight: 900,
-        letterSpacing: "1px",
-        color: "#ed8936",
+        letterSpacing: ".8px",
+        color: "#ffd166",
         textTransform: "uppercase",
-        animation: "cocoTimerPaused 1.2s ease-in-out infinite",
-        zIndex: 4
+        animation: "cocoPaused 1.2s ease-in-out infinite",
+        zIndex: 4,
+        textShadow: "0 1px 3px rgba(0,0,0,.9)"
       }}>PAUSED</span>}
     </div>
   );
