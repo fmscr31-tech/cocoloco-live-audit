@@ -30,8 +30,6 @@ export function createEvent(type, data = {}) {
   };
   events.push(event);
   saveEvents(events);
-  localStorage.setItem(LAST_EVENT_KEY, event.id);
-  lastConsumedEventId = event.id;
   emit(type, event);
   emit("*", event);
   return event;
