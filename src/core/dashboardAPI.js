@@ -5,7 +5,7 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./engines/powerUpEngine";
+import { powerUpEngine } from "./powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -106,6 +106,30 @@ class DashboardAPI {
     if (this.cachedDashboard) return this.cachedDashboard;
     let session={}; try{session=sessionManager.getSession()||{};}catch(e){} let stats={}; try{stats=statisticsEngine.getStatistics()||{};}catch(e){} let rankings=[]; try{if(typeof rankingEngine.getTopPlayers==="function") rankings=rankingEngine.getTopPlayers()||[]; else if(typeof rankingEngine.getPlayerRanking==="function"){const pr=rankingEngine.getPlayerRanking();rankings=pr?.topPoints||pr||[];}}catch(e){} if(!Array.isArray(rankings)) rankings=[];
     let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){} let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){} let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){} let powerUps={};try{powerUps=powerUpEngine.getPowerUpState()||{};}catch(e){} let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){} let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){} let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){} let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){} let game={};try{game=getState()||{};}catch(e){}
+
+    // The game engine owns live score/win state, while command configuration
+    // owns the user-visible names of configurable gender teams. Merge them
+    // here so a config:command_updated snapshot immediately carries the new
+    // names into the overlay without requiring F5 and without overwriting
+    // live points, wins, players, or team IDs.
+    const configuredTeams = Array.isArray(commandConfig?.teams) ? commandConfig.teams : [];
+    const gameTeams = Array.isArray(game?.teams) ? game.teams : [];
+    if (configuredTeams.length >= 2) {
+      const mergedTeams = configuredTeams.map((configuredTeam, index) => {
+        const currentTeam = gameTeams.find(team => String(team?.id) === String(configuredTeam?.id)) || gameTeams[index] || {};
+        return {
+          ...configuredTeam,
+          ...currentTeam,
+          id: configuredTeam?.id || currentTeam?.id || `team${index + 1}`,
+          name: configuredTeam?.name || currentTeam?.name || `Equipo ${index + 1}`,
+          gender: configuredTeam?.gender || currentTeam?.gender,
+          mode: configuredTeam?.gender ? "GENDER_TEAMS" : currentTeam?.mode,
+          gameMode: configuredTeam?.gender ? "GENDER_TEAMS" : currentTeam?.gameMode
+        };
+      });
+      game = { ...game, teams: mergedTeams };
+    }
+
     const registeredPlayers=Array.isArray(registration?.players)?registration.players:[]; const gamePlayers=Array.isArray(game?.players)?game.players:[];
 
     // Registration is authoritative for who is currently displayed in the
