@@ -79,7 +79,7 @@ export function InformationRotationPanel() {
           style={{
             position: "relative",
             width: "100%",
-            height: "74px",
+            height: "58px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -94,8 +94,8 @@ export function InformationRotationPanel() {
             giftId={slide.giftId}
             fallbackIcon={null}
             style={{
-              width: "74px",
-              height: "74px",
+              width: "50px",
+              height: "50px",
               objectFit: "contain"
             }}
           />
