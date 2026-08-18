@@ -49,7 +49,7 @@ function hydratePlayersFromStorage() {
     publishPlayersState();
     console.log("[PlayerManager] Restored persisted players:", players.length);
   } catch (error) {
-    console.warn("[PlayerManager] Failed to restore persisted players:", error);
+    console.warn("[PlayerManager] Failed to restore players:", error);
   }
 }
 
@@ -73,11 +73,7 @@ function hydrateRegisteredPlayer(playerId) {
     if (!Array.isArray(registered)) return null;
 
     const source = registered.find(
-      p => p && (
-        p.playerId === playerId ||
-        p.id === playerId ||
-        p.username === playerId
-      )
+      p => p && (p.playerId === playerId || p.id === playerId || p.username === playerId)
     );
 
     if (!source) return null;
@@ -196,7 +192,7 @@ export function removePlayer(playerId) {
   return removed;
 }
 
-export function addWin(playerId) {
+export function addWin(playerId, options = {}) {
   const player = findPlayerById(playerId);
   if (!player) {
     console.warn("[PlayerManager] addWin: player not found for identity:", playerId);
@@ -212,15 +208,20 @@ export function addWin(playerId) {
   publishPlayersState();
   persistPlayers();
 
-  eventBus.emit("game:score_updated", {
-    playerId: player.id,
-    username: player.name,
-    pointsAdded: 1,
-    newTotal: player.points,
-    source: "WIN_LIMPIA",
-    timestamp: Date.now(),
-    playerSnapshot: { ...player }
-  });
+  // gameEngine emits the canonical score event after it also updates the team.
+  // Keeping this event optional prevents duplicate overlay renders/flicker.
+  if (options.emitScoreEvent !== false) {
+    eventBus.emit("game:score_updated", {
+      playerId: player.id,
+      username: player.name,
+      teamId: player.teamId || null,
+      pointsAdded: 1,
+      newTotal: player.points,
+      source: "WIN_LIMPIA",
+      timestamp: Date.now(),
+      playerSnapshot: { ...player }
+    });
+  }
 
   return player;
 }
@@ -281,8 +282,8 @@ export function setAvatar(playerId, avatar) {
   if (!player) return null;
   player.avatar = avatar;
   player.updatedAt = Date.now();
-  publishPlayersState();
   persistPlayers();
+  publishPlayersState();
   return player;
 }
 
@@ -303,7 +304,6 @@ export function resetPlayers() {
   persistPlayers();
 }
 
-// Backward-compatible test/operator alias. The canonical reset API remains resetPlayers().
 export function clearPlayers() {
   resetPlayers();
 }
