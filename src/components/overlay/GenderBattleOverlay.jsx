@@ -3,6 +3,7 @@ import "./GenderBattleOverlay.css";
 import { InformationRotationPanel } from "./InformationRotationPanel";
 import { CocoDanceZone } from "./CocoDanceZone";
 import { eventBus } from "../../core/eventBus";
+import { dashboardAPI } from "../../core/dashboardAPI";
 import { getMvpLeaderboard } from "../../core/mvpLeaderboardManager";
 
 const TEAM_KEYS = ["team1", "team2"];
@@ -79,32 +80,95 @@ export default function GenderBattleOverlay({
   effectiveMoneyGun,
 }) {
   const [mvpRevision, setMvpRevision] = useState(0);
+  const [liveDashboard, setLiveDashboard] = useState(() => dashboardAPI.getLiveDashboard());
 
+  // The overlay is its own browser window. Its React props do not automatically
+  // change when the Admin window changes state, so subscribe directly to the
+  // cross-window DashboardAPI/EventBus stream. This keeps the live overlay
+  // synchronized without F5, polling, or operator buttons.
   useEffect(() => {
+    const unsubscribeDashboard = dashboardAPI.subscribe((dashboard) => {
+      setLiveDashboard(dashboard);
+      setMvpRevision((value) => value + 1);
+    });
+
     const eventNames = [
+      "game:score_updated",
+      "win:correct",
+      "win:detected",
+      "overlay:win",
+      "player:created",
+      "player:updated",
+      "PLAYER_CREATED",
+      "registration:state_synced",
+      "registration:updated",
+      "registration:opened",
+      "registration:closed",
+      "registration:locked",
+      "registration:cleared",
+      "registration:player_registered",
+      "registration:player_removed",
+      "players:reset",
+      "round:started",
+      "ROUND_STARTED",
+      "round:finished",
+      "round:winner_popup",
+      "round:answer_snapshot",
+      "timer:started",
+      "timer:tick",
+      "timer:paused",
+      "timer:resumed",
+      "timer:stopped",
+      "timer:reset",
+      "team:updated",
+      "teams:updated",
       "mvp:contribution_pending",
       "mvp:gift_contribution",
       "mvp:recipient_selected",
-      "registration:updated",
-      "registration:player_registered",
-      "registration:player_removed",
-      "round:started",
-      "round:finished",
-      "team:updated",
-      "teams:updated",
+      "ability:started",
+      "ability:finished",
+      "effect:activated",
+      "effect:updated",
+      "effect:removed",
+      "effect:expired",
+      "cocazo:trigger",
+      "GAME_MODE_CHANGED",
+      "SESSION_STATUS_CHANGED",
     ];
-    const unsubs = eventNames.map((name) => eventBus.subscribe(name, () => setMvpRevision((value) => value + 1)));
-    return () => unsubs.forEach((unsubscribe) => unsubscribe && unsubscribe());
+
+    const unsubs = eventNames.map((name) =>
+      eventBus.subscribe(name, () => {
+        // DashboardAPI already receives the same event through its reactive
+        // bridge. The revision guarantees MVP-only state also re-renders.
+        setLiveDashboard(dashboardAPI.getLiveDashboard());
+        setMvpRevision((value) => value + 1);
+      })
+    );
+
+    return () => {
+      unsubscribeDashboard?.();
+      unsubs.forEach((unsubscribe) => unsubscribe && unsubscribe());
+    };
   }, []);
 
-  const leaderboard = useMemo(() => getMvpLeaderboard(), [players, teams, mvpRevision]);
-  const boys = getTeam(players, teams, TEAM_KEYS[0], 0);
-  const girls = getTeam(players, teams, TEAM_KEYS[1], 1);
+  const liveGame = liveDashboard?.game || {};
+  const livePlayers = Array.isArray(liveGame.players) ? liveGame.players : players;
+  const liveTeams = Array.isArray(liveGame.teams) ? liveGame.teams : teams;
+  const liveTimer = liveGame.timer || timer;
+  const liveMode = liveDashboard?.gameMode || "GENDER_TEAMS";
+  const liveRound = liveGame.round;
+  const liveFrozenTeamId = liveDashboard?.battleEffects?.frozenTeamId ?? frozenTeamId;
+  const liveFrozenDetails = liveDashboard?.battleEffects?.frozenDetails ?? frozenDetails;
+  const liveLiveActive = liveDashboard?.liveActive ?? liveActive;
+
+  const leaderboard = useMemo(() => getMvpLeaderboard(), [livePlayers, liveTeams, mvpRevision]);
+  const boys = getTeam(livePlayers, liveTeams, TEAM_KEYS[0], 0);
+  const girls = getTeam(livePlayers, liveTeams, TEAM_KEYS[1], 1);
   const boysMvp = getTeamMvpRows(boys.players, leaderboard);
   const girlsMvp = getTeamMvpRows(girls.players, leaderboard);
 
   const TeamCard = ({ team, side, mvpRows }) => {
-    const frozen = String(frozenTeamId) === String(team.id);
+    const frozen = String(liveFrozenTeamId) === String(team.id);
     const highlighted = team.players.some((p) =>
       String(p?.id) === String(highlightedPlayerId) || String(p?.playerId) === String(highlightedPlayerId)
     );
@@ -133,7 +197,7 @@ export default function GenderBattleOverlay({
 
           {frozen && (
             <div className="gbo-status">
-              ❄️ CONGELADO · {Math.ceil(Number(frozenDetails?.remainingTime || 0) / 60)} MIN
+              ❄️ CONGELADO · {Math.ceil(Number(liveFrozenDetails?.remainingTime || 0) / 60)} MIN
             </div>
           )}
           {abilityActive && <div className="gbo-status gbo-ability">⚡ HABILIDAD ACTIVA</div>}
@@ -162,18 +226,18 @@ export default function GenderBattleOverlay({
   };
 
   return (
-    <div className="gender-battle-overlay" data-live-active={String(Boolean(liveActive))}>
+    <div className="gender-battle-overlay" data-live-active={String(Boolean(liveLiveActive))} data-game-mode={String(liveMode)} data-round={String(liveRound?.number ?? "")}>
       <div className="gbo-arena">
         <TeamCard team={boys} side="left" mvpRows={boysMvp} />
 
         <div className="gbo-center">
           <div className="gbo-timer-frame">
             <div className="gbo-timer-icon">⏱</div>
-            <div className="gbo-timer">{formatTimer(timer)}</div>
+            <div className="gbo-timer">{formatTimer(liveTimer)}</div>
           </div>
 
           <div className="gbo-info-shell">
-            <InformationRotationPanel />
+            <InformationRotationPanel players={livePlayers} />
           </div>
 
           <div className="gbo-cocazo-shell">
