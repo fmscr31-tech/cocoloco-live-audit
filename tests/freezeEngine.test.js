@@ -3,8 +3,14 @@ import assert from 'node:assert';
 import { battleEffectEngine } from '../src/core/engines/battleEffectEngine.js';
 import { gameRulesEngine } from '../src/core/engines/gameRulesEngine.js';
 import { eventBus } from '../src/core/eventBus.js';
+import { syncConfiguredTeams, resetTeams } from '../src/core/TeamManager.js';
 
 test('Freeze Engine Activation & 300s Duration', () => {
+  resetTeams();
+  syncConfiguredTeams([
+    { id: 'teamA', name: 'Equipo A', minPlayers: 1, maxPlayers: 50 },
+    { id: 'teamB', name: 'Princesas', minPlayers: 1, maxPlayers: 50 }
+  ]);
   battleEffectEngine.removeEffect();
   battleEffectEngine.activateEffect("FREEZE", "TEAM", "teamB", "Princesas", [], "PlayerA");
   
@@ -22,6 +28,11 @@ test('Freeze Engine Activation & 300s Duration', () => {
 });
 
 test('Scoring Redirection during Freeze', () => {
+  resetTeams();
+  syncConfiguredTeams([
+    { id: 'teamA', name: 'Equipo A', minPlayers: 1, maxPlayers: 50 },
+    { id: 'teamB', name: 'Princesas', minPlayers: 1, maxPlayers: 50 }
+  ]);
   battleEffectEngine.removeEffect();
   battleEffectEngine.activateEffect("FREEZE", "TEAM", "teamB", "Princesas", [], "PlayerA");
 
@@ -33,6 +44,7 @@ test('Scoring Redirection during Freeze', () => {
   gameRulesEngine.evaluateRewardScoring({
     username: "PlayerB",
     userId: "userB",
+    teamId: "teamB",
     points: 1,
     giftName: "Win Limpia"
   });
