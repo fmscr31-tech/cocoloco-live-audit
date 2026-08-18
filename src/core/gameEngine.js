@@ -74,7 +74,7 @@ export function playerWin(id, options = {}){
   const emitMvpEvent=options.emitMvpEvent !== false;
   if(!allowRepeat && roundWinners.has(canonicalId))return canonicalPlayer;
 
-  const player=addWin(canonicalId); if(!player)return null;
+  const player=addWin(canonicalId,{emitScoreEvent:false}); if(!player)return null;
   if(!allowRepeat) roundWinners.add(player.id);
   if(getBattle())battlePlayerWin(player.id);
   let teamSnapshot=null;
@@ -116,11 +116,9 @@ function handleTimerCompletion(payload={}){
   gameState.round=activeRound;
   const finished=finishActiveRound();
   if(!finished) return;
-
   persistPhase("IDLE");
   resetTimer(0,"IDLE");
   gameState.timer={remainingSeconds:0,running:false,minutes:0,seconds:0,phase:"IDLE"};
-
   eventBus.publish("overlay:round_completed",{roundId:finished.id,round:{...finished},phase:"IDLE",timestamp:Date.now()});
   if(finished.winner) eventBus.publish("round:winner_popup",{mode:getCurrentMode(),winner:finished.winner,winningTeamId:finished.winningTeamId||null,winningTeamName:finished.winningTeamName||null,roundId:finished.id,timestamp:Date.now()});
   saveState();
