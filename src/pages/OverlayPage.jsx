@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import Overlay from "../components/overlay";
+import Overlay from "../components/overlay.jsx";
 import { IndividualRegistrationPromptV2 } from "../components/overlay/IndividualRegistrationPromptV2";
 
 function OverlayPage() {
@@ -60,7 +60,7 @@ function OverlayPage() {
   }, []);
 
   return (
-    <main style={{display:"block",width:"520px",margin:0,padding:0,overflow:"hidden",boxSizing:"border-box",position:"relative"}}>
+    <main style={{ display: "block", width: "520px", margin: 0, padding: 0, overflow: "hidden", boxSizing: "border-box", position: "relative" }}>
       <Overlay />
       <IndividualRegistrationPromptV2 />
     </main>
