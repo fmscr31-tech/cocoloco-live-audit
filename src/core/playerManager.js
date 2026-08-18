@@ -100,9 +100,6 @@ function findPlayerById(playerId) {
   return findLocalPlayerById(playerId) || hydrateRegisteredPlayer(playerId);
 }
 
-// CROSS-WINDOW SCORE SYNC
-// A complete player snapshot is received so another browser context updates
-// its local copy without incrementing the score a second time.
 eventBus.subscribe("game:score_updated", (payload) => {
   const snapshot = payload?.playerSnapshot;
   if (!snapshot || !snapshot.id) return;
@@ -111,22 +108,14 @@ eventBus.subscribe("game:score_updated", (payload) => {
     (snapshot.tiktokId ? findLocalPlayerById(snapshot.tiktokId) : null) ||
     (snapshot.playerId ? findLocalPlayerById(snapshot.playerId) : null);
 
-  if (existing) {
-    Object.assign(existing, snapshot, { updatedAt: Date.now() });
-  } else {
-    players.push({ ...snapshot, updatedAt: Date.now() });
-  }
+  if (existing) Object.assign(existing, snapshot, { updatedAt: Date.now() });
+  else players.push({ ...snapshot, updatedAt: Date.now() });
 
   publishPlayersState();
   persistPlayers();
   console.log("[PlayerManager] Score snapshot synchronized:", snapshot);
 });
 
-// CROSS-WINDOW ROUND RESET
-// RegistrationManager runs in the admin context while the overlay has its own
-// playerManager instance. A local array clear is therefore not sufficient.
-// This event is broadcast through EventBus/BroadcastChannel so every context
-// removes the previous round's player identities immediately.
 eventBus.subscribe("players:reset", (payload) => {
   const removedCount = players.length;
   players.length = 0;
@@ -312,6 +301,11 @@ export function resetPlayers() {
   players.length = 0;
   publishPlayersState();
   persistPlayers();
+}
+
+// Backward-compatible test/operator alias. The canonical reset API remains resetPlayers().
+export function clearPlayers() {
+  resetPlayers();
 }
 
 export function resetRoundScores() {
