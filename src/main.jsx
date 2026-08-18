@@ -10,6 +10,7 @@ import "./components/overlay/visual-motion-recovery.css";
 import "./components/overlay/team-identity-final.css";
 import "./components/overlay/money-gun-team-effect.css";
 import "./components/overlay/money-gun-target-override.css";
+import "./components/overlay/money-gun-root-disable.css";
 import "./components/overlay/money-gun-dom-bridge.css";
 import "./components/overlay/money-gun-dom-bridge.js";
 import "./components/overlay/money-gun-overlay-bridge.js";
