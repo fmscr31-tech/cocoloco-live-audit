@@ -71,12 +71,6 @@ export function ManualScoreControl() {
   const [customPlayerName, setCustomPlayerName] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [feedback, setFeedback] = useState(null);
-
-  // React state is asynchronous. EventBus callbacks registered once on mount
-  // can otherwise keep the initial selectedTeamId (usually "") and fall back
-  // to the first team after every score event. The refs below are the runtime
-  // truth for the current manual selector and are updated synchronously when
-  // the user changes the dropdown.
   const selectedTeamIdRef = useRef("");
   const selectedPlayerIdRef = useRef("");
 
@@ -92,21 +86,14 @@ export function ManualScoreControl() {
     setSelectedPlayerId(normalized);
   };
 
-  // Configuration synchronization is only performed when configuration changes
-  // or when no runtime teams exist. A score event must NEVER recreate the team
-  // list, because doing so can overwrite a just-applied manual score.
   const refreshData = (forceTeamSync = false) => {
     const mode = dashboardAPI.getGameMode();
     setGameMode(mode);
-
     const nextPlayers = buildCanonicalPlayers();
     setPlayers(nextPlayers);
-
     const configTeams = commandConfigManager.getConfig().teams || [];
     const runtimeTeams = getTeams();
-    const nextTeams = forceTeamSync || runtimeTeams.length === 0
-      ? syncConfiguredTeams(configTeams)
-      : runtimeTeams;
+    const nextTeams = forceTeamSync || runtimeTeams.length === 0 ? syncConfiguredTeams(configTeams) : runtimeTeams;
     setTeams(nextTeams);
 
     const currentPlayerId = selectedPlayerIdRef.current;
@@ -132,10 +119,7 @@ export function ManualScoreControl() {
   useEffect(() => {
     refreshData(true);
     const subscriptions = [
-      dashboardAPI.subscribeToModeChange(({ mode }) => {
-        setGameMode(mode);
-        refreshData(false);
-      }),
+      dashboardAPI.subscribeToModeChange(({ mode }) => { setGameMode(mode); refreshData(false); }),
       eventBus.subscribe("registration:updated", () => refreshData(false)),
       eventBus.subscribe("config:command_updated", () => refreshData(true)),
       eventBus.subscribe("game:score_updated", () => refreshData(false)),
@@ -160,11 +144,7 @@ export function ManualScoreControl() {
 
   const handleIndividualAction = (type, delta) => {
     const player = targetPlayer();
-    if (!player) {
-      showFeedback("⚠️ Selecciona un jugador antes de aplicar el ajuste.", true);
-      return;
-    }
-
+    if (!player) { showFeedback("⚠️ Selecciona un jugador antes de aplicar el ajuste.", true); return; }
     const amount = getAmount(delta);
     const signedDelta = delta < 0 ? -amount : amount;
     const current = Number(type === "point" ? player.points : player.wins) || 0;
@@ -172,22 +152,18 @@ export function ManualScoreControl() {
     const actualDelta = next - current;
 
     if (actualDelta !== 0) {
-      if (type === "point") {
-        addPoints(player.id || player.playerId, actualDelta);
-        player.points = next;
-      } else {
-        player.wins = next;
-        eventBus.emit("game:score_updated", {
-          playerId: player.id || player.playerId,
-          points: player.points || 0,
-          wins: player.wins,
-          manual: true,
-          playerSnapshot: { ...player }
-        });
-      }
+      if (type === "point") { addPoints(player.id || player.playerId, actualDelta); player.points = next; }
+      else { player.wins = next; }
     }
 
     showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${player.name || player.displayName} (${next}).`);
+    eventBus.emit("game:score_updated", {
+      playerId: player.id || player.playerId,
+      points: Number(player.points) || 0,
+      wins: Number(player.wins) || 0,
+      manual: true,
+      playerSnapshot: { ...player }
+    });
     eventBus.publish("player:updated", { player: { ...player } });
     refreshData(false);
   };
@@ -195,60 +171,41 @@ export function ManualScoreControl() {
   const handleTeamAction = (type, delta) => {
     const currentTeamId = selectedTeamIdRef.current;
     const team = teams.find(t => String(t.id) === currentTeamId);
-    if (!team) {
-      showFeedback("⚠️ Selecciona un equipo válido.", true);
-      refreshData(false);
-      return;
-    }
+    if (!team) { showFeedback("⚠️ Selecciona un equipo válido.", true); refreshData(false); return; }
 
     const amount = getAmount(delta);
     const signedDelta = delta < 0 ? -amount : amount;
     const current = Number(type === "point" ? team.points : team.wins) || 0;
     const next = Math.max(0, current + signedDelta);
     const actualDelta = next - current;
+    if (actualDelta === 0) { showFeedback(`ℹ️ El ajuste dejaría ${type === "point" ? "los puntos" : "las rondas"} de ${team.name} en 0.`, false); return; }
 
-    if (actualDelta === 0) {
-      showFeedback(`ℹ️ El ajuste dejaría ${type === "point" ? "los puntos" : "las rondas"} de ${team.name} en 0.`, false);
-      return;
-    }
+    const updated = type === "point" ? addTeamPoints(currentTeamId, actualDelta) : adjustTeamWins(currentTeamId, actualDelta);
+    if (!updated) { showFeedback(`❌ No se pudo actualizar ${team.name}. El equipo ya no existe en el registro canónico.`, true); refreshData(true); return; }
 
-    const updated = type === "point"
-      ? addTeamPoints(currentTeamId, actualDelta)
-      : adjustTeamWins(currentTeamId, actualDelta);
-
-    if (!updated) {
-      showFeedback(`❌ No se pudo actualizar ${team.name}. El equipo ya no existe en el registro canónico.`, true);
-      refreshData(true);
-      return;
-    }
-
-    // Keep the selector locked to the exact team the user chose. The score event
-    // can trigger refreshData immediately, but refreshData now reads the ref and
-    // therefore cannot silently switch the selection to team1/teamA.
     selectedTeamIdRef.current = currentTeamId;
     setSelectedTeamId(currentTeamId);
-
     const updatedPoints = Number(updated.points) || 0;
     const updatedWins = Number(updated.wins) || 0;
 
     showFeedback(`✅ ${type === "point" ? "Puntos" : "Rondas"}: ${actualDelta >= 0 ? "+" : ""}${actualDelta} → ${team.name} (${type === "point" ? updatedPoints : updatedWins}).`);
     eventBus.emit("game:score_updated", {
       teamId: currentTeamId,
-      teamName: team.name,
+      teamName: updated.name || team.name,
       points: updatedPoints,
       wins: updatedWins,
+      newTeamTotal: updatedPoints,
       manual: true,
       targetType: type,
       delta: actualDelta,
+      teamSnapshot: { ...updated },
       timestamp: Date.now()
     });
-
     refreshData(false);
   };
 
   const isTeamMode = String(gameMode || "").toUpperCase().includes("TEAM");
   const buttonBase = { color: "white", border: "none", padding: "9px 6px", borderRadius: "6px", fontWeight: 900, cursor: "pointer", fontSize: "12px" };
-
   const ActionButtons = ({ type, onAction }) => (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) 1fr repeat(3, 1fr)", gap: "5px" }}>
       {[1, 5, 10].map(amount => <button key={`plus-${amount}`} onClick={() => onAction(type, amount)} style={{ ...buttonBase, background: "linear-gradient(135deg, #48bb78, #38a169)" }}>+{amount}</button>)}
@@ -265,9 +222,7 @@ export function ManualScoreControl() {
         <h3 style={{ margin: 0, fontSize: "16px", color: "#ffd700", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 900 }}>🎛️ MANUAL SCORE & ROUND CONTROL</h3>
         <span style={{ fontSize: "11px", color: "#00f5ff", background: "rgba(0,245,255,.1)", padding: "3px 8px", borderRadius: "6px", fontWeight: 800 }}>Mode: {isTeamMode ? "TEAM (EQUIPOS)" : "INDIVIDUAL"}</span>
       </div>
-
       {feedback && <div style={{ background: feedback.isError ? "rgba(229,62,62,.2)" : "rgba(72,187,120,.2)", border: `1px solid ${feedback.isError ? "#e53e3e" : "#48bb78"}`, color: feedback.isError ? "#feb2b2" : "#9ae6b4", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 800, textAlign: "center" }}>{feedback.message}</div>}
-
       {!isTeamMode ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -285,22 +240,21 @@ export function ManualScoreControl() {
           </div>
           <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>{modeHelp}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900, textAlign: "center" }}>🪙 PUNTOS</span><ActionButtons type="point" onAction={handleIndividualAction} /></div>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900, textAlign: "center" }}>🏆 RONDAS (WINS)</span><ActionButtons type="round" onAction={handleIndividualAction} /></div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900 }}>PUNTOS</span><ActionButtons type="point" onAction={handleIndividualAction} /></div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900 }}>RONDA GANADA</span><ActionButtons type="win" onAction={handleIndividualAction} /></div>
           </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>Seleccionar Equipo:</label>
-            <select value={selectedTeamId} onChange={e => setSelectedTeam(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "13px", fontWeight: 900 }}>
-              {teams.length === 0 ? <option value="">-- No hay equipos configurados --</option> : teams.map(t => <option key={t.id} value={String(t.id)}>{t.name} ({Number(t.points) || 0} pts)</option>)}
-            </select>
-          </div>
+          <label style={{ fontSize: "11px", color: "#a0aec0", fontWeight: 800 }}>Seleccionar Equipo:</label>
+          <select value={selectedTeamId} onChange={e => setSelectedTeam(e.target.value)} style={{ background: "#0c091a", color: "white", border: "1px solid rgba(255,255,255,.2)", borderRadius: "6px", padding: "8px", fontSize: "12px", fontWeight: 700 }}>
+            <option value="">-- Seleccionar equipo --</option>
+            {teams.map(team => <option key={String(team.id)} value={String(team.id)}>{team.name} ({Number(team.points) || 0} pts)</option>)}
+          </select>
           <div style={{ padding: "8px 10px", background: "rgba(0,245,255,.05)", border: "1px solid rgba(0,245,255,.15)", borderRadius: "8px", color: "#a0aec0", fontSize: "11px", textAlign: "center", fontWeight: 800 }}>{modeHelp}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900, textAlign: "center" }}>🪙 PUNTOS</span><ActionButtons type="point" onAction={handleTeamAction} /></div>
-            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900, textAlign: "center" }}>🏆 RONDAS (WINS)</span><ActionButtons type="round" onAction={handleTeamAction} /></div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(0,245,255,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#00f5ff", fontWeight: 900 }}>PUNTOS DE EQUIPO</span><ActionButtons type="point" onAction={handleTeamAction} /></div>
+            <div style={{ background: "#0c091a", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,215,0,.2)", display: "flex", flexDirection: "column", gap: "10px" }}><span style={{ fontSize: "11px", color: "#ffd700", fontWeight: 900 }}>RONDA GANADA</span><ActionButtons type="win" onAction={handleTeamAction} /></div>
           </div>
         </div>
       )}
