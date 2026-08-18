@@ -80,32 +80,41 @@ export default function GenderBattleOverlay({
 
   useEffect(() => {
     const timers = new Set();
+    let previousPlayers = Array.isArray(liveDashboard?.game?.players) ? liveDashboard.game.players : [];
     const show = (payload, ms = 3200) => {
       setAnnouncement(payload);
       const t = window.setTimeout(() => setAnnouncement(null), ms);
       timers.add(t);
     };
 
-    const unsubWin = eventBus.subscribe("game:score_updated", (event) => {
-      if (!event || event.resetByGift || event.roundGift) return;
-      const player = event.playerSnapshot;
-      if (!player || Number(event.pointsAdded || 0) <= 0) return;
-      const teamId = event.teamId || player.teamId;
-      if (!teamId) return;
-      const team = liveDashboard?.game?.teams?.find((t) => String(t.id) === String(teamId));
-      const playerName = player.displayName || player.name || player.username || "JUGADOR";
-      const idx = celebrationIndex[teamId] ?? 0;
-      const next = (idx + 1) % (CELEBRATIONS[teamId]?.length || 1);
-      if (CELEBRATIONS[teamId]) setCelebrationIndex((prev) => ({ ...prev, [teamId]: next }));
-      show({ kind: "clean", teamId, teamName: team?.name || (String(teamId) === "team1" ? "CHICOS" : "CHICAS"), playerName, points: Number(event.pointsAdded || 1), celebration: CELEBRATIONS[teamId]?.[idx] || "¡PUNTO!" });
+    const unsubDashboard = dashboardAPI.subscribe((dashboard) => {
+      const currentPlayers = Array.isArray(dashboard?.game?.players) ? dashboard.game.players : [];
+      const currentTeams = Array.isArray(dashboard?.game?.teams) ? dashboard.game.teams : [];
+      currentPlayers.forEach((player) => {
+        const oldPlayer = previousPlayers.find((p) => identityKeys(p).some((key) => identityKeys(player).includes(key)));
+        if (!oldPlayer) return;
+        const oldWins = Number(oldPlayer.wins || 0);
+        const newWins = Number(player.wins || 0);
+        if (newWins <= oldWins) return;
+        const teamId = player.teamId;
+        if (!teamId) return;
+        const team = currentTeams.find((t) => String(t.id) === String(teamId));
+        const playerName = player.displayName || player.name || player.username || "JUGADOR";
+        const idx = celebrationIndex[teamId] ?? 0;
+        const next = (idx + 1) % (CELEBRATIONS[teamId]?.length || 1);
+        if (CELEBRATIONS[teamId]) setCelebrationIndex((prev) => ({ ...prev, [teamId]: next }));
+        show({ kind: "clean", teamId, teamName: team?.name || (String(teamId) === "team1" ? "CHICOS" : "CHICAS"), playerName, points: newWins - oldWins, celebration: CELEBRATIONS[teamId]?.[idx] || "¡PUNTO!" });
+      });
+      previousPlayers = currentPlayers;
     });
 
     const unsubGift = eventBus.subscribe("gift:points_awarded", (event) => {
       if (!event || !event.success || Number(event.points || 0) <= 0) return;
       const teamId = event.teamId || event.originalTeamId || null;
       if (!teamId) return;
+      const currentTeams = Array.isArray(liveDashboard?.game?.teams) ? liveDashboard.game.teams : [];
+      const team = currentTeams.find((t) => String(t.id) === String(teamId));
       const playerName = event.displayName || event.username || "JUGADOR";
-      const team = liveDashboard?.game?.teams?.find((t) => String(t.id) === String(teamId));
       show({ kind: "gift", teamId, teamName: team?.name || (String(teamId) === "team1" ? "CHICOS" : "CHICAS"), playerName, giftName: resolveGiftName(event, event.abilityId), giftId: event.giftId || event.canonicalGiftId, points: Number(event.points || 0) }, 3400);
     });
 
@@ -116,7 +125,7 @@ export default function GenderBattleOverlay({
       timers.add(t);
     });
 
-    return () => { unsubWin?.(); unsubGift?.(); unsubAbility?.(); timers.forEach((t) => window.clearTimeout(t)); };
+    return () => { unsubDashboard?.(); unsubGift?.(); unsubAbility?.(); timers.forEach((t) => window.clearTimeout(t)); };
   }, [liveDashboard, celebrationIndex]);
 
   const liveGame = liveDashboard?.game || {};
@@ -160,7 +169,6 @@ export default function GenderBattleOverlay({
   };
 
   const abilityClass = abilityVisual ? `gbo-ability-${abilityVisual.abilityId}` : "";
-  const opponentTeamName = abilityVisual ? (abilityVisual.senderTeamId === "team1" ? girls.name : boys.name) : "";
 
   return (
     <div className={`gender-battle-overlay ${abilityClass}`} data-live-active={String(Boolean(liveLiveActive))} data-game-mode={String(liveMode)} data-round={String(liveRound?.number ?? "")}>
