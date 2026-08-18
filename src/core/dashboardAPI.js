@@ -5,7 +5,7 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./powerUpEngine";
+import { powerUpEngine } from "./engines/powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -76,10 +76,6 @@ class DashboardAPI {
         if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot }; else if (snapshotId || snapshot.username) currentPlayers.push({ ...snapshot });
         data.game = { ...data.game, players: currentPlayers };
 
-        // Manual team score actions update TeamManager immediately, while the
-        // gameEngine listener may update gameState.teams later in the same
-        // synchronous EventBus dispatch. Do not wait for listener ordering:
-        // apply the authoritative team payload directly to this snapshot.
         if (payload?.teamId) {
           const teamId = String(payload.teamId);
           const teamPayload = payload.teamSnapshot || {
