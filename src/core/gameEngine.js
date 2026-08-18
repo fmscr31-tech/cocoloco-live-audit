@@ -66,18 +66,27 @@ function syncFromStorage(){
 export function createPlayer(name){const player=addPlayer(name);if(getBattle())addBattlePlayer(player);setPlayers(gameState.players);createEvent("PLAYER_CREATED",{playerId:player.id,name:player.name});saveState();return player;}
 export function removeGamePlayer(playerId){const player=removePlayer(playerId);if(!player)return null;removePlayerFromAllTeams(playerId);removeBattlePlayer(playerId);gameState.teams=getTeams();setPlayers(gameState.players);setTeams(gameState.teams);createEvent("PLAYER_REMOVED",{playerId:player.id,name:player.name});saveState();return player;}
 
-export function playerWin(id){
-  const canonicalPlayer=getPlayer(id); if(!canonicalPlayer)return null; const canonicalId=canonicalPlayer.id;
-  if(roundWinners.has(canonicalId))return canonicalPlayer;
+export function playerWin(id, options = {}){
+  const canonicalPlayer=getPlayer(id); if(!canonicalPlayer)return null;
+  const canonicalId=canonicalPlayer.id;
+  const allowRepeat=options.allowRepeat === true;
+  const manualAttribution=options.source === "MANUAL_WIN_LIMPIA";
+  const emitMvpEvent=options.emitMvpEvent !== false;
+  if(!allowRepeat && roundWinners.has(canonicalId))return canonicalPlayer;
+
   const player=addWin(canonicalId); if(!player)return null;
-  roundWinners.add(player.id); if(getBattle())battlePlayerWin(player.id);
+  if(!allowRepeat) roundWinners.add(player.id);
+  if(getBattle())battlePlayerWin(player.id);
   let teamSnapshot=null;
   if(player.teamId){teamSnapshot=addPointsToTeam(player.teamId,1);gameState.teams=getTeams();setTeams(gameState.teams);}
   setPlayers(gameState.players);
   createEvent("PLAYER_WIN",{playerId:player.id,name:player.name,points:player.points,wins:player.wins});
-  const winPayload={winId:`win_${Date.now()}_${player.id}`,playerId:player.id,tiktokId:player.tiktokId,id:player.id,name:player.name,username:player.username||player.name,teamId:player.teamId||null,points:player.points,wins:player.wins,wordsFound:player.wordsFound,teamPoints:teamSnapshot?.points??null,timestamp:Date.now()};
-  eventBus.publish("game:score_updated",{playerId:player.id,tiktokId:player.tiktokId,username:player.username||player.name,teamId:player.teamId||null,pointsAdded:1,newTotal:player.points,wins:player.wins,wordsFound:player.wordsFound,teamPointsAdded:player.teamId?1:0,newTeamTotal:teamSnapshot?.points??null,source:"WIN_LIMPIA",timestamp:Date.now(),playerSnapshot:{...player},teamSnapshot:teamSnapshot?{...teamSnapshot}:null});
-  eventBus.emit("win:correct",winPayload); eventBus.emit("overlay:win",{...winPayload,source:"WIN_LIMPIA"}); saveState(); return player;
+  const winPayload={winId:`win_${Date.now()}_${player.id}_${Math.random().toString(36).slice(2,7)}`,playerId:player.id,tiktokId:player.tiktokId,id:player.id,name:player.name,username:player.username||player.name,teamId:player.teamId||null,points:player.points,wins:player.wins,wordsFound:player.wordsFound,teamPoints:teamSnapshot?.points??null,timestamp:Date.now(),source:manualAttribution?"MANUAL_WIN_LIMPIA":"WIN_LIMPIA",mvpAlreadyRecorded:manualAttribution && !emitMvpEvent};
+  eventBus.publish("game:score_updated",{playerId:player.id,tiktokId:player.tiktokId,username:player.username||player.name,teamId:player.teamId||null,pointsAdded:1,newTotal:player.points,wins:player.wins,wordsFound:player.wordsFound,teamPointsAdded:player.teamId?1:0,newTeamTotal:teamSnapshot?.points??null,source:manualAttribution?"MANUAL_WIN_LIMPIA":"WIN_LIMPIA",timestamp:Date.now(),playerSnapshot:{...player},teamSnapshot:teamSnapshot?{...teamSnapshot}:null});
+  if(emitMvpEvent) eventBus.emit("win:correct",winPayload);
+  eventBus.emit("overlay:win",{...winPayload,source:manualAttribution?"MANUAL_WIN_LIMPIA":"WIN_LIMPIA"});
+  saveState();
+  return player;
 }
 
 export function setPlayerTeam(playerId,teamId){const player=assignTeam(playerId,teamId);if(!player)return null;setPlayers(gameState.players);createEvent("PLAYER_TEAM_ASSIGNED",{playerId:player.id,teamId:player.teamId,name:player.name});saveState();return player;}
@@ -108,18 +117,11 @@ function handleTimerCompletion(payload={}){
   const finished=finishActiveRound();
   if(!finished) return;
 
-  // Hard stop: completing a round always transitions the timer to IDLE.
   persistPhase("IDLE");
   resetTimer(0,"IDLE");
   gameState.timer={remainingSeconds:0,running:false,minutes:0,seconds:0,phase:"IDLE"};
 
-  eventBus.publish("overlay:round_completed",{
-    roundId:finished.id,
-    round:{...finished},
-    phase:"IDLE",
-    timestamp:Date.now()
-  });
-
+  eventBus.publish("overlay:round_completed",{roundId:finished.id,round:{...finished},phase:"IDLE",timestamp:Date.now()});
   if(finished.winner) eventBus.publish("round:winner_popup",{mode:getCurrentMode(),winner:finished.winner,winningTeamId:finished.winningTeamId||null,winningTeamName:finished.winningTeamName||null,roundId:finished.id,timestamp:Date.now()});
   saveState();
 }
@@ -129,7 +131,6 @@ eventBus.subscribe("timer:completed",handleTimerCompletion);
 export function startGameTimer(minutes=DEFAULT_TEAM_ROUND_MINUTES){
   const requestedMinutes=Math.max(0,Number(minutes)||0);
   const activeRound=gameState.round||getCurrentRound();
-  // The timer belongs to an active round. Never create an orphan timer after a round ends.
   if(!activeRound || activeRound.status!=="active") return getTime();
   const current=gameState.timer;
   if(current?.running&&String(current.phase||"").toUpperCase()==="ROUND")return current;
