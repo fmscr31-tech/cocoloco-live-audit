@@ -34,6 +34,7 @@ class EventBus {
   isCrossWindowEvent(eventName) {
     return (
       eventName === "game:score_updated" ||
+      eventName === "win:detected" ||
       eventName === "win:correct" ||
       eventName === "overlay:win" ||
       eventName === "ability:started" ||
