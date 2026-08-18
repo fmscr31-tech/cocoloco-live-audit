@@ -17,6 +17,7 @@ const PHASE_STORAGE_KEY = "cocoloco_round_phase_v2";
 export const gameState = { players, round: getCurrentRound() || null, timer: null, battle: null, teams: [] };
 let roundWinners = new Set();
 let autoTransitionBusy = false;
+let winSignalBusy = false;
 function getCurrentMode() { return String(commandConfigManager.getConfig().gameRegistrationMode || "INDIVIDUAL").toUpperCase(); }
 function isAutoRoundMode() { const mode = getCurrentMode(); return mode === "TEAM" || mode === "TEAMS" || isGenderTeamsMode(mode); }
 function persistPhase(phase) { try { localStorage.setItem(PHASE_STORAGE_KEY, phase); } catch (e) {} }
@@ -26,6 +27,22 @@ function syncPlayersFromRegistration() {
   if (regState?.players) regState.players.forEach(p => { const added = addPlayer({ name:p.displayName||p.username||p.playerId,displayName:p.displayName||p.username,username:p.username||p.displayName,tiktokId:p.playerId||"",avatar:p.avatar||p.profilePictureUrl||"",teamId:p.teamId||null }); if(added&&p.teamId)assignTeam(added.id,p.teamId); });
   setPlayers(gameState.players); gameState.teams=getTeams(); setTeams(gameState.teams);
 }
+function resolveWinPlayer(payload = {}) {
+  const candidates = [payload.playerId, payload.userId, payload.tiktokId, payload.id, payload.username, payload.uniqueId, payload.displayName, payload.nickname].filter(Boolean).map(String);
+  for (const candidate of candidates) { const player = getPlayer(candidate); if (player) return player; }
+  const normalizedNames = candidates.map(value => value.trim().toLowerCase());
+  return players.find(player => normalizedNames.includes(String(player.name || "").trim().toLowerCase()) || normalizedNames.includes(String(player.displayName || "").trim().toLowerCase()) || normalizedNames.includes(String(player.username || "").trim().toLowerCase())) || null;
+}
+function handleDetectedWin(payload = {}) {
+  if (winSignalBusy || payload?.winLimpia === false) return null;
+  const player = resolveWinPlayer(payload);
+  if (!player) { console.warn("[WIN LIMPIA] External win received but player identity could not be resolved:", payload); eventBus.publish("win:rejected", { ...payload, reason: "PLAYER_NOT_FOUND", timestamp: Date.now() }); return null; }
+  if (roundWinners.has(player.id)) return player;
+  winSignalBusy = true;
+  try { const result = playerWin(player.id); if (result) console.log("[WIN LIMPIA APPLIED]", { playerId: result.id, username: result.username, wins: result.wins, points: result.points }); return result; }
+  finally { winSignalBusy = false; }
+}
+eventBus.subscribe("win:detected", handleDetectedWin);
 eventBus.subscribe("round:started",()=>{roundWinners.clear();persistPhase("ROUND");});
 eventBus.subscribe("ROUND_STARTED",()=>{roundWinners.clear();persistPhase("ROUND");});
 eventBus.subscribe("registration:cleared",()=>{const previousPlayers=[...players];previousPlayers.forEach(player=>{if(player?.id)removePlayer(player.id);});gameState.players.length=0;gameState.teams=getTeams();setPlayers(gameState.players);setTeams(gameState.teams);saveState();eventBus.emit("overlay:reset");});
@@ -48,15 +65,7 @@ function startIntermission(){persistPhase("INTERMISSION");gameState.timer=startT
 function startNextRoundAutomatically(){if(autoTransitionBusy)return;autoTransitionBusy=true;try{const mode=getCurrentMode();if(!isAutoRoundMode())return;const registration=registrationManager.getRegistrationState();if(!registration?.players?.length){console.warn("[GameEngine] Intermission completed but there are no registered players; keeping registration open.");return;}beginRound({duration:DEFAULT_TEAM_ROUND_MINUTES,gameMode:mode,name:"Nueva Ronda"});}finally{autoTransitionBusy=false;}}
 function handleTimerCompletion(payload={}){const phase=String(payload.phase||payload.timer?.phase||getPersistedPhase()).toUpperCase();if(phase==="INTERMISSION"){startNextRoundAutomatically();return;}const activeRound=gameState.round||getCurrentRound();if(!activeRound||activeRound.status==="finished")return;gameState.round=activeRound;const finished=finishActiveRound();if(finished){if(finished.winner)eventBus.publish("round:winner_popup",{mode:getCurrentMode(),winner:finished.winner,winningTeamId:finished.winningTeamId||null,winningTeamName:finished.winningTeamName||null,roundId:finished.id,timestamp:Date.now()});if(isAutoRoundMode())startIntermission();}}
 eventBus.subscribe("ROUND_TIME_EXPIRED",handleTimerCompletion);eventBus.subscribe("timer:completed",handleTimerCompletion);eventBus.subscribe("TIMER_COMPLETED",handleTimerCompletion);
-export function startGameTimer(minutes=DEFAULT_TEAM_ROUND_MINUTES){
-  const requestedMinutes=Math.max(0,Number(minutes)||0);
-  // beginRound() already starts the authoritative ROUND timer. Never restart it from the UI immediately afterward.
-  // This makes startGameTimer idempotent while a ROUND timer is actively running and prevents the start timestamp/interval from being replaced.
-  const current=gameState.timer;
-  if(current?.running && String(current.phase||"").toUpperCase()==="ROUND") return current;
-  gameState.timer=startTimer(requestedMinutes,"ROUND");
-  return gameState.timer;
-}
+export function startGameTimer(minutes=DEFAULT_TEAM_ROUND_MINUTES){const requestedMinutes=Math.max(0,Number(minutes)||0);const current=gameState.timer;if(current?.running&&String(current.phase||"").toUpperCase()==="ROUND")return current;gameState.timer=startTimer(requestedMinutes,"ROUND");return gameState.timer;}
 export function pauseGameTimer(){pauseTimer();}
 export function resumeGameTimer(){resumeTimer();}
 export function resetGameTimer(minutes){resetTimer(minutes,"ROUND");}
