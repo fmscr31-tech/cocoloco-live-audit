@@ -10,7 +10,7 @@ class EventBus {
     this.startedAt = Date.now();
     this.transientEvents = new Set([
       "win:detected","win:correct","overlay:win","game:winner_detected","game:objective_completed",
-      "round:winner_popup","round:finished","overlay:round_completed","ability:started","ability:finished",
+      "round:winner_popup","round:finished","overlay:round_completed","ability:started","ability:finished","ability:score_executed",
       "gift:action_dispatched","effect:activated","effect:updated","effect:removed","effect:expired",
       "powerup:activated","powerup:expired","powerup:removed","player:highlight","cocazo:trigger"
     ]);
@@ -23,7 +23,7 @@ class EventBus {
     }
   }
   isCrossWindowEvent(eventName) {
-    return new Set(["dashboard:snapshot","game:score_updated","game:winner_detected","game:objective_completed","win:detected","win:correct","overlay:win","ability:started","ability:finished","gift:action_dispatched","effect:activated","effect:updated","effect:removed","effect:expired","powerup:activated","powerup:expired","powerup:removed","player:highlight","player:created","player:updated","PLAYER_CREATED","players:reset","team:updated","teams:updated","team:created","team:removed","mvp:contribution_pending","mvp:gift_contribution","mvp:recipient_selected","registration:state_synced","registration:updated","registration:opened","registration:closed","registration:locked","registration:cleared","registration:player_registered","registration:player_removed","round:started","ROUND_STARTED","round:finished","round:winner_popup","round:answer_snapshot","overlay:round_completed","timer:started","timer:tick","timer:paused","timer:resumed","timer:stopped","timer:reset","GAME_MODE_CHANGED","SESSION_STATUS_CHANGED","live:phase_changed","session:started","session:updated","session:ended","reward:processed","config:command_updated","cocazo:trigger"]).has(eventName);
+    return new Set(["dashboard:snapshot","game:score_updated","game:winner_detected","game:objective_completed","win:detected","win:correct","overlay:win","ability:started","ability:finished","ability:score_executed","gift:action_dispatched","effect:activated","effect:updated","effect:removed","effect:expired","powerup:activated","powerup:expired","powerup:removed","player:highlight","player:created","player:updated","PLAYER_CREATED","players:reset","team:updated","teams:updated","team:created","team:removed","mvp:contribution_pending","mvp:gift_contribution","mvp:recipient_selected","registration:state_synced","registration:updated","registration:opened","registration:closed","registration:locked","registration:cleared","registration:player_registered","registration:player_removed","round:started","ROUND_STARTED","round:finished","round:winner_popup","round:answer_snapshot","overlay:round_completed","timer:started","timer:tick","timer:paused","timer:resumed","timer:stopped","timer:reset","GAME_MODE_CHANGED","SESSION_STATUS_CHANGED","live:phase_changed","session:started","session:updated","session:ended","reward:processed","config:command_updated","cocazo:trigger"]).has(eventName);
   }
   createMessageId(eventName) { return `${eventName}_${Date.now()}_${Math.random().toString(36).slice(2)}`; }
   _receiveRemote(message) {
