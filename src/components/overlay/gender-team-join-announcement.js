@@ -11,11 +11,15 @@ function installStyles() {
   style.textContent = `
     .gbo-team-name.gbo-join-ready{position:relative;min-height:24px;display:flex;align-items:center;justify-content:center}
     .gbo-team-name .gbo-team-name-value,.gbo-team-name .gbo-team-join-prompt{display:block;transition:opacity .22s ease,transform .22s ease}
-    .gbo-team-name .gbo-team-join-prompt{font-size:13px;font-weight:1000;letter-spacing:.35px;text-transform:none;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.65),0 0 8px rgba(255,255,255,.5);animation:gboJoinPromptPulse 1.05s ease-in-out infinite}
+    .gbo-team-name .gbo-team-join-prompt{font-size:12px;font-weight:1000;letter-spacing:.25px;text-transform:none;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.72),0 0 7px rgba(255,255,255,.4);animation:gboJoinPromptPulse 1.05s ease-in-out infinite}
+    .gbo-team-name .gbo-team-join-command{display:inline-block;margin:0 3px;padding:1px 5px;border-radius:7px;font-size:1.12em;font-weight:1000;letter-spacing:.45px;text-transform:uppercase;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.7),0 0 8px currentColor;box-shadow:0 0 0 1px rgba(255,255,255,.5),0 2px 7px rgba(0,0,0,.28);animation:gboJoinCommandPulse 1.05s ease-in-out infinite}
+    .gbo-team-name .gbo-team-join-command[data-team-index="0"]{background:rgba(0,145,255,.92);color:#e9f9ff}
+    .gbo-team-name .gbo-team-join-command[data-team-index="1"]{background:rgba(225,38,145,.92);color:#fff2fb}
     .gbo-team-name.gbo-join-showing .gbo-team-name-value{opacity:0;transform:translateY(-3px);position:absolute}
     .gbo-team-name:not(.gbo-join-showing) .gbo-team-join-prompt{opacity:0;transform:translateY(3px);position:absolute;pointer-events:none}
     .gbo-team-name.gbo-join-showing .gbo-team-join-prompt{opacity:1;transform:translateY(0);position:relative}
-    @keyframes gboJoinPromptPulse{0%,100%{opacity:.72;transform:scale(1)}50%{opacity:1;transform:scale(1.035)}}
+    @keyframes gboJoinPromptPulse{0%,100%{opacity:.78;transform:scale(1)}50%{opacity:1;transform:scale(1.035)}}
+    @keyframes gboJoinCommandPulse{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.07);filter:brightness(1.16)}}
   `;
   document.head.appendChild(style);
 }
@@ -58,8 +62,16 @@ function update() {
       promptNode.className = "gbo-team-join-prompt";
       nameNode.appendChild(promptNode);
     }
+
     valueNode.textContent = visibleName;
-    promptNode.textContent = `Escribe ${visibleCommand} para unirte`;
+    promptNode.replaceChildren();
+    const prefix = document.createTextNode("Escribe ");
+    const commandNode = document.createElement("span");
+    commandNode.className = "gbo-team-join-command";
+    commandNode.dataset.teamIndex = String(index);
+    commandNode.textContent = visibleCommand;
+    const suffix = document.createTextNode(" para unirte");
+    promptNode.append(prefix, commandNode, suffix);
   });
 }
 
