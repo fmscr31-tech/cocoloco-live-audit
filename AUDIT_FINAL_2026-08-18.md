@@ -1,6 +1,6 @@
 # CocoLoco Live Manager — Final Audit
 
-This marker exists only to force a final CI verification run against the current `main` tree after the reconstruction pass.
+Final reconstruction marker. The verification workflow checks the application build and Node test suite against the current main tree.
 
 Required overlay entry points:
 - `src/components/overlay.jsx`
@@ -10,4 +10,4 @@ Required overlay entry points:
 
 Required test infrastructure:
 - `tests/esm-extension-loader.mjs`
-- `npm test` uses the loader for Node ESM compatibility.
+- `npm test` uses the ESM extension loader.
