@@ -1,8 +1,8 @@
-import { eventBus } from "./eventBus";
-import { GIFT_CONFIG } from "../config/gifts";
-import { GIFT_RULES_BY_MODE } from "../data/giftRules";
-import { ABILITY_REGISTRY } from "../config/abilityRegistry";
-import { GIFT_ABILITY_MAP } from "../config/giftAbilityMap";
+import { eventBus } from "./eventBus.js";
+import { GIFT_CONFIG } from "../config/gifts.js";
+import { GIFT_RULES_BY_MODE } from "../data/giftRules.js";
+import { ABILITY_REGISTRY } from "../config/abilityRegistry.js";
+import { GIFT_ABILITY_MAP } from "../config/giftAbilityMap.js";
 const CONFIG_STORAGE_KEY="cocoloco_system_config";
 const ABILITY_SOUND_MIGRATION_VERSION=5;
 const DEFAULT_GIFT_SOUNDS=[];
@@ -15,8 +15,6 @@ class ConfigManager{
  migrateConfiguration(){let changed=false;
   if(!this.config.abilities||typeof this.config.abilities!=="object"){this.config.abilities={...ABILITY_REGISTRY};changed=true;}else for(const[abilityId,ability]of Object.entries(ABILITY_REGISTRY))if(!this.config.abilities[abilityId]){this.config.abilities[abilityId]={...ability};changed=true;}
   if(!Array.isArray(this.config.abilityGiftMap)){this.config.abilityGiftMap=GIFT_ABILITY_MAP.map(item=>({...item,aliases:[...(item.aliases||[])]}));changed=true;}else for(const mapping of GIFT_ABILITY_MAP){const exists=this.config.abilityGiftMap.some(existing=>String(existing?.giftId||"").trim().toLowerCase()===String(mapping.giftId).trim().toLowerCase()||String(existing?.abilityId||"").trim().toLowerCase()===String(mapping.abilityId).trim().toLowerCase());if(!exists){this.config.abilityGiftMap.push({...mapping,aliases:[...(mapping.aliases||[])]});changed=true;}}
-  // Gift Sound Overrides are intentionally empty until the operator creates one manually.
-  // One-time migration removes the historical/fake override list but preserves all future manual entries.
   if((this.config.giftSoundOverridesMigrationVersion||0)<5){this.config.giftSounds=[];this.config.giftSoundOverridesMigrationVersion=5;changed=true;}
   else if(!Array.isArray(this.config.giftSounds)){this.config.giftSounds=[];changed=true;}
   if(!this.config.battleEffects||typeof this.config.battleEffects!=="object"){this.config.battleEffects={};changed=true;}
