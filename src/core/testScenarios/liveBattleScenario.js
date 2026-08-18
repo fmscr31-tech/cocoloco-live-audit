@@ -1,12 +1,12 @@
 import { simulationEngine } from "../simulationEngine";
 import { sessionManager } from "../sessionManager";
 import { dashboardAPI } from "../dashboardAPI";
-import { createTeam } from "../teamManager";
+import { createTeam } from "../TeamManager";
 import { createPlayer, setPlayerTeam } from "../gameEngine";
 
 /**
  * Live Battle Scenario: Automated end-to-end integration test simulating a complete TikTok LIVE competition.
- * Uses only public APIs (simulationEngine, sessionManager, dashboardAPI, gameEngine, teamManager).
+ * Uses only public APIs (simulationEngine, sessionManager, dashboardAPI, gameEngine, TeamManager).
  */
 export async function runLiveBattleScenario() {
   console.log("🚀 [BATTLE SIMULATION] Iniciando simulación completa de batalla...");
