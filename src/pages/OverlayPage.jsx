@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import Overlay from "../components/overlay";
+import Overlay from "../components/overlay.jsx";
 import { IndividualRegistrationPromptV2 } from "../components/overlay/IndividualRegistrationPromptV2";
 
 function OverlayPage() {
