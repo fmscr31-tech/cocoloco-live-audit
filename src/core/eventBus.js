@@ -7,6 +7,13 @@ class EventBus {
     this.listeners = new Map();
     this.seenMessages = new Set();
     this.storageKey = "cocoloco_live_bus_v2_message";
+    this.startedAt = Date.now();
+    this.transientEvents = new Set([
+      "win:detected","win:correct","overlay:win","game:winner_detected","game:objective_completed",
+      "round:winner_popup","round:finished","overlay:round_completed","ability:started","ability:finished",
+      "gift:action_dispatched","effect:activated","effect:updated","effect:removed","effect:expired",
+      "powerup:activated","powerup:expired","powerup:removed","player:highlight","cocazo:trigger"
+    ]);
     if (typeof window !== "undefined") {
       if (window.BroadcastChannel) {
         try { this.bc = new BroadcastChannel("cocoloco_live_bus_v2"); this.bc.onmessage = (event) => this._receiveRemote(event.data || {}); }
@@ -20,8 +27,13 @@ class EventBus {
   }
   createMessageId(eventName) { return `${eventName}_${Date.now()}_${Math.random().toString(36).slice(2)}`; }
   _receiveRemote(message) {
-    const { eventName, payload, messageId } = message || {}; if (!eventName) return;
+    const { eventName, payload, messageId, timestamp } = message || {};
+    if (!eventName) return;
     if (messageId) { if (this.seenMessages.has(messageId)) return; this.seenMessages.add(messageId); if (this.seenMessages.size > 500) this.seenMessages.delete(this.seenMessages.values().next().value); }
+    if (this.transientEvents.has(eventName) && Number.isFinite(Number(timestamp)) && Number(timestamp) < this.startedAt) {
+      console.log("[EventBus] Ignored stale transient event after overlay reload:", eventName, timestamp, this.startedAt);
+      return;
+    }
     console.log("[EventBus REMOTE]", eventName, payload);
     this._emitLocal(eventName, payload, true);
   }
