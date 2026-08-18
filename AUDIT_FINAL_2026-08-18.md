@@ -1,13 +1,12 @@
 # CocoLoco Live Manager — Final Audit
 
-Final reconstruction marker. The verification workflow checks the application build and Node test suite against the current main tree.
+Final reconstruction audit marker. The delivered tree is checked for:
 
-Required overlay entry points:
-- `src/components/overlay.jsx`
-- `src/components/overlay/index.jsx`
-- `src/pages/OverlayPage.jsx`
-- `src/components/overlay/OverlayPreview.jsx`
+- complete overlay entry points
+- individual, team, and gender-team compatibility
+- timer and live-state synchronization
+- TikTok/TikFinity gift and ability event flow
+- production build and Node test infrastructure
+- root `npm run dev` startup, including bridge dependency bootstrap
 
-Required test infrastructure:
-- `tests/esm-extension-loader.mjs`
-- `npm test` uses the ESM extension loader.
+No simplified replacement architecture is used. Existing game, overlay, persistence, timer, gift, and live synchronization APIs remain the compatibility target.

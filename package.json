@@ -4,21 +4,19 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/ensure-bridge-deps.mjs",
     "dev": "concurrently \"vite\" \"node bridge/server.js\"",
     "vite": "vite",
     "bridge": "node bridge/server.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --experimental-loader ./tests/esm-extension-loader.mjs --test"
+    "test": "node --test"
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1",
-    "tiktok-live-connector": "^2.4.3",
-    "ws": "^8.21.1"
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
