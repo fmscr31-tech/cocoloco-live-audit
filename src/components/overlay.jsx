@@ -67,6 +67,7 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
   const effectiveWinner = testWinner !== undefined ? testWinner : winner;
 
   const stateRef = useRef(state);
+  const hydrationCompleteRef = useRef(false);
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { if (mode) setCurrentMode(normalizeMode(mode)); }, [mode]);
   useEffect(() => {
@@ -100,7 +101,7 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
     const unsubRemoved = eventBus.subscribe("effect:removed", () => { setFrozenTeamId(null); setFrozenDetails(null); setAlert(null); });
     const unsubExpired = eventBus.subscribe("effect:expired", () => { setFrozenTeamId(null); setFrozenDetails(null); setAlert(null); });
     const unsubHighlight = eventBus.subscribe("player:highlight", (data) => { if (data?.playerId) { setHighlightedPlayerId(data.playerId); setTimeout(() => setHighlightedPlayerId(null), 1400); } });
-    const unsubReset = eventBus.subscribe("overlay:reset", () => { setState({ players: [], battle: null, teams: [], round: null, timer: { minutes: 0, seconds: 0 }, liveActive: false }); setShowWin(false); setWinner(null); setDonutTeamId(null); setHatTeamId(null); setGalaxyTeamId(null); setGalaxyPopup(null); setMoneyGunTeamId(null); setFrozenTeamId(null); setFrozenDetails(null); setEpicEvent(null); setEpicGift(null); setAlert(null); setScareActive(false); setClueActive(false); setGenericGiftActive(false); });
+    const unsubReset = eventBus.subscribe("overlay:reset", () => { hydrationCompleteRef.current = false; setState({ players: [], battle: null, teams: [], round: null, timer: { minutes: 0, seconds: 0 }, liveActive: false }); setShowWin(false); setWinner(null); setDonutTeamId(null); setHatTeamId(null); setGalaxyTeamId(null); setGalaxyPopup(null); setMoneyGunTeamId(null); setFrozenTeamId(null); setFrozenDetails(null); setEpicEvent(null); setEpicGift(null); setAlert(null); setScareActive(false); setClueActive(false); setGenericGiftActive(false); });
     return () => { unsubStarted(); unsubFinished(); unsubActivated(); unsubUpdated(); unsubRemoved(); unsubExpired(); unsubHighlight(); unsubReset(); };
   }, []);
 
@@ -118,7 +119,17 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
       setTimeout(() => setAlert(null), 3000);
     }
     const oldState = stateRef.current;
-    if (newState.players?.length) { const changed = newState.players.find(player => { const oldPlayer = oldState.players.find(p => p.id === player.id); return player.wins > (oldPlayer ? oldPlayer.wins : 0); }); if (changed) { setWinner(changed); setShowWin(true); setTimeout(() => setShowWin(false), 3000); } }
+    if (hydrationCompleteRef.current && newState.players?.length) {
+      const changed = newState.players.find(player => {
+        const oldPlayer = oldState.players.find(p => p.id === player.id);
+        return oldPlayer && Number(player.wins || 0) > Number(oldPlayer.wins || 0);
+      });
+      if (changed) {
+        setWinner(changed);
+        setShowWin(true);
+        setTimeout(() => setShowWin(false), 3000);
+      }
+    }
     const isRoundActive = newState.round && newState.round.active;
     const hasRegisteredPlayers = Array.isArray(dashboard?.registration?.players) && dashboard.registration.players.length > 0;
     const registrationOpen = dashboard?.registration?.status === "OPEN";
@@ -126,7 +137,9 @@ function Overlay({ mode = "team", testDonutTeamId, testHatTeamId, testGalaxyTeam
     const regPlayers = shouldShowRegPlayers ? (dashboard.registration?.players || []).map(p => ({ id: p.playerId || p.id, name: p.displayName || p.name || p.username, displayName: p.displayName || p.name || p.username, username: p.username || p.displayName, avatar: p.avatar, teamId: p.teamId, points: p.points || 0, wins: p.wins || 0 })) : [];
     const activePlayers = newState.players?.length > 0 ? newState.players : regPlayers;
     const updated = { players: activePlayers, battle: newState.battle, teams: newState.teams || [], round: newState.round, timer: newState.timer || { minutes: 0, seconds: 0 }, liveActive: dashboard.liveActive };
-    stateRef.current = updated; setState(updated);
+    stateRef.current = updated;
+    setState(updated);
+    hydrationCompleteRef.current = true;
   }
 
   if (currentMode === "gender") {
