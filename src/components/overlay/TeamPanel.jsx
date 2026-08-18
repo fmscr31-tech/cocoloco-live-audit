@@ -125,7 +125,7 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
       </div>
     </div>
 
-    {visiblePlayers.length > 0 && <div className="players-box" style={{position:"relative",zIndex:10,overflowY:"auto",maxHeight:"220px"}}>
+    {visiblePlayers.length > 0 && <div className="players-box" style={{position:"relative",zIndex:10,overflowY:visiblePlayers.length > 5 ? "auto" : "hidden",maxHeight:"220px"}}>
       {isGalaxyBenefited && galaxyPopup ? <div style={{padding:"8px",textAlign:"center"}}><div style={{fontSize:"11.5px",fontWeight:900,color:"#fff"}}>✨ {galaxyPopup.sender} ✨</div><div style={{fontSize:"7.5px",fontWeight:900,color:"#fff"}}>GALAXY • +1 RONDA</div></div> : <>
         <div className="players-title">{isFrozen ? "❄️ MVP CONGELADOS" : isDamaged ? "💥 BAJO FUEGO" : isDonutActive ? "🍩 EL MUDO • RETO" : isCowboyActive ? "🤠 RETO CREATIVO" : (isGenderBattle ? `🏆 MVPs ${isGirlsTeam ? "CHICAS" : isBoysTeam ? "CHICOS" : "EQUIPO"}` : (roundMvpTitle || "🏆 MVPS (TOP 10)"))}</div>
         {visiblePlayers.map((player,index) => {
