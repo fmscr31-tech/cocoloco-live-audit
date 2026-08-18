@@ -10,15 +10,17 @@ function installStyles() {
   style.id = STYLE_ID;
   style.textContent = `
     .gbo-team-name.gbo-join-ready{position:relative;min-height:24px;display:flex;align-items:center;justify-content:center}
-    .gbo-team-name .gbo-team-name-value,.gbo-team-name .gbo-team-join-prompt{display:block;transition:opacity .22s ease,transform .22s ease}
-    .gbo-team-name .gbo-team-join-prompt{font-size:13px;font-weight:1000;letter-spacing:.35px;text-transform:none;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.65),0 0 8px rgba(255,255,255,.5);animation:gboJoinPromptPulse 1.05s ease-in-out infinite}
-    .gbo-team-name.gbo-join-showing .gbo-team-name-value{opacity:0;transform:translateY(-3px);position:absolute}
-    .gbo-team-name:not(.gbo-join-showing) .gbo-team-join-prompt{opacity:0;transform:translateY(3px);position:absolute;pointer-events:none}
-    .gbo-team-name.gbo-join-showing .gbo-team-join-prompt{opacity:1;transform:translateY(0);position:relative}
+    .gbo-team-name .gbo-team-name-value,.gbo-team-name .gbo-team-join-prompt{transition:opacity .22s ease,transform .22s ease}
+    .gbo-team-name .gbo-team-join-prompt{font-size:13px;font-weight:1000;letter-spacing:.35px;text-transform:none;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.72),0 0 8px rgba(255,255,255,.45)}
     .gbo-team-join-prompt .gbo-join-command{font-weight:1000;text-transform:uppercase;display:inline-block;padding:1px 5px;border-radius:6px;background:rgba(255,255,255,.16);box-shadow:0 0 7px rgba(255,255,255,.28)}
     .gbo-team:nth-child(1) .gbo-join-command{color:#8fe8ff}
     .gbo-team:nth-child(2) .gbo-join-command{color:#ff9fca}
-    @keyframes gboJoinPromptPulse{0%,100%{opacity:.72;transform:scale(1)}50%{opacity:1;transform:scale(1.035)}}
+    .gbo-team-name .gbo-team-name-value.is-join-visible{opacity:1;transform:translateY(0)}
+    .gbo-team-name .gbo-team-name-value.is-join-hidden{opacity:0;transform:translateY(-3px);pointer-events:none}
+    .gbo-team-name .gbo-team-join-prompt.is-join-visible{opacity:1;transform:translateY(0);pointer-events:auto}
+    .gbo-team-name .gbo-team-join-prompt.is-join-hidden{opacity:0;transform:translateY(3px);pointer-events:none}
+    @keyframes gboJoinPromptPulse{0%,100%{filter:brightness(1);transform:scale(1)}50%{filter:brightness(1.12);transform:scale(1.035)}}
+    .gbo-team-name .gbo-team-join-prompt.is-join-visible{animation:gboJoinPromptPulse 1.05s ease-in-out infinite}
   `;
   document.head.appendChild(style);
 }
@@ -74,6 +76,24 @@ function update(root = document.querySelector(ROOT_SELECTOR)) {
   });
 }
 
+function applyVisibility(root, showJoinPrompt) {
+  root.querySelectorAll(".gbo-team").forEach(card => {
+    const nameNode = card.querySelector(".gbo-team-name");
+    if (!nameNode) return;
+    const valueNode = nameNode.querySelector(".gbo-team-name-value");
+    const promptNode = nameNode.querySelector(".gbo-team-join-prompt");
+    if (!valueNode || !promptNode) return;
+
+    // Hard visibility guarantee: only ONE of the two can occupy the layout at a time.
+    valueNode.style.display = showJoinPrompt ? "none" : "block";
+    promptNode.style.display = showJoinPrompt ? "inline-flex" : "none";
+    valueNode.classList.toggle("is-join-visible", !showJoinPrompt);
+    valueNode.classList.toggle("is-join-hidden", showJoinPrompt);
+    promptNode.classList.toggle("is-join-visible", showJoinPrompt);
+    promptNode.classList.toggle("is-join-hidden", !showJoinPrompt);
+  });
+}
+
 let timer = null;
 let observer = null;
 let unsubscribeDashboard = null;
@@ -87,7 +107,9 @@ function start() {
 
   const apply = () => {
     const root = document.querySelector(ROOT_SELECTOR);
-    if (root) update(root);
+    if (!root) return;
+    update(root);
+    applyVisibility(root, phase);
   };
 
   const tick = () => {
@@ -95,22 +117,14 @@ function start() {
     const teams = getTeams();
     if (!root || teams.length < 2) return;
     phase = !phase;
-    root.querySelectorAll(".gbo-team-name").forEach(nameNode => {
-      nameNode.classList.toggle("gbo-join-showing", phase);
-    });
     update(root);
+    applyVisibility(root, phase);
   };
 
   apply();
   timer = window.setInterval(tick, 2600);
 
-  observer = new MutationObserver(() => {
-    const root = document.querySelector(ROOT_SELECTOR);
-    if (root && !root.dataset.joinAnnouncementReady) {
-      root.dataset.joinAnnouncementReady = "1";
-      update(root);
-    }
-  });
+  observer = new MutationObserver(() => apply());
   observer.observe(document.body, { childList: true, subtree: true });
   unsubscribeDashboard = dashboardAPI.subscribe(apply);
 }
