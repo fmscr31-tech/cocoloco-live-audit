@@ -15,9 +15,14 @@ function getTeam(players, teams, key, index) {
   const teamPlayers = (players || []).filter((p) => String(p?.teamId) === String(resolvedId));
   const pointsFromPlayers = teamPlayers.reduce((sum, p) => sum + Number(p?.points || 0), 0);
 
+  // IMPORTANT: in GENDER_TEAMS the gender controls the mechanics, not the
+  // visible label. The configured team name must be what the overlay renders.
+  const configuredName = String(explicit?.name || fallback?.name || "").trim();
+  const fallbackName = index === 0 ? "CHICOS" : "CHICAS";
+
   return {
     id: resolvedId,
-    name: index === 0 ? "CHICOS" : "CHICAS",
+    name: configuredName || fallbackName,
     icon: index === 0 ? "♂" : "♀",
     points: Number(explicit?.points ?? fallback?.points ?? pointsFromPlayers ?? 0),
     wins: Number(explicit?.wins ?? fallback?.wins ?? 0),
@@ -82,19 +87,12 @@ export default function GenderBattleOverlay({
   const [mvpRevision, setMvpRevision] = useState(0);
   const [liveDashboard, setLiveDashboard] = useState(() => dashboardAPI.getLiveDashboard());
 
-  // The DashboardAPI is the single cross-window state stream. Do not also
-  // subscribe to the same score/timer/team events here: doing both causes the
-  // overlay to process each update twice and visibly re-render/flicker.
   useEffect(() => {
     const unsubscribeDashboard = dashboardAPI.subscribe((dashboard) => {
       setLiveDashboard(dashboard);
       setMvpRevision((value) => value + 1);
     });
 
-    // These events are intentionally limited to effects that are not already
-    // represented by DashboardAPI's reactive snapshot bridge. Timer, score,
-    // team, round and registration events must flow exclusively through the
-    // dashboard snapshot above.
     const auxiliaryEvents = [
       "ability:started",
       "ability:finished",
