@@ -5,7 +5,7 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./engines/powerUpEngine";
+import { powerUpEngine } from "./powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -23,7 +23,24 @@ class DashboardAPI {
     this.subscribers = new Set();
     this.cachedDashboard = null;
     this.initReactiveBridge();
+
+    // IMPORTANT: a browser-source overlay is a separate JS runtime. Its local
+    // sessionManager/gameEngine are NOT the Admin runtime's state. Therefore a
+    // remote event alone is insufficient; the Admin must transmit the complete
+    // authoritative dashboard snapshot. This listener consumes that snapshot
+    // without rebuilding it from the overlay's stale local stores.
+    eventBus.subscribe("dashboard:snapshot", (dashboard) => {
+      if (!dashboard || typeof dashboard !== "object") return;
+      this.cachedDashboard = dashboard;
+      if (dashboard.gameMode) currentMode = dashboard.gameMode;
+      if (typeof dashboard.liveActive === "boolean") liveSessionActive = dashboard.liveActive;
+      this.subscribers.forEach(cb => {
+        try { cb(dashboard); }
+        catch (e) { console.error("Error in remote DashboardAPI subscriber callback:", e); }
+      });
+    });
   }
+
   getGameMode() { return currentMode; }
   setGameMode(mode) {
     currentMode = mode;
@@ -43,14 +60,9 @@ class DashboardAPI {
 
   initReactiveBridge() {
     const notifySubscribers = (payload, eventName = null) => {
-      console.log("[DASHBOARD NOTIFY] Subscribers notified after event, payload:", payload);
       this.invalidateCache();
       const data = this.getLiveDashboard();
 
-      // SCORE/OVERLAY WIN IS AN AUTHORITATIVE CROSS-WINDOW STATE UPDATE.
-      // Do not depend on eventManager/getNewEvent() for the live overlay score.
-      // The browser-source overlay must receive the complete player snapshot
-      // even when its local event history is empty or out of order.
       const isScoreEvent = eventName === "game:score_updated";
       const isWinEvent = eventName === "overlay:win";
       const snapshot = isScoreEvent
@@ -77,23 +89,14 @@ class DashboardAPI {
           const snapshotUsername = String(snapshot?.username || "").trim().toLowerCase();
           const playerTikTokId = String(player?.tiktokId || player?.playerId || "");
           const snapshotTikTokId = String(snapshot?.tiktokId || snapshot?.playerId || "");
-          return (
-            (snapshotId && playerId && String(snapshotId) === String(playerId)) ||
+          return (snapshotId && playerId && String(snapshotId) === String(playerId)) ||
             (snapshotUsername && playerUsername && snapshotUsername === playerUsername) ||
-            (snapshotTikTokId && playerTikTokId && snapshotTikTokId === playerTikTokId)
-          );
+            (snapshotTikTokId && playerTikTokId && snapshotTikTokId === playerTikTokId);
         });
-
-        if (index >= 0) {
-          currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
-        } else {
-          currentPlayers.push({ ...snapshot });
-        }
-
+        if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
+        else if (snapshotId || snapshot.username) currentPlayers.push({ ...snapshot });
         data.game = { ...data.game, players: currentPlayers };
 
-        // Team mode also reads team.points from the dashboard snapshot.
-        // Carry the authoritative team snapshot across the same transport.
         if (payload?.teamSnapshot) {
           const teamSnapshot = payload.teamSnapshot;
           const teamId = teamSnapshot.id || teamSnapshot.teamId;
@@ -103,17 +106,14 @@ class DashboardAPI {
           else currentTeams.push({ ...teamSnapshot });
           data.game = { ...data.game, teams: currentTeams };
         }
-
         data.timestamp = Date.now();
-        console.log("[DASHBOARD LIVE SCORE APPLIED]", {
-          eventName,
-          playerId: snapshotId,
-          points: snapshot.points,
-          wins: snapshot.wins,
-          teamId: payload?.teamId || snapshot.teamId || null,
-          teamPoints: payload?.newTeamTotal ?? payload?.teamPoints ?? null
-        });
       }
+
+      // THIS IS THE KEY CROSS-WINDOW FIX.
+      // Send the complete authoritative dashboard state, not merely the event.
+      // The receiving overlay must never call its own stale getLiveDashboard()
+      // to reconstruct Admin state.
+      eventBus.emit("dashboard:snapshot", { ...data, timestamp: Date.now() });
 
       this.subscribers.forEach(cb => {
         try { cb(data); }
@@ -121,54 +121,29 @@ class DashboardAPI {
       });
     };
 
-    eventBus.subscribe("player:created", notifySubscribers);
-    eventBus.subscribe("player:updated", notifySubscribers);
-    eventBus.subscribe("PLAYER_CREATED", (payload) => {
-      console.log("[DashboardAPI] PLAYER_CREATED received", payload);
-      notifySubscribers(payload);
-    });
-    eventBus.subscribe("reward:processed", notifySubscribers);
-    eventBus.subscribe("session:updated", notifySubscribers);
-    eventBus.subscribe("session:started", notifySubscribers);
-    eventBus.subscribe("session:ended", notifySubscribers);
-    eventBus.subscribe("game:score_updated", (payload) => notifySubscribers(payload, "game:score_updated"));
-    eventBus.subscribe("overlay:win", (payload) => notifySubscribers(payload, "overlay:win"));
-    eventBus.subscribe("game:winner_detected", notifySubscribers);
-    eventBus.subscribe("game:objective_completed", notifySubscribers);
-    eventBus.subscribe("mission:created", notifySubscribers);
-    eventBus.subscribe("mission:updated", notifySubscribers);
-    eventBus.subscribe("mission:completed", notifySubscribers);
-    eventBus.subscribe("effect:activated", notifySubscribers);
-    eventBus.subscribe("effect:updated", notifySubscribers);
-    eventBus.subscribe("effect:expired", notifySubscribers);
-    eventBus.subscribe("effect:removed", notifySubscribers);
-    eventBus.subscribe("powerup:activated", notifySubscribers);
-    eventBus.subscribe("powerup:expired", notifySubscribers);
-    eventBus.subscribe("powerup:removed", notifySubscribers);
-    eventBus.subscribe("EXTERNAL_BATTLE_START", notifySubscribers);
-    eventBus.subscribe("EXTERNAL_BATTLE_END", notifySubscribers);
-    eventBus.subscribe("live:phase_changed", notifySubscribers);
-    eventBus.subscribe("registration:updated", notifySubscribers);
-    eventBus.subscribe("registration:opened", notifySubscribers);
-    eventBus.subscribe("registration:closed", notifySubscribers);
-    eventBus.subscribe("registration:locked", notifySubscribers);
-    eventBus.subscribe("registration:cleared", notifySubscribers);
-    eventBus.subscribe("registration:player_registered", notifySubscribers);
-    eventBus.subscribe("registration:player_removed", notifySubscribers);
-    eventBus.subscribe("registration:state_synced", notifySubscribers);
-    eventBus.subscribe("round:started", notifySubscribers);
-    eventBus.subscribe("ROUND_STARTED", notifySubscribers);
-    eventBus.subscribe("round:finished", notifySubscribers);
-    eventBus.subscribe("config:command_updated", notifySubscribers);
+    const simpleEvents = [
+      "player:created", "player:updated", "PLAYER_CREATED", "reward:processed",
+      "session:updated", "session:started", "session:ended", "game:winner_detected",
+      "game:objective_completed", "mission:created", "mission:updated", "mission:completed",
+      "effect:activated", "effect:updated", "effect:expired", "effect:removed",
+      "powerup:activated", "powerup:expired", "powerup:removed", "EXTERNAL_BATTLE_START",
+      "EXTERNAL_BATTLE_END", "live:phase_changed", "registration:updated",
+      "registration:opened", "registration:closed", "registration:locked", "registration:cleared",
+      "registration:player_registered", "registration:player_removed", "registration:state_synced",
+      "round:started", "ROUND_STARTED", "round:finished", "config:command_updated",
+      "SESSION_STATUS_CHANGED"
+    ];
+    simpleEvents.forEach(name => eventBus.subscribe(name, payload => notifySubscribers(payload, name)));
+    eventBus.subscribe("game:score_updated", payload => notifySubscribers(payload, "game:score_updated"));
+    eventBus.subscribe("overlay:win", payload => notifySubscribers(payload, "overlay:win"));
     eventBus.subscribe("GAME_MODE_CHANGED", (payload) => {
       const modeVal = payload?.mode || payload;
       if (typeof modeVal === "string") {
         currentMode = modeVal;
         localStorage.setItem('cocoloco_game_mode', modeVal);
       }
-      notifySubscribers(payload);
+      notifySubscribers(payload, "GAME_MODE_CHANGED");
     });
-    eventBus.subscribe("SESSION_STATUS_CHANGED", notifySubscribers);
   }
 
   subscribe(callback) {
@@ -226,62 +201,20 @@ class DashboardAPI {
           const playerId = player?.id || player?.playerId || player?.tiktokId;
           const playerUsername = String(player?.username || "").trim().toLowerCase();
           const playerName = String(player?.displayName || player?.name || "").trim().toLowerCase();
-          return (
-            (registeredId && playerId && String(playerId) === String(registeredId)) ||
+          return (registeredId && playerId && String(playerId) === String(registeredId)) ||
             (registeredUsername && playerUsername && registeredUsername === playerUsername) ||
-            (registeredDisplayName && playerName && registeredDisplayName === playerName)
-          );
+            (registeredDisplayName && playerName && registeredDisplayName === playerName);
         });
         if (existingIndex >= 0) {
-          mergedPlayers[existingIndex] = {
-            ...mergedPlayers[existingIndex],
-            teamId: registered.teamId || mergedPlayers[existingIndex].teamId || null,
-            teamName: registered.teamName || mergedPlayers[existingIndex].teamName || null,
-            displayName: registered.displayName || mergedPlayers[existingIndex].displayName,
-            username: registered.username || mergedPlayers[existingIndex].username,
-            avatar: registered.avatar || mergedPlayers[existingIndex].avatar || ""
-          };
+          mergedPlayers[existingIndex] = { ...mergedPlayers[existingIndex], teamId: registered.teamId || mergedPlayers[existingIndex].teamId || null, teamName: registered.teamName || mergedPlayers[existingIndex].teamName || null, displayName: registered.displayName || mergedPlayers[existingIndex].displayName, username: registered.username || mergedPlayers[existingIndex].username, avatar: registered.avatar || mergedPlayers[existingIndex].avatar || "" };
         } else {
-          mergedPlayers.push({
-            id: registeredId,
-            playerId: registered.playerId || registered.id || registeredId,
-            tiktokId: registered.playerId || registered.id || registered.tiktokId || "",
-            name: registered.displayName || registered.name || registered.username || registeredId,
-            displayName: registered.displayName || registered.name || registered.username || registeredId,
-            username: registered.username || registered.displayName || registeredId,
-            avatar: registered.avatar || "",
-            teamId: registered.teamId || null,
-            teamName: registered.teamName || null,
-            points: Number(registered.points) || 0,
-            wins: Number(registered.wins) || 0,
-            wordsFound: Number(registered.wordsFound) || 0,
-            messages: Number(registered.messages) || 0
-          });
+          mergedPlayers.push({ id: registeredId, playerId: registered.playerId || registered.id || registeredId, tiktokId: registered.playerId || registered.id || registered.tiktokId || "", name: registered.displayName || registered.name || registered.username || registeredId, displayName: registered.displayName || registered.name || registered.username || registeredId, username: registered.username || registered.displayName || registeredId, avatar: registered.avatar || "", teamId: registered.teamId || null, teamName: registered.teamName || null, points: Number(registered.points) || 0, wins: Number(registered.wins) || 0, wordsFound: Number(registered.wordsFound) || 0, messages: Number(registered.messages) || 0 });
         }
       });
       game = { ...game, players: mergedPlayers };
     }
 
-    this.cachedDashboard = {
-      session,
-      stats,
-      statistics: stats,
-      rankings,
-      rules,
-      missions,
-      battleEffects,
-      powerUps,
-      historical,
-      historicalLeaderboard: historical,
-      livePhase,
-      registration,
-      commandConfig,
-      game,
-      recentActivity: [],
-      gameMode: currentMode,
-      liveActive: liveSessionActive,
-      timestamp: Date.now()
-    };
+    this.cachedDashboard = { session, stats, statistics: stats, rankings, rules, missions, battleEffects, powerUps, historical, historicalLeaderboard: historical, livePhase, registration, commandConfig, game, recentActivity: [], gameMode: currentMode, liveActive: liveSessionActive, timestamp: Date.now() };
     return this.cachedDashboard;
   }
 }
