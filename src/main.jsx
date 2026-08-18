@@ -12,6 +12,7 @@ import "./components/overlay/money-gun-team-effect.css";
 import "./components/overlay/money-gun-target-override.css";
 import "./components/overlay/money-gun-dom-bridge.css";
 import "./components/overlay/money-gun-dom-bridge.js";
+import "./components/overlay/money-gun-overlay-bridge.js";
 import { audioManager } from "./core/audioManager";
 import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
