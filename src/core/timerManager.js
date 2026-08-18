@@ -1,4 +1,4 @@
-import { eventBus } from "./eventBus";
+import { eventBus } from "./eventBus.js";
 const TIMER_STORAGE_KEY="cocoloco_active_timer_v2";
 let completionTimeout=null;
 let timer={remainingSeconds:0,interval:null,running:false,initialMinutes:0,endAt:null,phase:"IDLE"};
