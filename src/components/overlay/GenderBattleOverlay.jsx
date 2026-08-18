@@ -82,67 +82,27 @@ export default function GenderBattleOverlay({
   const [mvpRevision, setMvpRevision] = useState(0);
   const [liveDashboard, setLiveDashboard] = useState(() => dashboardAPI.getLiveDashboard());
 
-  // The overlay is its own browser window. Its React props do not automatically
-  // change when the Admin window changes state, so subscribe directly to the
-  // cross-window DashboardAPI/EventBus stream. This keeps the live overlay
-  // synchronized without F5, polling, or operator buttons.
+  // The DashboardAPI is the single cross-window state stream. Do not also
+  // subscribe to the same score/timer/team events here: doing both causes the
+  // overlay to process each update twice and visibly re-render/flicker.
   useEffect(() => {
     const unsubscribeDashboard = dashboardAPI.subscribe((dashboard) => {
       setLiveDashboard(dashboard);
       setMvpRevision((value) => value + 1);
     });
 
-    const eventNames = [
-      "game:score_updated",
-      "win:correct",
-      "win:detected",
-      "overlay:win",
-      "player:created",
-      "player:updated",
-      "PLAYER_CREATED",
-      "registration:state_synced",
-      "registration:updated",
-      "registration:opened",
-      "registration:closed",
-      "registration:locked",
-      "registration:cleared",
-      "registration:player_registered",
-      "registration:player_removed",
-      "players:reset",
-      "round:started",
-      "ROUND_STARTED",
-      "round:finished",
-      "round:winner_popup",
-      "round:answer_snapshot",
-      "timer:started",
-      "timer:tick",
-      "timer:paused",
-      "timer:resumed",
-      "timer:stopped",
-      "timer:reset",
-      "team:updated",
-      "teams:updated",
-      "mvp:contribution_pending",
-      "mvp:gift_contribution",
-      "mvp:recipient_selected",
+    // These events are intentionally limited to effects that are not already
+    // represented by DashboardAPI's reactive snapshot bridge. Timer, score,
+    // team, round and registration events must flow exclusively through the
+    // dashboard snapshot above.
+    const auxiliaryEvents = [
       "ability:started",
       "ability:finished",
-      "effect:activated",
-      "effect:updated",
-      "effect:removed",
-      "effect:expired",
       "cocazo:trigger",
-      "GAME_MODE_CHANGED",
-      "SESSION_STATUS_CHANGED",
     ];
 
-    const unsubs = eventNames.map((name) =>
-      eventBus.subscribe(name, () => {
-        // DashboardAPI already receives the same event through its reactive
-        // bridge. The revision guarantees MVP-only state also re-renders.
-        setLiveDashboard(dashboardAPI.getLiveDashboard());
-        setMvpRevision((value) => value + 1);
-      })
+    const unsubs = auxiliaryEvents.map((name) =>
+      eventBus.subscribe(name, () => setMvpRevision((value) => value + 1))
     );
 
     return () => {
