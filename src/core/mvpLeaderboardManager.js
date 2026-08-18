@@ -24,9 +24,7 @@ function load() {
 }
 
 function save() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
 }
 
 load();
@@ -57,11 +55,7 @@ function canonicalPlayerKey(item = {}) {
 function findExistingPlayer(item = {}) {
   const identity = normalizeIdentity(item);
   const lookupKeys = [identity.tiktokId, identity.playerId, identity.id, identity.username].filter(Boolean);
-
-  for (const key of lookupKeys) {
-    if (state.players[key]) return state.players[key];
-  }
-
+  for (const key of lookupKeys) if (state.players[key]) return state.players[key];
   return Object.values(state.players).find(entry => {
     const entryIdentity = normalizeIdentity(entry);
     const entryKeys = [entryIdentity.tiktokId, entryIdentity.playerId, entryIdentity.id, entryIdentity.username].filter(Boolean);
@@ -71,7 +65,6 @@ function findExistingPlayer(item = {}) {
 
 function ensurePlayer(item) {
   if (!item) return null;
-
   const identity = normalizeIdentity(item);
   let existing = findExistingPlayer(item);
   const key = canonicalPlayerKey(item);
@@ -101,25 +94,18 @@ function ensurePlayer(item) {
   existing.teamId = item.teamId || existing.teamId || null;
   existing._contributionKeys = Array.isArray(existing._contributionKeys) ? existing._contributionKeys : [];
 
-  // Re-key legacy records onto the stable TikTok identity when available.
   const stableKey = canonicalPlayerKey(existing);
   if (stableKey) {
     const oldKey = Object.keys(state.players).find(k => state.players[k] === existing);
     if (oldKey && oldKey !== stableKey) delete state.players[oldKey];
     state.players[stableKey] = existing;
-  } else if (key) {
-    state.players[key] = existing;
-  }
-
+  } else if (key) state.players[key] = existing;
   return existing;
 }
 
-/** Immediate attribution API used by the dashboard manual MVP controls. */
 export function recordMvpContribution({ player, source = "WIN_LIMPIA", points = 1, roundId = null } = {}) {
   if (!player) return null;
-
-  // gameEngine uses its local UUID; resolve it to the same stable TikTok identity
-  // used by the admin registration/MVP selector before recording the contribution.
+  load();
   const sourcePlayer = player?.id ? (getPlayer(player.id) || player) : player;
   const existing = ensurePlayer(sourcePlayer);
   if (!existing) return null;
@@ -132,81 +118,60 @@ export function recordMvpContribution({ player, source = "WIN_LIMPIA", points = 
   if (source === "WIN_LIMPIA") existing.winRounds = Number(existing.winRounds || 0) + 1;
   if (source === "GIFT") existing.giftRounds = Number(existing.giftRounds || 0) + 1;
   if (roundId) existing.mvpRounds = Number(existing.mvpRounds || 0) + 1;
-
   save();
   return { ...existing };
 }
 
 export function recordRoundMvp(round) {
+  load();
   const contributions = round?.contributions || {};
   const mvp = round?.mvp;
   const candidates = [];
-
-  if (contributions.winLimpia?.playerId) {
-    candidates.push({ player: contributions.winLimpia, source: "WIN_LIMPIA", points: Number(contributions.winLimpia.points) || 1 });
-  }
-  if (contributions.gift?.playerId) {
-    candidates.push({ player: contributions.gift, source: "GIFT", points: 1 });
-  }
-  if (!candidates.length && mvp?.id) {
-    candidates.push({ player: mvp, source: mvp.source || "TOP_SCORE", points: Number(mvp.points) || 0 });
-  }
+  if (contributions.winLimpia?.playerId) candidates.push({ player: contributions.winLimpia, source: "WIN_LIMPIA", points: Number(contributions.winLimpia.points) || 1 });
+  if (contributions.gift?.playerId) candidates.push({ player: contributions.gift, source: "GIFT", points: 1 });
+  if (!candidates.length && mvp?.id) candidates.push({ player: mvp, source: mvp.source || "TOP_SCORE", points: Number(mvp.points) || 0 });
   if (!candidates.length) return null;
 
   const sessionId = getSessionId();
-  if (sessionId && state.sessionId && String(sessionId) !== String(state.sessionId)) {
-    state = { sessionId, players: {} };
-  }
+  if (sessionId && state.sessionId && String(sessionId) !== String(state.sessionId)) state = { sessionId, players: {} };
   if (sessionId && !state.sessionId) state.sessionId = sessionId;
 
   let last = null;
   for (const item of candidates) {
-    const recorded = recordMvpContribution({
-      player: item.player,
-      source: item.source,
-      points: item.points,
-      roundId: round?.id || null
-    });
+    const recorded = recordMvpContribution({ player: item.player, source: item.source, points: item.points, roundId: round?.id || null });
     if (recorded) last = recorded;
   }
-
   save();
   return last;
 }
 
 export function getMvpLeaderboard() {
+  // Overlay and Admin are separate browser contexts. Always reload the persisted
+  // canonical leaderboard before reading it; otherwise the overlay kept a stale
+  // in-memory snapshot even though the attribution had already been saved.
+  load();
   return Object.values(state.players)
     .sort((a, b) => Number(b.contributionPoints || 0) - Number(a.contributionPoints || 0) || Number(b.mvpRounds || 0) - Number(a.mvpRounds || 0))
     .map((p, index) => ({ ...p, rank: index + 1 }));
 }
 
 function resolvePlayerRecord(playerId) {
+  load();
   if (playerId == null || playerId === "") return null;
   const lookup = String(playerId);
-
   if (state.players[lookup]) return state.players[lookup];
-
   const direct = findExistingPlayer({ id: lookup, playerId: lookup, tiktokId: lookup, username: lookup });
   if (direct) return direct;
-
-  // TeamPanel normally supplies the gameEngine UUID. Resolve that UUID to the
-  // stable TikTok identity before reading the MVP contribution record.
   const gamePlayer = getPlayer(lookup);
   if (gamePlayer) {
     const resolved = findExistingPlayer(gamePlayer);
     if (resolved) return resolved;
   }
-
   return null;
 }
 
-export function getPlayerMvpRounds(playerId) {
-  return Number(resolvePlayerRecord(playerId)?.mvpRounds || 0);
-}
-
-export function getPlayerContributionPoints(playerId) {
-  return Number(resolvePlayerRecord(playerId)?.contributionPoints || 0);
-}
+export function getPlayerMvpRounds(playerId) { return Number(resolvePlayerRecord(playerId)?.mvpRounds || 0); }
+export function getPlayerContributionPoints(playerId) { return Number(resolvePlayerRecord(playerId)?.contributionPoints || 0); }
 
 export function resetMvpLeaderboard() {
   state = { sessionId: getSessionId(), players: {} };
