@@ -1,8 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Overlay from "../components/overlay";
+import { GenderVsOverlay } from "../components/overlay/GenderVsOverlay";
 import { IndividualRegistrationPromptV2 } from "../components/overlay/IndividualRegistrationPromptV2";
+import { dashboardAPI } from "../core/dashboardAPI";
+
+function normalizeMode(mode) {
+  const value = String(mode || "").toUpperCase();
+  if (["GENDER_TEAMS", "GENDER-TEAMS", "CHICOS_VS_CHICAS", "CHICOS VS CHICAS"].includes(value)) return "GENDER_TEAMS";
+  return value;
+}
 
 function OverlayPage() {
+  const [mode, setMode] = useState(() => normalizeMode(dashboardAPI.getGameMode()));
+  const [dashboard, setDashboard] = useState(() => dashboardAPI.getDashboard?.() || {});
+
   useEffect(() => {
     const previous = {
       margin: document.body.style.margin,
@@ -41,9 +52,21 @@ function OverlayPage() {
     const resizeTimer = window.setTimeout(fitPopupToOverlay, 120);
     window.addEventListener("load", fitPopupToOverlay);
 
+    const unsubscribeMode = dashboardAPI.subscribeToModeChange?.(({ mode: nextMode }) => {
+      setMode(normalizeMode(nextMode));
+      window.setTimeout(fitPopupToOverlay, 50);
+    });
+    const unsubscribeDashboard = dashboardAPI.subscribe?.((nextDashboard) => {
+      setDashboard(nextDashboard || {});
+      const nextMode = nextDashboard?.gameMode || dashboardAPI.getGameMode?.();
+      if (nextMode) setMode(normalizeMode(nextMode));
+    });
+
     return () => {
       window.clearTimeout(resizeTimer);
       window.removeEventListener("load", fitPopupToOverlay);
+      unsubscribeMode && unsubscribeMode();
+      unsubscribeDashboard && unsubscribeDashboard();
       document.documentElement.style.margin = "";
       document.documentElement.style.padding = "";
       document.documentElement.style.width = "";
@@ -59,10 +82,22 @@ function OverlayPage() {
     };
   }, []);
 
+  const isGenderMode = mode === "GENDER_TEAMS";
+  const game = dashboard?.game || {};
+  const players = game.players?.length ? game.players : (dashboard?.registration?.players || []);
+  const teams = game.teams || dashboard?.teams || [];
+  const timer = game.timer || dashboard?.timer || { minutes: 0, seconds: 0 };
+
   return (
     <main style={{display:"block",width:"520px",margin:0,padding:0,overflow:"hidden",boxSizing:"border-box",position:"relative"}}>
-      <Overlay />
-      <IndividualRegistrationPromptV2 />
+      {isGenderMode ? (
+        <GenderVsOverlay teams={teams} players={players} timer={timer} liveActive={dashboard?.liveActive === true} />
+      ) : (
+        <>
+          <Overlay />
+          <IndividualRegistrationPromptV2 />
+        </>
+      )}
     </main>
   );
 }
