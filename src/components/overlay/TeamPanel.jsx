@@ -60,7 +60,6 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
   const topPlayers = (players || []).filter(p => p.teamId === team.id).sort((a,b) => (b.points||0)-(a.points||0) || (b.wins||0)-(a.wins||0) || (b.messages||0)-(a.messages||0)).slice(0,10);
   const winMvpId = round?.contributions?.winLimpia?.playerId || null;
   const giftMvpId = round?.contributions?.gift?.playerId || null;
-  const [showCommand, setShowCommand] = useState(false);
   const [mvpRefresh, setMvpRefresh] = useState(0);
   const [rankDeltas, setRankDeltas] = useState({});
   const prevRanksRef = useRef({});
@@ -91,15 +90,9 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
     if (Object.keys(deltas).length) setRankDeltas(deltas);
   }, [topPlayers, mvpRefresh]);
 
-  useEffect(() => {
-    if (!commandPrompt || isFrozen || isDamaged || isGalaxyBenefited || isDonutActive || isCowboyActive) { setShowCommand(false); return undefined; }
-    const id = setInterval(() => setShowCommand(v => !v), 4000);
-    return () => clearInterval(id);
-  }, [commandPrompt, isFrozen, isDamaged, isGalaxyBenefited, isDonutActive, isCowboyActive]);
-
   const name = displayTeam.name;
   const nameText = isFrozen ? `❄️ ${name} [CONGELADO] ❄️` : isDamaged ? `💥 ${name} [DESTRUIDO]` : isGalaxyBenefited ? `🌌 ${name} 🌌` : isDonutActive ? `🍩 ${name} [EL MUDO]` : isCowboyActive ? `🤠 ${name} [RETO]` : name;
-  const commandVisible = !!commandPrompt && !isFrozen && !isDamaged && !isGalaxyBenefited && !isDonutActive && !isCowboyActive;
+  const commandVisible = !!commandPrompt;
   const teamNameStyle = { color: isGirlsTeam ? "#ff4fa6" : isBoysTeam ? "#8feaff" : "#fff", WebkitTextStroke: isGirlsTeam ? "1px #70123f" : isBoysTeam ? "1px #063b67" : "1px rgba(0,0,0,.5)", fontFamily: isGirlsTeam || isBoysTeam ? '"Siller", "Arial Rounded MT Bold", "Arial Black", Impact, sans-serif' : undefined, fontWeight: 950, fontSize: "16px", letterSpacing: ".45px", lineHeight: 1.05, textAlign: "center", position: "relative", zIndex: 20, minHeight: "20px", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", overflow: "visible", textShadow: isGirlsTeam ? "0 2px 0 #4b092b,0 0 8px rgba(255,159,211,.85)" : isBoysTeam ? "0 2px 0 #031d34,0 0 8px rgba(135,235,255,.8)" : "0 2px 5px #000" };
   const commandStyle = { color: "#050505", background: "rgba(255,255,255,.97)", border: `2px solid ${genderTheme?.border || "rgba(0,0,0,.35)"}`, borderRadius: "6px", padding: "3px 8px", fontSize: "8.5px", fontWeight: 950, letterSpacing: ".25px", textTransform: "uppercase", whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.35)" };
 
@@ -112,8 +105,9 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
       {isGalaxyBenefited && <div className="ability-layer ability-layer-galaxy" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:6,border:"2px solid #00ffff",borderRadius:"6px",boxShadow:"0 0 18px rgba(0,245,255,.9)"}}/>}
       {isFrozen && <div className="ability-layer ability-layer-freeze" style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:7,border:"2px solid #00f0ff",borderRadius:"6px",background:"rgba(0,180,216,.25)"}}/>}
 
-      <div className="team-name" style={teamNameStyle}>
-        {!commandVisible || !showCommand ? <span>{nameText}</span> : <span style={commandStyle}>ESCRIBE <strong style={{color:commandColor,fontWeight:1000}}>{commandPrompt}</strong> PARA UNIRTE</span>}
+      <div className="team-name" style={{...teamNameStyle, flexDirection:"column", gap:"3px", minHeight: commandVisible ? "38px" : "20px"}}>
+        <span>{nameText}</span>
+        {commandVisible && <span style={commandStyle}>ESCRIBE <strong style={{color:commandColor,fontWeight:1000}}>{commandPrompt}</strong> PARA UNIRTE</span>}
       </div>
 
       <div className={`team-score ${isDonutActive ? "clean-number-pop" : ""}`} style={{color:"#fff",position:"relative",zIndex:20,textShadow:isFrozen?"0 0 16px #00f0ff":isDamaged?"0 0 18px red":isGalaxyBenefited?"0 0 15px #fff":isDonutActive?"0 0 15px #ff69b4":isCowboyActive?"0 0 20px #ff6422":"0 2px 8px #000"}}>{score}</div>
