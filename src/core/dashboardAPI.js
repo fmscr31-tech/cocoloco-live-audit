@@ -5,7 +5,6 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
@@ -105,13 +104,8 @@ class DashboardAPI {
   getLiveDashboard() {
     if (this.cachedDashboard) return this.cachedDashboard;
     let session={}; try{session=sessionManager.getSession()||{};}catch(e){} let stats={}; try{stats=statisticsEngine.getStatistics()||{};}catch(e){} let rankings=[]; try{if(typeof rankingEngine.getTopPlayers==="function") rankings=rankingEngine.getTopPlayers()||[]; else if(typeof rankingEngine.getPlayerRanking==="function"){const pr=rankingEngine.getPlayerRanking();rankings=pr?.topPoints||pr||[];}}catch(e){} if(!Array.isArray(rankings)) rankings=[];
-    let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){} let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){} let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){} let powerUps={};try{powerUps=powerUpEngine.getPowerUpState()||{};}catch(e){} let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){} let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){} let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){} let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){} let game={};try{game=getState()||{};}catch(e){}
+    let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){} let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){} let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){} let powerUps={};try{powerUps={};}catch(e){} let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){} let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){} let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){} let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){} let game={};try{game=getState()||{};}catch(e){}
 
-    // The game engine owns live score/win state, while command configuration
-    // owns the user-visible names of configurable gender teams. Merge them
-    // here so a config:command_updated snapshot immediately carries the new
-    // names into the overlay without requiring F5 and without overwriting
-    // live points, wins, players, or team IDs.
     const configuredTeams = Array.isArray(commandConfig?.teams) ? commandConfig.teams : [];
     const gameTeams = Array.isArray(game?.teams) ? game.teams : [];
     if (configuredTeams.length >= 2) {
@@ -131,11 +125,6 @@ class DashboardAPI {
     }
 
     const registeredPlayers=Array.isArray(registration?.players)?registration.players:[]; const gamePlayers=Array.isArray(game?.players)?game.players:[];
-
-    // Registration is authoritative for who is currently displayed in the
-    // roster. Game state supplies live score/win fields for those registered
-    // players. This also guarantees that removing the last registered player
-    // cannot leave a stale player behind in the overlay.
     const playerIdentity = player => [player?.id, player?.playerId, player?.tiktokId, player?.username, player?.uniqueId]
       .filter(Boolean).map(value => String(value).trim().toLowerCase());
     const registeredOnly = registeredPlayers.map(r => {
