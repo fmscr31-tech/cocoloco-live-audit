@@ -1,1 +1,0 @@
-This placeholder marks the production overlay as individual-only. The actual ScoreBoard.jsx is updated via the Git tree workflow.
