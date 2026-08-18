@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import "./GenderBattleOverlay.css";
 import { InformationRotationPanel } from "./InformationRotationPanel";
 import { CocoDanceZone } from "./CocoDanceZone";
+import { GameTimer } from "./GameTimer";
 import { eventBus } from "../../core/eventBus";
 import { dashboardAPI } from "../../core/dashboardAPI";
 import { getMvpLeaderboard } from "../../core/mvpLeaderboardManager";
@@ -24,12 +25,6 @@ function getTeam(players, teams, key, index) {
     wins: Number(explicit?.wins ?? fallback?.wins ?? 0),
     players: teamPlayers,
   };
-}
-
-function formatTimer(timer) {
-  const m = Math.max(0, Number(timer?.minutes || 0));
-  const s = Math.max(0, Number(timer?.seconds || 0));
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function identityKeys(player = {}) {
@@ -120,7 +115,9 @@ export default function GenderBattleOverlay({
       <div className="gbo-arena">
         <TeamCard team={boys} side="left" mvpRows={boysMvp} />
         <div className="gbo-center">
-          <div className="gbo-timer-frame"><div className="gbo-timer-icon">⏱</div><div className="gbo-timer">{formatTimer(liveTimer)}</div></div>
+          <div className="gbo-timer-frame">
+            <GameTimer timer={liveTimer} />
+          </div>
           <div className="gbo-info-shell"><InformationRotationPanel players={livePlayers} /></div>
           <div className="gbo-cocazo-shell"><CocoDanceZone /></div>
         </div>
