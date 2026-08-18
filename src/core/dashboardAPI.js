@@ -5,12 +5,13 @@ import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
 import { missionEngine } from "./engines/missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
-import { powerUpEngine } from "./engines/powerUpEngine";
+import { powerUpEngine } from "./powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
 import { liveFlowManager } from "./liveFlowManager";
 import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
 import { getState } from "./gameEngine";
+import { getTeams } from "./TeamManager";
 import { eventBus } from "./eventBus";
 import { chatCommandParser } from "./chatCommandParser";
 import { isTimerRunning } from "./timerManager";
@@ -62,6 +63,7 @@ class DashboardAPI {
         username: payload?.username || payload?.name || "Jugador", teamId: payload?.teamId || null,
         points: Number(payload?.points) || 0, wins: Number(payload?.wins) || 0, wordsFound: Number(payload?.wordsFound) || 0
       } : null;
+
       if (snapshot && (eventName === "game:score_updated" || eventName === "overlay:win")) {
         const snapshotId = snapshot.id || snapshot.playerId || snapshot.tiktokId;
         const currentPlayers = Array.isArray(data?.game?.players) ? [...data.game.players] : [];
@@ -73,13 +75,27 @@ class DashboardAPI {
         });
         if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot }; else if (snapshotId || snapshot.username) currentPlayers.push({ ...snapshot });
         data.game = { ...data.game, players: currentPlayers };
-        if (payload?.teamSnapshot) {
-          const ts = payload.teamSnapshot; const tid = ts.id || ts.teamId; const teams = Array.isArray(data?.game?.teams) ? [...data.game.teams] : [];
-          const ti = teams.findIndex(t => String(t?.id || t?.teamId) === String(tid));
-          if (ti >= 0) teams[ti] = { ...teams[ti], ...ts }; else teams.push({ ...ts });
-          data.game = { ...data.game, teams };
+
+        // Manual team score actions update TeamManager immediately, while the
+        // gameEngine listener may update gameState.teams later in the same
+        // synchronous EventBus dispatch. Do not wait for listener ordering:
+        // apply the authoritative team payload directly to this snapshot.
+        if (payload?.teamId) {
+          const teamId = String(payload.teamId);
+          const teamPayload = payload.teamSnapshot || {
+            id: payload.teamId,
+            name: payload.teamName,
+            points: Number(payload.newTeamTotal ?? payload.points ?? 0),
+            wins: Number(payload.wins ?? 0)
+          };
+          const currentTeams = Array.isArray(data?.game?.teams) ? [...data.game.teams] : [];
+          const teamIndex = currentTeams.findIndex(team => String(team?.id || team?.teamId) === teamId);
+          if (teamIndex >= 0) currentTeams[teamIndex] = { ...currentTeams[teamIndex], ...teamPayload };
+          else currentTeams.push({ ...teamPayload, id: teamPayload.id || payload.teamId });
+          data.game = { ...data.game, teams: currentTeams };
         }
       }
+
       data.timestamp = Date.now();
       eventBus.emit("dashboard:snapshot", { ...data, timestamp: Date.now() });
       this.subscribers.forEach(cb => { try { cb(data); } catch (e) { console.error("[DashboardAPI] subscriber", e); } });
