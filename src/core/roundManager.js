@@ -7,6 +7,7 @@ import { isGenderTeamsMode } from "./genderTeamsMode";
 import { playRoundEndBuzzer } from "./roundEndSound";
 import { beginRoundContributionTracking, getRoundContributions, clearRoundContributions } from "./roundContributionManager";
 import { recordRoundMvp } from "./mvpLeaderboardManager";
+import { eventBus } from "./eventBus";
 
 const ROUND_STORAGE_KEY = "cocoloco_active_round_v2";
 const WINNER_RECOGNITION_MS = 18000;
@@ -38,9 +39,6 @@ export function startRound(data = {}) {
     nextIndividualRegistrationTimer = null;
   }
 
-  // Starting a round closes individual/team registration immediately.
-  // Gender-vs-gender mode intentionally remains open because its registration
-  // is persistent throughout the live session.
   registrationManager.closeRegistration();
 
   currentRound = {
@@ -117,9 +115,6 @@ export function endRound() {
   playRoundEndBuzzer();
   sessionManager.archiveRound(currentRound);
 
-  // The winner must remain visible before the next registration prompt appears.
-  // The overlay uses this single lifecycle event to suppress registration for
-  // the full celebration period and show the winner recognition.
   eventBus.publish("round:winner_popup", {
     roundId: currentRound.id,
     mode: config.gameRegistrationMode,
@@ -135,9 +130,6 @@ export function endRound() {
   resetRoundTeamScores(genderMode);
 
   if (individualMode) {
-    // Do NOT reopen immediately. The winner celebration owns this interval.
-    // Registration is reopened automatically after 18 seconds using the
-    // currently configured command/gift method.
     registrationManager.closeRegistration();
     if (nextIndividualRegistrationTimer) clearTimeout(nextIndividualRegistrationTimer);
     nextIndividualRegistrationTimer = setTimeout(() => {
@@ -154,7 +146,6 @@ export function endRound() {
       });
     }, WINNER_RECOGNITION_MS);
   } else {
-    // Team modes preserve their established registration behavior.
     registrationManager.prepareNextRoundRegistration();
   }
 
