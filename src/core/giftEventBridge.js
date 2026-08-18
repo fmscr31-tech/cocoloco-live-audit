@@ -1,9 +1,9 @@
-import { eventBus } from "./eventBus";
-import { giftResolver } from "./giftResolver";
-import { giftActionDispatcher } from "./giftActionDispatcher";
-import { giftAbilityResolver } from "./giftAbilityResolver";
-import { abilityEventQueue } from "./abilityEventQueue";
-import { resolveCanonicalGiftId } from "../config/canonicalGifts";
+import { eventBus } from "./eventBus.js";
+import { giftResolver } from "./giftResolver.js";
+import { giftActionDispatcher } from "./giftActionDispatcher.js";
+import { giftAbilityResolver } from "./giftAbilityResolver.js";
+import { abilityEventQueue } from "./abilityEventQueue.js";
+import { resolveCanonicalGiftId } from "../config/canonicalGifts.js";
 
 /**
  * Gift Event Bridge v6
@@ -57,15 +57,8 @@ class GiftEventBridge {
       giftObj.type ?? giftObj.giftType ?? giftObj.gift_type
     );
 
-    // Explicit streaking=true is authoritative.
     if (streaking === true || streaking === 1 || streaking === "1") return true;
-
-    // TikTok/TikFinity streakable gifts use type 1. If repeatEnd is explicitly
-    // false, this is an intermediate update and must not execute yet.
-    if (giftType === 1 && (repeatEnd === false || repeatEnd === 0 || repeatEnd === "0")) {
-      return true;
-    }
-
+    if (giftType === 1 && (repeatEnd === false || repeatEnd === 0 || repeatEnd === "0")) return true;
     return false;
   }
 
@@ -167,8 +160,6 @@ class GiftEventBridge {
       return null;
     }
 
-    // IMPORTANT: do this before canonical resolution and before event-id caching.
-    // Intermediate streak updates are real TikTok events, but are not game triggers.
     if (this._isStreakIntermediate(rawPayload, data, giftObj)) {
       const progressQuantity = Math.max(1, Number(
         rawPayload.quantity || data.repeatCount || data.repeat_count || data.count || data.quantity || giftObj.repeatCount || giftObj.repeat_count || 1
