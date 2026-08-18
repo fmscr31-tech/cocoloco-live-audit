@@ -33,24 +33,37 @@ class GameRulesEngine {
     });
   }
 
-  getPlayerTeam(usernameOrId) {
-    const player = players.find(p => p.id === usernameOrId || p.name.toLowerCase() === (usernameOrId || "").toLowerCase());
-    if (!player || !player.teamId) return null;
+  getPlayerTeam(identity) {
+    if (!identity) return null;
+
+    const identityText = String(identity).toLowerCase();
+    const player = players.find(p =>
+      p.id === identity ||
+      p.tiktokId === identity ||
+      p.playerId === identity ||
+      String(p.name || "").toLowerCase() === identityText ||
+      String(p.username || "").toLowerCase() === identityText
+    );
+
+    const requestedTeamId = player?.teamId || (typeof identity === "object" ? identity.teamId : null);
+    if (!requestedTeamId) return null;
+
     const teams = getTeams();
-    return teams.find(t => t.id === player.teamId || t.name.toLowerCase() === String(player.teamId).toLowerCase()) || null;
+    return teams.find(t =>
+      String(t.id) === String(requestedTeamId) ||
+      String(t.name || "").toLowerCase() === String(requestedTeamId).toLowerCase()
+    ) || null;
   }
 
-  /**
-   * Evaluates reward events using configManager rules, checks user/team freeze status, and emits score updates or redirections.
-   */
-  evaluateRewardScoring(reward) {
+  evaluateRewardScoring(reward = {}) {
     const customMultiplier = configManager.get("game.globalMultiplier") || this.rules.globalMultiplier;
     const adjustedPoints = Math.round((reward.points || 1) * customMultiplier);
 
-    const team = this.getPlayerTeam(reward.username);
+    // Prefer the explicit team identity supplied by the connector/event pipeline.
+    // Fall back to the canonical player registry only when teamId is absent.
+    const team = this.getPlayerTeam(reward.teamId || reward.userId || reward.username);
     const userId = reward.userId || reward.username;
 
-    // Check if user/team is frozen: intercept points and redirect
     if (battleEffectEngine.isUserFrozen(userId, team ? team.id : null, reward.username)) {
       const teams = getTeams();
       const opposingTeam = team ? teams.find(t => t.id !== team.id) : null;
@@ -62,7 +75,7 @@ class GameRulesEngine {
         points: adjustedPoints,
         reason: "FREEZE"
       });
-      return; // Points blocked from frozen participant
+      return;
     }
 
     const scoreUpdatePayload = {
@@ -77,9 +90,6 @@ class GameRulesEngine {
     this.checkObjectives(adjustedPoints);
   }
 
-  /**
-   * Checks if point thresholds or battle objectives have been achieved.
-   */
   checkObjectives(pointsEarned) {
     const target = configManager.get("game.targetPointsToWin") || this.rules.targetPointsToWin;
     if (pointsEarned >= target && !this.battleStatus.objectivesCompleted.includes("TARGET_REACHED")) {
@@ -88,16 +98,10 @@ class GameRulesEngine {
     }
   }
 
-  /**
-   * Evaluates player updates against victory conditions, blocking wins if the user/team is frozen.
-   */
   evaluateVictoryConditions(player) {
-    const team = this.getPlayerTeam(player.name);
+    const team = this.getPlayerTeam(player.id || player.tiktokId || player.playerId || player.name);
     const userId = player.id || player.name;
-    // Block victory if participant is currently frozen
-    if (battleEffectEngine.isUserFrozen(userId, team ? team.id : null, player.name)) {
-      return;
-    }
+    if (battleEffectEngine.isUserFrozen(userId, team ? team.id : null, player.name)) return;
 
     const winningThreshold = configManager.get("game.winningThreshold") || 1000;
     if ((player.points || 0) >= winningThreshold && !this.battleStatus.winner) {
@@ -106,9 +110,6 @@ class GameRulesEngine {
     }
   }
 
-  /**
-   * Public method to get current game rules state for dashboardAPI integration.
-   */
   getRulesState() {
     return {
       rules: { ...this.rules },
