@@ -9,6 +9,7 @@ class AudioManager {
     this.volume = 0.6;
     this.unlocked = false;
     this.audioCache = new Map();
+    this.playedAbilityExecutions = new Map();
     this._lastPlayedGiftSound = null;
     this.isOverlayContext = typeof window !== "undefined" && (
       window.location.pathname.includes("overlay") ||
@@ -23,17 +24,9 @@ class AudioManager {
     this.initUnlockListener();
   }
 
-  getAbilityMap() {
-    return configManager.get("abilityGiftMap") || GIFT_ABILITY_MAP;
-  }
-
-  getAbilities() {
-    return configManager.get("abilities") || ABILITY_REGISTRY;
-  }
-
-  getFreezeConfig() {
-    return configManager.get("battleEffects.freeze") || {};
-  }
+  getAbilityMap() { return configManager.get("abilityGiftMap") || GIFT_ABILITY_MAP; }
+  getAbilities() { return configManager.get("abilities") || ABILITY_REGISTRY; }
+  getFreezeConfig() { return configManager.get("battleEffects.freeze") || {}; }
 
   setEnabled(status) {
     this.enabled = !!status;
@@ -48,33 +41,23 @@ class AudioManager {
   initPreload() {
     if (typeof window === "undefined") return;
     const paths = new Set();
-    Object.values(this.getAbilities()).forEach(ability => {
-      if (ability.sound) paths.add(ability.sound);
-    });
-    this.getAbilityMap().forEach(m => {
-      if (m.sound) paths.add(m.sound);
-    });
+    Object.values(this.getAbilities()).forEach(ability => { if (ability.sound) paths.add(ability.sound); });
+    this.getAbilityMap().forEach(m => { if (m.sound) paths.add(m.sound); });
     const giftSoundsConfig = configManager.get("giftSounds") || [];
-    giftSoundsConfig.forEach(gs => {
-      if (gs.sound) paths.add(gs.sound);
-    });
+    giftSoundsConfig.forEach(gs => { if (gs.sound) paths.add(gs.sound); });
     const freezeSound = this.getFreezeConfig().sound;
     if (freezeSound) paths.add(freezeSound);
-
     paths.forEach(soundPath => {
       try {
         const audio = new Audio(soundPath);
         audio.preload = "auto";
         this.audioCache.set(soundPath, audio);
-      } catch (e) {
-        console.warn("[AUDIO] Failed to preload sound:", soundPath, e);
-      }
+      } catch (e) { console.warn("[AUDIO] Failed to preload sound:", soundPath, e); }
     });
   }
 
   initUnlockListener() {
     if (typeof window === "undefined") return;
-
     const unlockHandler = () => {
       if (this.unlocked) return;
       try {
@@ -82,29 +65,17 @@ class AudioManager {
         silentAudio.volume = 0;
         const playPromise = silentAudio.play();
         if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              this.unlocked = true;
-              console.log("[AUDIO] Audio unlocked successfully");
-              cleanup();
-            })
-            .catch((err) => console.warn("[AUDIO] Unlock deferred:", err?.message || err));
-        } else {
-          this.unlocked = true;
-          cleanup();
-        }
-      } catch (e) {
-        console.warn("[AUDIO] Unlock exception:", e);
-      }
+          playPromise.then(() => { this.unlocked = true; console.log("[AUDIO] Audio unlocked successfully"); cleanup(); })
+            .catch(err => console.warn("[AUDIO] Unlock deferred:", err?.message || err));
+        } else { this.unlocked = true; cleanup(); }
+      } catch (e) { console.warn("[AUDIO] Unlock exception:", e); }
     };
-
     const cleanup = () => {
       window.removeEventListener("pointerdown", unlockHandler);
       window.removeEventListener("click", unlockHandler);
       window.removeEventListener("touchstart", unlockHandler);
       window.removeEventListener("keydown", unlockHandler);
     };
-
     window.addEventListener("pointerdown", unlockHandler, { once: true });
     window.addEventListener("click", unlockHandler, { once: true });
     window.addEventListener("touchstart", unlockHandler, { once: true });
@@ -132,23 +103,18 @@ class AudioManager {
           freshAudio.play().catch(() => {});
         });
       }
-    } catch (e) {
-      console.warn("[AUDIO PREVIEW] Exception:", e);
-    }
+    } catch (e) { console.warn("[AUDIO PREVIEW] Exception:", e); }
   }
 
   playSound(soundPath, item = {}) {
     if (!this.enabled || !soundPath) return;
-
     const isAdminPreview = item?.source === "ADMIN_PREVIEW" || item?.sender === "ADMIN_PREVIEW";
     const isCocazoOverlay = item?.source === "COCAZO";
-
     if (isAdminPreview) {
       if (this.isOverlayContext) return;
     } else if (!this.isOverlayContext && !isCocazoOverlay) {
       return;
     }
-
     try {
       let audio = this.audioCache.get(soundPath);
       if (audio) {
@@ -157,16 +123,11 @@ class AudioManager {
         audio.muted = false;
         const promise = audio.play();
         if (promise !== undefined) {
-          promise.then(() => {
-            console.log("[AUDIO PLAYING]", soundPath, item?.abilityId || item?.source || "gift");
-          }).catch(() => this.playFresh(soundPath, item));
+          promise.then(() => console.log("[AUDIO PLAYING]", soundPath, item?.abilityId || item?.source || "gift"))
+            .catch(() => this.playFresh(soundPath, item));
         }
-      } else {
-        this.playFresh(soundPath, item);
-      }
-    } catch (e) {
-      console.warn("[AUDIO] Playback exception:", soundPath, e);
-    }
+      } else this.playFresh(soundPath, item);
+    } catch (e) { console.warn("[AUDIO] Playback exception:", soundPath, e); }
   }
 
   playFresh(soundPath, item = {}) {
@@ -177,13 +138,10 @@ class AudioManager {
       audio.muted = false;
       const promise = audio.play();
       if (promise !== undefined) {
-        promise.then(() => {
-          console.log("[AUDIO PLAYING FRESH]", soundPath, item?.abilityId || item?.source || "gift");
-        }).catch(err => console.warn("[AUDIO] Fresh playback failed:", soundPath, err));
+        promise.then(() => console.log("[AUDIO PLAYING FRESH]", soundPath, item?.abilityId || item?.source || "gift"))
+          .catch(err => console.warn("[AUDIO] Fresh playback failed:", soundPath, err));
       }
-    } catch (e) {
-      console.warn("[AUDIO] Fresh playback exception:", soundPath, e);
-    }
+    } catch (e) { console.warn("[AUDIO] Fresh playback exception:", soundPath, e); }
   }
 
   findAbilityMapping(rawGiftName) {
@@ -196,49 +154,55 @@ class AudioManager {
     }) || null;
   }
 
+  hasPlayedAbilityExecution(executionId) {
+    if (!executionId) return false;
+    const now = Date.now();
+    for (const [id, timestamp] of this.playedAbilityExecutions) {
+      if (now - timestamp > 30000) this.playedAbilityExecutions.delete(id);
+    }
+    if (this.playedAbilityExecutions.has(executionId)) return true;
+    this.playedAbilityExecutions.set(executionId, now);
+    if (this.playedAbilityExecutions.size > 500) {
+      const first = this.playedAbilityExecutions.keys().next().value;
+      if (first) this.playedAbilityExecutions.delete(first);
+    }
+    return false;
+  }
+
   initListeners() {
     eventBus.subscribe("normalized:gift", (giftEvent) => {
       if (!this.enabled || !giftEvent) return;
       const giftName = String(giftEvent.canonicalGiftId || giftEvent.giftName || giftEvent.giftId || "").trim();
       const mapping = this.findAbilityMapping(giftName);
       if (mapping) return;
-
       const giftSoundsConfig = configManager.get("giftSounds") || [];
-      const match = giftSoundsConfig.find(gs =>
-        gs.enabled !== false &&
+      const match = giftSoundsConfig.find(gs => gs.enabled !== false &&
         (String(gs.giftName ?? "").trim().toLowerCase() === giftName.toLowerCase() ||
-         String(gs.giftId ?? "").trim().toLowerCase() === giftName.toLowerCase())
-      );
-
+         String(gs.giftId ?? "").trim().toLowerCase() === giftName.toLowerCase()));
       if (match?.sound) {
         this.playSound(match.sound, { source: "GIFT_SOUND", giftName });
         this._lastPlayedGiftSound = { giftName: giftName.toLowerCase(), time: Date.now() };
       }
     });
 
-    // SINGLE AUTHORITATIVE GIFT-ABILITY AUDIO PATH.
-    // Every mapped dynamic gift plays its configured sound exactly once here,
-    // when the queued ability actually starts. Do not play the same sound from
-    // battle-effect events or overlay components.
-    eventBus.subscribe("ability:started", (item) => {
-      if (!this.enabled) return;
+    eventBus.subscribe("ability:started", (item, isRemote) => {
+      if (!this.enabled || !item) return;
+      const executionId = String(item.executionId || "").trim();
+      if (executionId && this.hasPlayedAbilityExecution(executionId)) {
+        console.log("[AUDIO] Duplicate ability delivery suppressed:", executionId, isRemote ? "remote" : "local");
+        return;
+      }
       const rawGiftName = String(item.sourceGift || item.giftName || item.canonicalGiftId || "").trim();
       const mapping = this.findAbilityMapping(rawGiftName);
       const abilityId = mapping ? mapping.abilityId : item.abilityId;
       const abilityEntry = this.getAbilities()[abilityId];
       const registryEntry = ABILITY_REGISTRY[abilityId];
       const soundPath = item.sound || abilityEntry?.sound || registryEntry?.sound || mapping?.sound;
-
       if (soundPath) {
-        console.log("[AUDIO] Playing authoritative Ability Manager sound:", abilityId, soundPath);
+        console.log("[AUDIO] Authoritative ability sound:", abilityId, soundPath, executionId || "no-execution-id", isRemote ? "remote" : "local");
         this.playSound(soundPath, item);
       }
     });
-
-    // IMPORTANT: battle-effect events are STATE notifications, not audio
-    // triggers. Freeze already plays its authoritative sound from
-    // ability:started. Replaying it from effect:activated caused duplicate
-    // audio in the Teams overlay.
   }
 }
 
