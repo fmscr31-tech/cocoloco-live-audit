@@ -28,14 +28,13 @@ export function GameTimer({ timer: initialTimer }) {
   const isIntermission = phase === "INTERMISSION";
   const isRunning = timer?.running === true;
   const urgent = isRound && remainingSeconds > 0 && remainingSeconds <= 300;
-  const critical = isRound && remainingSeconds > 0 && remainingSeconds <= 60;
   const paused = isRound && !isRunning && remainingSeconds > 0;
 
   return (
     <div className="timer-container" style={{
-      width: urgent ? "116px" : "108px",
-      minWidth: urgent ? "116px" : "108px",
-      height: urgent ? "68px" : "62px",
+      width: urgent ? "112px" : "108px",
+      minWidth: urgent ? "112px" : "108px",
+      height: urgent ? "66px" : "62px",
       flex: "0 0 auto",
       display: "flex",
       alignItems: "center",
@@ -45,34 +44,22 @@ export function GameTimer({ timer: initialTimer }) {
       isolation: "isolate"
     }}>
       <style>{`
-        @keyframes cocoTimerHeartbeatStrong {
+        @keyframes cocoTimerCuteHeartbeat {
           0%, 100% { transform: scale(1); }
-          8% { transform: scale(1.13); }
-          16% { transform: scale(1.03); }
-          25% { transform: scale(1.09); }
-          38%, 100% { transform: scale(1); }
+          10% { transform: scale(1.045); }
+          20% { transform: scale(1.012); }
+          30% { transform: scale(1.032); }
+          45%, 100% { transform: scale(1); }
         }
-        @keyframes cocoTimerRedFlash {
-          0%,100% { background: linear-gradient(180deg,#3b0508 0%,#150205 100%); box-shadow: 0 0 10px rgba(255,0,0,.45), inset 0 0 14px rgba(255,40,40,.12); }
-          50% { background: linear-gradient(180deg,#d71920 0%,#62070d 100%); box-shadow: 0 0 24px rgba(255,0,0,.95), 0 0 50px rgba(255,0,0,.38), inset 0 0 18px rgba(255,150,150,.24); }
+        @keyframes cocoTimerCuteGlow {
+          0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,.42), 0 0 7px rgba(255,92,110,.22), inset 0 1px 2px rgba(255,255,255,.22); }
+          50% { box-shadow: 0 5px 17px rgba(0,0,0,.46), 0 0 15px rgba(255,72,92,.48), inset 0 1px 3px rgba(255,255,255,.3); }
         }
-        @keyframes cocoTimerHalo {
-          0%,100% { opacity:.25; transform:scale(.88); }
-          50% { opacity:.8; transform:scale(1.12); }
+        @keyframes cocoTimerPaused {
+          0%,100% { opacity:.58; }
+          50% { opacity:1; }
         }
-        @keyframes cocoTimerPaused { 0%,100% { opacity:.65; } 50% { opacity:1; } }
       `}</style>
-
-      {urgent && <div aria-hidden="true" style={{
-        position: "absolute",
-        inset: "-10px -14px",
-        borderRadius: "18px",
-        background: "rgba(255,0,0,.24)",
-        filter: "blur(12px)",
-        animation: "cocoTimerHalo 1.05s ease-in-out infinite",
-        zIndex: 0,
-        pointerEvents: "none"
-      }} />}
 
       <div
         className={urgent ? "timer-five-minute-alert" : "timer-standard"}
@@ -85,17 +72,17 @@ export function GameTimer({ timer: initialTimer }) {
           justifyContent: "center",
           position: "relative",
           zIndex: 2,
-          borderRadius: urgent ? "14px" : "12px",
-          border: urgent ? "3px solid #ffffff" : "2px solid rgba(125,211,252,.72)",
+          borderRadius: "18px",
+          border: urgent ? "2px solid rgba(255,255,255,.92)" : "2px solid rgba(125,211,252,.72)",
           background: isIntermission
             ? "linear-gradient(180deg,#382507,#160d02)"
             : urgent
-              ? "linear-gradient(180deg,#5b080d,#170205)"
+              ? "linear-gradient(180deg,rgba(255,244,246,.98),rgba(255,225,231,.98))"
               : "linear-gradient(180deg,rgba(9,31,48,.98),rgba(3,13,23,.99))",
           boxShadow: urgent
-            ? "0 0 18px rgba(255,0,0,.75), 0 0 38px rgba(255,0,0,.3), inset 0 0 16px rgba(255,70,70,.18)"
+            ? "0 4px 14px rgba(0,0,0,.42), 0 0 7px rgba(255,92,110,.22), inset 0 1px 2px rgba(255,255,255,.22)"
             : "0 5px 18px rgba(0,0,0,.55), inset 0 1px 2px rgba(255,255,255,.12)",
-          animation: urgent ? "cocoTimerHeartbeatStrong 1.05s ease-in-out infinite, cocoTimerRedFlash 1.05s ease-in-out infinite" : "none",
+          animation: urgent ? "cocoTimerCuteHeartbeat 1.25s ease-in-out infinite, cocoTimerCuteGlow 1.25s ease-in-out infinite" : "none",
           transition: "width .25s ease, height .25s ease, border .25s ease, box-shadow .25s ease",
           transformOrigin: "center center",
           overflow: "hidden"
@@ -107,21 +94,21 @@ export function GameTimer({ timer: initialTimer }) {
           left: 0,
           right: 0,
           height: "3px",
-          background: urgent ? "#ffffff" : "linear-gradient(90deg,transparent,#7dd3fc,transparent)",
-          opacity: urgent ? 1 : .75
+          background: urgent ? "linear-gradient(90deg,transparent,#ff7185,transparent)" : "linear-gradient(90deg,transparent,#7dd3fc,transparent)",
+          opacity: .8
         }} />
 
         <span style={{
-          fontFamily: "'Arial Black', Impact, sans-serif",
-          fontSize: urgent ? "39px" : "35px",
+          fontFamily: "'Trebuchet MS', 'Arial Rounded MT Bold', Arial, sans-serif",
+          fontSize: urgent ? "38px" : "35px",
           lineHeight: 1,
-          fontWeight: 1000,
-          letterSpacing: "-1px",
+          fontWeight: 900,
+          letterSpacing: "-1.2px",
           fontVariantNumeric: "tabular-nums",
-          color: isIntermission ? "#ffd166" : urgent ? "#ff2020" : "#ffffff",
-          WebkitTextStroke: urgent ? "1.4px #ffffff" : "0px transparent",
+          color: isIntermission ? "#ffd166" : urgent ? "#e91e3f" : "#ffffff",
+          WebkitTextStroke: urgent ? "0.8px #ffffff" : "0px transparent",
           textShadow: urgent
-            ? "-2px -2px 0 #050000,2px -2px 0 #050000,-2px 2px 0 #050000,2px 2px 0 #050000,0 0 5px #ffffff,0 0 16px #ff0000"
+            ? "1px 1px 0 #111827, -1px -1px 0 #111827, 0 2px 5px rgba(0,0,0,.28)"
             : "0 0 12px rgba(0,245,255,.65)",
           whiteSpace: "nowrap"
         }}>
@@ -130,13 +117,14 @@ export function GameTimer({ timer: initialTimer }) {
 
         {urgent && <div aria-hidden="true" style={{
           position: "absolute",
-          left: "10px",
-          right: "10px",
-          bottom: "4px",
-          height: "2px",
-          background: "rgba(255,255,255,.85)",
-          boxShadow: "0 0 7px #ffffff",
-          opacity: .75
+          top: "5px",
+          right: "8px",
+          width: "7px",
+          height: "7px",
+          borderRadius: "50%",
+          background: "#ff5c73",
+          boxShadow: "0 0 6px rgba(255,92,115,.65)",
+          opacity: .85
         }} />}
       </div>
 
