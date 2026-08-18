@@ -134,7 +134,10 @@ class BattleEffectEngine {
       expiresAt: Date.now() + durationSec * 1000,
       totalDuration: durationSec
     };
-    eventBus.emit("effect:activated", this.activeEffect);
+    // The authoritative ability:started event already plays the Freeze sound.
+    // Keep the sound in state for display/configuration, but do not forward it
+    // on effect:activated or the same gift would play the audio twice.
+    eventBus.emit("effect:activated", { ...this.activeEffect, sound: null });
     this.startTimer();
   }
 
