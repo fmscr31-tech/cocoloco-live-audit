@@ -3,7 +3,7 @@ import { statisticsEngine } from "./engines/statisticsEngine";
 import { rankingEngine } from "./engines/rankingEngine";
 import { playerEngine } from "./engines/playerEngine";
 import { gameRulesEngine } from "./engines/gameRulesEngine";
-import { missionEngine } from "./engines/missionEngine";
+import { missionEngine } from "./missionEngine";
 import { battleEffectEngine } from "./engines/battleEffectEngine";
 import { powerUpEngine } from "./engines/powerUpEngine";
 import { historicalLeaderboardEngine } from "./engines/historicalLeaderboardEngine";
@@ -39,7 +39,12 @@ class DashboardAPI {
   invalidateCache() { this.cachedDashboard = null; }
 
   initReactiveBridge() {
-    const notifySubscribers = (payload, eventName = null) => {
+    const notifySubscribers = (payload, eventName = null, isRemote = false) => {
+      // Remote game events are notifications from the authoritative Dashboard
+      // window. Never rebuild a snapshot from the Overlay's own stale managers.
+      // The authoritative window will publish dashboard:snapshot separately.
+      if (isRemote) return;
+
       this.invalidateCache();
       const data = this.getLiveDashboard();
       const snapshot = eventName === "game:score_updated" ? payload?.playerSnapshot : eventName === "overlay:win" ? {
@@ -70,11 +75,13 @@ class DashboardAPI {
       eventBus.emit("dashboard:snapshot", { ...data, timestamp: Date.now() });
       this.subscribers.forEach(cb => { try { cb(data); } catch (e) { console.error("[DashboardAPI] subscriber", e); } });
     };
-    ["player:created","player:updated","PLAYER_CREATED","reward:processed","session:updated","session:started","session:ended","game:winner_detected","game:objective_completed","effect:activated","effect:updated","effect:expired","effect:removed","powerup:activated","powerup:expired","powerup:removed","live:phase_changed","registration:updated","registration:opened","registration:closed","registration:locked","registration:cleared","registration:player_registered","registration:player_removed","registration:state_synced","round:started","ROUND_STARTED","round:finished","config:command_updated","SESSION_STATUS_CHANGED"].forEach(name => eventBus.subscribe(name, p => notifySubscribers(p, name)));
-    eventBus.subscribe("game:score_updated", p => notifySubscribers(p, "game:score_updated"));
-    eventBus.subscribe("overlay:win", p => notifySubscribers(p, "overlay:win"));
-    eventBus.subscribe("GAME_MODE_CHANGED", p => { const m = p?.mode || p; if (typeof m === "string") { currentMode = m; localStorage.setItem('cocoloco_game_mode', m); } notifySubscribers(p, "GAME_MODE_CHANGED"); });
+
+    ["player:created","player:updated","PLAYER_CREATED","reward:processed","session:updated","session:started","session:ended","game:winner_detected","game:objective_completed","effect:activated","effect:updated","effect:expired","effect:removed","powerup:activated","powerup:expired","powerup:removed","live:phase_changed","registration:updated","registration:opened","registration:closed","registration:locked","registration:cleared","registration:player_registered","registration:player_removed","registration:state_synced","round:started","ROUND_STARTED","round:finished","config:command_updated","SESSION_STATUS_CHANGED","timer:started","timer:tick","timer:paused","timer:resumed","timer:stopped","timer:reset","team:updated","teams:updated","team:created","team:removed","mvp:contribution_pending","mvp:gift_contribution","mvp:recipient_selected","reward:processed"].forEach(name => eventBus.subscribe(name, (p, isRemote) => notifySubscribers(p, name, isRemote)));
+    eventBus.subscribe("game:score_updated", (p, isRemote) => notifySubscribers(p, "game:score_updated", isRemote));
+    eventBus.subscribe("overlay:win", (p, isRemote) => notifySubscribers(p, "overlay:win", isRemote));
+    eventBus.subscribe("GAME_MODE_CHANGED", (p, isRemote) => { if (isRemote) return; const m = p?.mode || p; if (typeof m === "string") { currentMode = m; localStorage.setItem('cocoloco_game_mode', m); } notifySubscribers(p, "GAME_MODE_CHANGED", false); });
   }
+
   subscribe(callback) { if (typeof callback === "function") { this.subscribers.add(callback); callback(this.getLiveDashboard()); return () => this.subscribers.delete(callback); } }
   getCurrentSession() { return sessionManager.getSession(); }
   getLiveDashboard() {
