@@ -1,0 +1,4 @@
+.gender-battle-overlay.gbo-ability-epic_impact .gbo-team:not(.gbo-money-gun-target){animation:none!important;filter:none!important;background:revert!important;border-color:revert!important;box-shadow:revert!important;}
+.gender-battle-overlay.gbo-ability-epic_impact .gbo-team:not(.gbo-money-gun-target)::before,.gender-battle-overlay.gbo-ability-epic_impact .gbo-team:not(.gbo-money-gun-target)::after{content:none!important;animation:none!important;}
+.gender-battle-overlay.gbo-ability-epic_impact .gbo-cocazo-shell{animation:none!important;filter:none!important;transform:none!important;}
+.gender-battle-overlay.gbo-ability-epic_impact .gbo-cocazo-shell::before,.gender-battle-overlay.gbo-ability-epic_impact .gbo-cocazo-shell::after{content:none!important;animation:none!important;}
