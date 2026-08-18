@@ -18,10 +18,15 @@ import { isTimerRunning } from "./timerManager";
 let currentMode = localStorage.getItem('cocoloco_game_mode') || 'INDIVIDUAL';
 let liveSessionActive = false;
 
+const stableJson = value => {
+  try { return JSON.stringify(value ?? null); } catch { return String(value); }
+};
+
 class DashboardAPI {
   constructor() {
     this.subscribers = new Set();
     this.cachedDashboard = null;
+    this.stableSections = new Map();
     this.initReactiveBridge();
     eventBus.subscribe("dashboard:snapshot", (dashboard) => {
       if (!dashboard || typeof dashboard !== "object") return;
@@ -37,6 +42,14 @@ class DashboardAPI {
   setLiveSessionStatus(status) { liveSessionActive = status; this.invalidateCache(); eventBus.emit('SESSION_STATUS_CHANGED', { active: status }); }
   subscribeToModeChange(callback) { return eventBus.subscribe('GAME_MODE_CHANGED', callback); }
   invalidateCache() { this.cachedDashboard = null; }
+
+  stableSection(key, value) {
+    const signature = stableJson(value);
+    const previous = this.stableSections.get(key);
+    if (previous && previous.signature === signature) return previous.value;
+    this.stableSections.set(key, { signature, value });
+    return value;
+  }
 
   initReactiveBridge() {
     const notifySubscribers = (payload, eventName = null, isRemote = false) => {
@@ -86,7 +99,7 @@ class DashboardAPI {
     let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){} let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){} let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){} let powerUps={};try{powerUps=powerUpEngine.getPowerUpState()||{};}catch(e){} let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){} let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){} let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){} let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){} let game={};try{game=getState()||{};}catch(e){}
     const registeredPlayers=Array.isArray(registration?.players)?registration.players:[]; const gamePlayers=Array.isArray(game?.players)?game.players:[];
     if(registeredPlayers.length>0){const merged=gamePlayers.map(p=>({...p})); registeredPlayers.forEach(r=>{const rid=r?.playerId||r?.id||r?.tiktokId||r?.username; const ru=String(r?.username||"").trim().toLowerCase(); const rn=String(r?.displayName||r?.name||"").trim().toLowerCase(); const i=merged.findIndex(p=>{const pid=p?.id||p?.playerId||p?.tiktokId;const pu=String(p?.username||"").trim().toLowerCase();const pn=String(p?.displayName||p?.name||"").trim().toLowerCase();return(rid&&pid&&String(pid)===String(rid))||(ru&&pu&&ru===pu)||(rn&&pn&&rn===pn);}); if(i>=0) merged[i]={...merged[i],teamId:r.teamId||merged[i].teamId||null,teamName:r.teamName||merged[i].teamName||null,displayName:r.displayName||merged[i].displayName,username:r.username||merged[i].username,avatar:r.avatar||merged[i].avatar||""}; else merged.push({id:rid,playerId:r.playerId||r.id||rid,tiktokId:r.playerId||r.id||r.tiktokId||"",name:r.displayName||r.name||r.username||rid,displayName:r.displayName||r.name||r.username||rid,username:r.username||r.displayName||rid,avatar:r.avatar||"",teamId:r.teamId||null,teamName:r.teamName||null,points:Number(r.points)||0,wins:Number(r.wins)||0,wordsFound:Number(r.wordsFound)||0,messages:Number(r.messages)||0});}); game={...game,players:merged};}
-    this.cachedDashboard={session,stats,statistics:stats,rankings,rules,missions,battleEffects,powerUps,historical,historicalLeaderboard:historical,livePhase,registration,commandConfig,game,recentActivity:[],gameMode:currentMode,liveActive:liveSessionActive,timestamp:Date.now()}; return this.cachedDashboard;
+    this.cachedDashboard={session,stats,statistics:stats,rankings,rules,missions,battleEffects:this.stableSection("battleEffects", battleEffects),powerUps:this.stableSection("powerUps", powerUps),historical,historicalLeaderboard:historical,livePhase,registration,commandConfig,game,recentActivity:[],gameMode:currentMode,liveActive:liveSessionActive,timestamp:Date.now()}; return this.cachedDashboard;
   }
 }
 export const dashboardAPI=new DashboardAPI();
