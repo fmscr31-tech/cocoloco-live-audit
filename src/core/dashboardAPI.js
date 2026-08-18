@@ -107,7 +107,34 @@ class DashboardAPI {
     let session={}; try{session=sessionManager.getSession()||{};}catch(e){} let stats={}; try{stats=statisticsEngine.getStatistics()||{};}catch(e){} let rankings=[]; try{if(typeof rankingEngine.getTopPlayers==="function") rankings=rankingEngine.getTopPlayers()||[]; else if(typeof rankingEngine.getPlayerRanking==="function"){const pr=rankingEngine.getPlayerRanking();rankings=pr?.topPoints||pr||[];}}catch(e){} if(!Array.isArray(rankings)) rankings=[];
     let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){} let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){} let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){} let powerUps={};try{powerUps=powerUpEngine.getPowerUpState()||{};}catch(e){} let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){} let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){} let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){} let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){} let game={};try{game=getState()||{};}catch(e){}
     const registeredPlayers=Array.isArray(registration?.players)?registration.players:[]; const gamePlayers=Array.isArray(game?.players)?game.players:[];
-    if(registeredPlayers.length>0){ const merged=gamePlayers.map(p=>({...p})); registeredPlayers.forEach(r=>{ const rid=r?.playerId||r?.id||r?.tiktokId||r?.username; const ru=String(r?.username||"").trim().toLowerCase(); const rn=String(r?.displayName||r?.name||"").trim().toLowerCase(); const i=merged.findIndex(p=>{const pid=p?.id||p?.playerId||p?.tiktokId;const pu=String(p?.username||"").trim().toLowerCase();const pn=String(p?.displayName||p?.name||"").trim().toLowerCase();return(rid&&pid&&String(pid)===String(rid))||(ru&&pu&&ru===pu)||(rn&&pn&&rn===pn);}); if(i>=0) merged[i]={...merged[i],teamId:r.teamId||merged[i].teamId||null,teamName:r.teamName||merged[i].teamName||null,displayName:r.displayName||merged[i].displayName,username:r.username||merged[i].username,avatar:r.avatar||merged[i].avatar||""}; else merged.push({id:rid,playerId:r.playerId||r.id||rid,tiktokId:r.playerId||r.id||r.tiktokId||"",name:r.displayName||r.name||r.username||rid,displayName:r.displayName||r.name||r.username||rid,username:r.username||r.displayName||rid,avatar:r.avatar||"",teamId:r.teamId||null,teamName:r.teamName||null,points:Number(r.points)||0,wins:Number(r.wins)||0,wordsFound:Number(r.wordsFound)||0,messages:Number(r.messages)||0}); }); game={...game,players:merged}; }
+
+    // Registration is authoritative for who is currently displayed in the
+    // roster. Game state supplies live score/win fields for those registered
+    // players. This also guarantees that removing the last registered player
+    // cannot leave a stale player behind in the overlay.
+    const playerIdentity = player => [player?.id, player?.playerId, player?.tiktokId, player?.username, player?.uniqueId]
+      .filter(Boolean).map(value => String(value).trim().toLowerCase());
+    const registeredOnly = registeredPlayers.map(r => {
+      const registrationKeys = playerIdentity(r);
+      const gamePlayer = gamePlayers.find(p => {
+        const gameKeys = playerIdentity(p);
+        return registrationKeys.some(key => gameKeys.includes(key));
+      });
+      return gamePlayer
+        ? { ...gamePlayer, ...r, id: gamePlayer.id || r.playerId || r.id }
+        : {
+            id:r?.playerId||r?.id||r?.tiktokId||r?.username,
+            playerId:r?.playerId||r?.id||r?.tiktokId||r?.username,
+            tiktokId:r?.playerId||r?.id||r?.tiktokId||"",
+            name:r?.displayName||r?.name||r?.username||"Jugador",
+            displayName:r?.displayName||r?.name||r?.username||"Jugador",
+            username:r?.username||r?.displayName||r?.name||"Jugador",
+            avatar:r?.avatar||"", teamId:r?.teamId||null, teamName:r?.teamName||null,
+            points:Number(r?.points)||0, wins:Number(r?.wins)||0, wordsFound:Number(r?.wordsFound)||0, messages:Number(r?.messages)||0
+          };
+    });
+    game={...game,players:registeredOnly};
+
     this.cachedDashboard={session,stats,statistics:stats,rankings,rules,missions,battleEffects:this.stableSection("battleEffects", battleEffects),powerUps:this.stableSection("powerUps", powerUps),historical,historicalLeaderboard:historical,livePhase,registration,commandConfig,game,recentActivity:[],gameMode:currentMode,liveActive:liveSessionActive,timestamp:Date.now()};
     return this.cachedDashboard;
   }
