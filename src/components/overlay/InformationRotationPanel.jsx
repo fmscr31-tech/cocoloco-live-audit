@@ -20,11 +20,8 @@ export function InformationRotationPanel() {
 
   useEffect(() => {
     if (!slides.length) return undefined;
-
     let cancelled = false;
     let fadeTimer = null;
-    let interval = null;
-
     const advance = () => {
       setVisible(false);
       fadeTimer = window.setTimeout(() => {
@@ -37,12 +34,11 @@ export function InformationRotationPanel() {
         setVisible(true);
       }, 180);
     };
-
-    interval = window.setInterval(advance, SLIDE_MS);
+    const interval = window.setInterval(advance, SLIDE_MS);
     return () => {
       cancelled = true;
       if (fadeTimer) window.clearTimeout(fadeTimer);
-      if (interval) window.clearInterval(interval);
+      window.clearInterval(interval);
     };
   }, [slides.length]);
 
@@ -71,8 +67,10 @@ export function InformationRotationPanel() {
         overflow: "hidden",
         background: "transparent",
         border: "none",
+        outline: "none",
         boxShadow: "none",
-        borderRadius: "0"
+        borderRadius: "0",
+        isolation: "isolate"
       }}
     >
       {isGiftSlide && (
@@ -80,14 +78,14 @@ export function InformationRotationPanel() {
           aria-hidden="true"
           style={{
             position: "absolute",
-            inset: "0",
+            inset: "4px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             zIndex: 0,
             pointerEvents: "none",
-            opacity: 0.72,
-            filter: "drop-shadow(0 2px 6px rgba(0,0,0,.65))"
+            opacity: 0.66,
+            filter: "drop-shadow(0 3px 2px rgba(0,0,0,.55)) drop-shadow(0 -1px 1px rgba(255,255,255,.18))"
           }}
         >
           <GiftImage
@@ -115,8 +113,10 @@ export function InformationRotationPanel() {
           padding: "4px 3px",
           background: "transparent",
           border: "none",
+          outline: "none",
           boxShadow: "none",
-          borderRadius: "0"
+          borderRadius: "0",
+          filter: "drop-shadow(0 2px 2px rgba(0,0,0,.42))"
         }}
       >
         <div style={{ fontSize: "0.74rem", fontWeight: 950, color: "#ffd700", textShadow: "0 1px 4px rgba(0,0,0,.98), 0 0 5px rgba(0,0,0,.8)", textTransform: "uppercase", letterSpacing: ".4px", textAlign: "center", width: "100%", lineHeight: 1.2, marginBottom: "3px" }}>
