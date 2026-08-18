@@ -216,6 +216,10 @@ class AudioManager {
       }
     });
 
+    // SINGLE AUTHORITATIVE GIFT-ABILITY AUDIO PATH.
+    // Every mapped dynamic gift plays its configured sound exactly once here,
+    // when the queued ability actually starts. Do not play the same sound from
+    // battle-effect events or overlay components.
     eventBus.subscribe("ability:started", (item) => {
       if (!this.enabled) return;
       const rawGiftName = String(item.sourceGift || item.giftName || item.canonicalGiftId || "").trim();
@@ -231,12 +235,10 @@ class AudioManager {
       }
     });
 
-    eventBus.subscribe("effect:activated", (payload) => {
-      if (!this.enabled || payload?.type !== "FREEZE") return;
-      const freezeConfig = this.getFreezeConfig();
-      const soundPath = payload?.sound !== undefined ? payload.sound : freezeConfig.sound;
-      if (soundPath) this.playSound(soundPath, { ...payload, source: "FREEZE" });
-    });
+    // IMPORTANT: battle-effect events are STATE notifications, not audio
+    // triggers. Freeze already plays its authoritative sound from
+    // ability:started. Replaying it from effect:activated caused duplicate
+    // audio in the Teams overlay.
   }
 }
 
