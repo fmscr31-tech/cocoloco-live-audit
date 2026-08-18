@@ -10,7 +10,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --experimental-specifier-resolution=node --test"
+    "test": "node --test"
   },
   "dependencies": {
     "react": "^19.2.7",
