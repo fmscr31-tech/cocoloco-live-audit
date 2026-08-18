@@ -59,12 +59,12 @@ export function InformationRotationPanel() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        padding: "6px",
+        justifyContent: "flex-start",
+        padding: "4px 6px 7px",
         boxSizing: "border-box",
-        minHeight: "96px",
-        width: "104px",
-        overflow: "hidden",
+        minHeight: "124px",
+        width: "124px",
+        overflow: "visible",
         background: "transparent",
         border: "none",
         outline: "none",
@@ -77,14 +77,16 @@ export function InformationRotationPanel() {
         <div
           aria-hidden="true"
           style={{
-            position: "absolute",
-            inset: "4px",
+            position: "relative",
+            width: "100%",
+            height: "74px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 0,
+            zIndex: 1,
             pointerEvents: "none",
-            opacity: 0.66,
+            flexShrink: 0,
+            marginBottom: "2px",
             filter: "drop-shadow(0 3px 2px rgba(0,0,0,.55)) drop-shadow(0 -1px 1px rgba(255,255,255,.18))"
           }}
         >
@@ -92,8 +94,8 @@ export function InformationRotationPanel() {
             giftId={slide.giftId}
             fallbackIcon={null}
             style={{
-              width: "96px",
-              height: "96px",
+              width: "74px",
+              height: "74px",
               objectFit: "contain"
             }}
           />
@@ -108,9 +110,9 @@ export function InformationRotationPanel() {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: "flex-start",
           boxSizing: "border-box",
-          padding: "4px 3px",
+          padding: "2px 3px 0",
           background: "transparent",
           border: "none",
           outline: "none",
