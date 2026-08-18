@@ -1,6 +1,6 @@
 import React from "react";
 import "./GenderBattleOverlay.css";
-import { GiftFeed } from "./GiftFeed";
+import { InformationRotationPanel } from "./InformationRotationPanel";
 
 const TEAM_KEYS = ["team1", "team2"];
 
@@ -12,7 +12,7 @@ function getTeam(players, teams, key, index) {
   return {
     id: explicit?.id || key,
     name: index === 0 ? "CHICOS" : "CHICAS",
-    icon: index === 0 ? "👦" : "👧",
+    icon: index === 0 ? "♂" : "♀",
     points: Number(explicit?.points ?? fallback?.points ?? pointsFromPlayers ?? 0),
     wins: Number(explicit?.wins ?? fallback?.wins ?? 0),
     players: teamPlayers,
@@ -38,7 +38,6 @@ export default function GenderBattleOverlay({
   showWin,
   winner,
   powerUps = [],
-  battleEffects,
   liveActive,
   effectiveDonut,
   effectiveHat,
@@ -48,10 +47,6 @@ export default function GenderBattleOverlay({
   const boys = getTeam(players, teams, TEAM_KEYS[0], 0);
   const girls = getTeam(players, teams, TEAM_KEYS[1], 1);
 
-  const topPlayers = (team) => [...team.players]
-    .sort((a, b) => Number(b?.points || 0) - Number(a?.points || 0))
-    .slice(0, 3);
-
   const TeamCard = ({ team, side }) => {
     const frozen = String(frozenTeamId) === String(team.id);
     const highlighted = team.players.some((p) => String(p?.id) === String(highlightedPlayerId) || String(p?.playerId) === String(highlightedPlayerId));
@@ -60,25 +55,14 @@ export default function GenderBattleOverlay({
     return (
       <section className={`gbo-team gbo-${side} ${frozen ? "is-frozen" : ""} ${highlighted ? "is-highlighted" : ""} ${abilityActive ? "ability-active" : ""}`}>
         <div className="gbo-team-head">
-          <span className="gbo-team-icon">{team.icon}</span>
-          <div>
+          <span className="gbo-team-icon" aria-hidden="true">{team.icon}</span>
+          <div className="gbo-team-title-wrap">
             <div className="gbo-team-name">{team.name}</div>
             <div className="gbo-team-meta">{team.players.length} JUGADORES · {team.wins} WINS</div>
           </div>
         </div>
-
-        <div className="gbo-roster">
-          {topPlayers(team).map((p) => (
-            <div
-              className={`gbo-player ${String(p?.id) === String(highlightedPlayerId) || String(p?.playerId) === String(highlightedPlayerId) ? "player-hot" : ""}`}
-              key={p?.id || p?.playerId || p?.username}
-            >
-              <span>{p?.displayName || p?.name || p?.username || "Jugador"}</span>
-              <b>{Number(p?.points || 0)}</b>
-            </div>
-          ))}
-        </div>
-
+        <div className="gbo-team-score-label">PUNTOS</div>
+        <div className="gbo-team-score">{team.points}</div>
         {frozen && <div className="gbo-status">❄️ CONGELADO · {Math.ceil(Number(frozenDetails?.remainingTime || 0) / 60)} MIN</div>}
         {abilityActive && <div className="gbo-status gbo-ability">⚡ HABILIDAD ACTIVA</div>}
       </section>
@@ -87,48 +71,40 @@ export default function GenderBattleOverlay({
 
   return (
     <div className="gender-battle-overlay" data-live-active={String(Boolean(liveActive))}>
-      <div className="gbo-topbar">
-        <div className="gbo-brand"><span>🥥</span> COCOLOCO <small>LIVE BATTLE</small></div>
-        <div className="gbo-round">CHICOS <strong>VS</strong> CHICAS</div>
+      <div className="gbo-brand-plaque">
+        <div className="gbo-brand-main">🥥 COCOLOCO</div>
+        <div className="gbo-brand-sub">LIVE BATTLE</div>
       </div>
 
       <div className="gbo-arena">
         <TeamCard team={boys} side="left" />
 
         <div className="gbo-center">
-          <div className="gbo-timer">{formatTimer(timer)}</div>
-
-          <div className="gbo-center-scoreboard" aria-label="Marcador">
-            <div className="gbo-center-score gbo-center-boys">
-              <span>CHICOS</span>
-              <strong>{boys.points}</strong>
-            </div>
-            <div className="gbo-center-score-vs">VS</div>
-            <div className="gbo-center-score gbo-center-girls">
-              <span>CHICAS</span>
-              <strong>{girls.points}</strong>
-            </div>
+          <div className="gbo-timer-frame">
+            <div className="gbo-timer-icon">⏱</div>
+            <div className="gbo-timer">{formatTimer(timer)}</div>
           </div>
 
-          <div className="gbo-gift-slide">
-            <GiftFeed />
+          <div className="gbo-center-vs">VS</div>
+          <div className="gbo-center-scoreline">
+            <div className="gbo-center-score boys-score"><span>CHICOS</span><strong>{boys.points}</strong></div>
+            <div className="gbo-center-divider">•</div>
+            <div className="gbo-center-score girls-score"><span>CHICAS</span><strong>{girls.points}</strong></div>
+          </div>
+
+          <div className="gbo-info-shell">
+            <InformationRotationPanel />
           </div>
         </div>
 
         <TeamCard team={girls} side="right" />
       </div>
 
-      <div className="gbo-eventbar">
-        <div className="gbo-event-title">⚡ EVENTO EN VIVO</div>
-        <div className="gbo-event-content">
-          <strong>{epicEvent?.giftDisplay || epicGift?.giftName || alert || "ESPERANDO EVENTOS"}</strong>
-          {(epicEvent?.username || epicGift?.username) && <span>por {epicEvent?.username || epicGift?.username}</span>}
-        </div>
-        {powerUps.length > 0 && (
-          <div className="gbo-powerups">
-            {powerUps.slice(0, 3).map((p, i) => <span key={p?.id || i}>⚡ {p?.name || p?.type || "POWER-UP"}</span>)}
-          </div>
-        )}
+      <div className="gbo-live-strip">
+        <span className="gbo-live-dot" />
+        <strong>{epicEvent?.giftDisplay || epicGift?.giftName || alert || "COCOLOCO LIVE"}</strong>
+        {(epicEvent?.username || epicGift?.username) && <span>por {epicEvent?.username || epicGift?.username}</span>}
+        {powerUps.length > 0 && <span className="gbo-powerups">⚡ {powerUps.slice(0, 2).map((p) => p?.name || p?.type || "POWER-UP").join(" · ")}</span>}
       </div>
 
       {showWin && winner && (
