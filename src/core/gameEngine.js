@@ -11,15 +11,12 @@ import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
 import { isGenderTeamsMode } from "./genderTeamsMode";
 
-const INTERMISSION_SECONDS = 60;
 const DEFAULT_TEAM_ROUND_MINUTES = 20;
 const PHASE_STORAGE_KEY = "cocoloco_round_phase_v2";
 export const gameState = { players, round: getCurrentRound() || null, timer: null, battle: null, teams: [] };
 let roundWinners = new Set();
-let autoTransitionBusy = false;
 let winSignalBusy = false;
 function getCurrentMode() { return String(commandConfigManager.getConfig().gameRegistrationMode || "INDIVIDUAL").toUpperCase(); }
-function isAutoRoundMode() { const mode = getCurrentMode(); return mode === "TEAM" || mode === "TEAMS" || isGenderTeamsMode(mode); }
 function persistPhase(phase) { try { localStorage.setItem(PHASE_STORAGE_KEY, phase); } catch (e) {} }
 function getPersistedPhase() { try { return localStorage.getItem(PHASE_STORAGE_KEY) || "ROUND"; } catch (e) { return "ROUND"; } }
 function syncPlayersFromRegistration() {
@@ -61,10 +58,20 @@ export function beginRound(data={}){
   gameState.timer=startTimer(gameState.round.duration,"ROUND");setRound(gameState.round);createEvent("ROUND_STARTED",{round:gameState.round});eventBus.publish("ROUND_STARTED",{round:{...gameState.round},timestamp:Date.now()});saveState();return gameState;
 }
 export function finishActiveRound(){const finished=endRound();if(finished)gameState.round={...finished};registrationManager.openRegistration();gameState.teams=getTeams();setTeams(gameState.teams);setRound(gameState.round);saveState();return finished;}
-function startIntermission(){persistPhase("INTERMISSION");gameState.timer=startTimer(1,"INTERMISSION");eventBus.publish("round:intermission_started",{durationSeconds:INTERMISSION_SECONDS,nextRoundMinutes:DEFAULT_TEAM_ROUND_MINUTES,timestamp:Date.now()});saveState();}
-function startNextRoundAutomatically(){if(autoTransitionBusy)return;autoTransitionBusy=true;try{const mode=getCurrentMode();if(!isAutoRoundMode())return;const registration=registrationManager.getRegistrationState();if(!registration?.players?.length){console.warn("[GameEngine] Intermission completed but there are no registered players; keeping registration open.");return;}beginRound({duration:DEFAULT_TEAM_ROUND_MINUTES,gameMode:mode,name:"Nueva Ronda"});}finally{autoTransitionBusy=false;}}
-function handleTimerCompletion(payload={}){const phase=String(payload.phase||payload.timer?.phase||getPersistedPhase()).toUpperCase();if(phase==="INTERMISSION"){startNextRoundAutomatically();return;}const activeRound=gameState.round||getCurrentRound();if(!activeRound||activeRound.status==="finished")return;gameState.round=activeRound;const finished=finishActiveRound();if(finished){if(finished.winner)eventBus.publish("round:winner_popup",{mode:getCurrentMode(),winner:finished.winner,winningTeamId:finished.winningTeamId||null,winningTeamName:finished.winningTeamName||null,roundId:finished.id,timestamp:Date.now()});if(isAutoRoundMode())startIntermission();}}
-eventBus.subscribe("ROUND_TIME_EXPIRED",handleTimerCompletion);eventBus.subscribe("timer:completed",handleTimerCompletion);eventBus.subscribe("TIMER_COMPLETED",handleTimerCompletion);
+function handleTimerCompletion(payload={}){
+  const phase=String(payload.phase||payload.timer?.phase||getPersistedPhase()).toUpperCase();
+  if(phase!=="ROUND") return;
+  const activeRound=gameState.round||getCurrentRound();
+  if(!activeRound||activeRound.status==="finished") return;
+  gameState.round=activeRound;
+  const finished=finishActiveRound();
+  if(!finished) return;
+  persistPhase("IDLE");
+  gameState.timer={remainingSeconds:0,running:false,minutes:0,seconds:0,phase:"IDLE"};
+  if(finished.winner) eventBus.publish("round:winner_popup",{mode:getCurrentMode(),winner:finished.winner,winningTeamId:finished.winningTeamId||null,winningTeamName:finished.winningTeamName||null,roundId:finished.id,timestamp:Date.now()});
+  saveState();
+}
+eventBus.subscribe("timer:completed",handleTimerCompletion);
 export function startGameTimer(minutes=DEFAULT_TEAM_ROUND_MINUTES){const requestedMinutes=Math.max(0,Number(minutes)||0);const current=gameState.timer;if(current?.running&&String(current.phase||"").toUpperCase()==="ROUND")return current;gameState.timer=startTimer(requestedMinutes,"ROUND");return gameState.timer;}
 export function pauseGameTimer(){pauseTimer();}
 export function resumeGameTimer(){resumeTimer();}
