@@ -35,3 +35,6 @@ jobs:
 
       - name: Validate bridge JavaScript syntax
         run: node --check bridge/server.js
+
+      - name: Verify final build completed
+        run: test -d dist && test -f dist/index.html
