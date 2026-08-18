@@ -1,7 +1,7 @@
 /**
- * Core Event Bus: Centralized, decoupled pub/sub messaging system for inter-module communication.
- * Supports cross-window / cross-tab synchronization via BroadcastChannel with a
- * localStorage fallback for browser-source overlays.
+ * Core Event Bus: centralized pub/sub messaging with reliable cross-window sync.
+ * Browser-source overlays run in a different window from the Admin panel, so
+ * every state-changing event used by the live UI must cross that boundary.
  */
 class EventBus {
   constructor() {
@@ -31,46 +31,31 @@ class EventBus {
     }
   }
 
+  // These events represent live state/UI changes. They MUST be delivered to
+  // browser-source overlays running in another window/tab.
   isCrossWindowEvent(eventName) {
-    return (
-      eventName === "game:score_updated" ||
-      eventName === "win:detected" ||
-      eventName === "win:correct" ||
-      eventName === "overlay:win" ||
-      eventName === "ability:started" ||
-      eventName === "ability:finished" ||
-      eventName === "gift:action_dispatched" ||
-      eventName === "effect:activated" ||
-      eventName === "effect:updated" ||
-      eventName === "effect:removed" ||
-      eventName === "effect:expired" ||
-      eventName === "player:highlight" ||
-      eventName === "player:created" ||
-      eventName === "player:updated" ||
-      eventName === "PLAYER_CREATED" ||
-      eventName === "registration:state_synced" ||
-      eventName === "registration:updated" ||
-      eventName === "registration:opened" ||
-      eventName === "registration:closed" ||
-      eventName === "registration:locked" ||
-      eventName === "registration:cleared" ||
-      eventName === "registration:player_registered" ||
-      eventName === "registration:player_removed" ||
-      eventName === "players:reset" ||
-      eventName === "round:started" ||
-      eventName === "ROUND_STARTED" ||
-      eventName === "round:finished" ||
-      eventName === "round:answer_snapshot" ||
-      eventName === "timer:started" ||
-      eventName === "timer:tick" ||
-      eventName === "timer:paused" ||
-      eventName === "timer:resumed" ||
-      eventName === "timer:stopped" ||
-      eventName === "timer:reset" ||
-      eventName === "GAME_MODE_CHANGED" ||
-      eventName === "SESSION_STATUS_CHANGED" ||
-      eventName === "cocazo:trigger"
-    );
+    const crossWindowEvents = new Set([
+      "game:score_updated", "game:winner_detected", "game:objective_completed",
+      "win:detected", "win:correct", "overlay:win",
+      "ability:started", "ability:finished", "gift:action_dispatched",
+      "effect:activated", "effect:updated", "effect:removed", "effect:expired",
+      "powerup:activated", "powerup:expired", "powerup:removed",
+      "player:highlight", "player:created", "player:updated", "PLAYER_CREATED",
+      "players:reset",
+      "team:updated", "teams:updated", "team:created", "team:removed",
+      "mvp:contribution_pending", "mvp:gift_contribution", "mvp:recipient_selected",
+      "registration:state_synced", "registration:updated", "registration:opened",
+      "registration:closed", "registration:locked", "registration:cleared",
+      "registration:player_registered", "registration:player_removed",
+      "round:started", "ROUND_STARTED", "round:finished", "round:winner_popup",
+      "round:answer_snapshot",
+      "timer:started", "timer:tick", "timer:paused", "timer:resumed",
+      "timer:stopped", "timer:reset",
+      "GAME_MODE_CHANGED", "SESSION_STATUS_CHANGED", "live:phase_changed",
+      "session:started", "session:updated", "session:ended",
+      "reward:processed", "config:command_updated", "cocazo:trigger"
+    ]);
+    return crossWindowEvents.has(eventName);
   }
 
   createMessageId(eventName) {
