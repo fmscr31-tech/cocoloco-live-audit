@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { getPlayerMvpRounds, getPlayerContributionPoints } from "../../core/mvpLeaderboardManager";
+import { getPlayerMvpRounds, getPlayerContributionPoints, getMvpLeaderboard } from "../../core/mvpLeaderboardManager";
 import { eventBus } from "../../core/eventBus";
 import { commandConfigManager } from "../../core/commandConfigManager";
 
@@ -73,6 +73,15 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
   const genderTheme = isGirlsTeam ? { border: "rgba(255,106,181,.98)", glow: "rgba(255,91,174,.7)" } : isBoysTeam ? { border: "rgba(78,210,255,.98)", glow: "rgba(31,159,232,.72)" } : null;
   const commandColor = isGirlsTeam ? "#a21caf" : isBoysTeam ? "#075985" : "#0b63ce";
 
+  const mvpLeaderboard = getMvpLeaderboard();
+  const teamMvpPlayers = isGenderBattle
+    ? mvpLeaderboard
+        .filter(player => String(player.teamId || "") === String(team.id))
+        .filter(player => Number(player.contributionPoints || 0) > 0)
+        .slice(0, 10)
+    : [];
+  const visiblePlayers = isGenderBattle ? teamMvpPlayers : topPlayers;
+
   useEffect(() => {
     const unsubs = ["mvp:recipient_selected","mvp:contribution_pending","mvp:gift_contribution","round:finished"].map(name => eventBus.subscribe(name, () => setMvpRefresh(v => v + 1)));
     return () => unsubs.forEach(u => u?.());
@@ -81,14 +90,14 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
   useEffect(() => {
     const next = {};
     const deltas = {};
-    topPlayers.forEach((player,index) => {
+    visiblePlayers.forEach((player,index) => {
       const previous = prevRanksRef.current[player.id];
       if (previous !== undefined && previous > index + 1) deltas[player.id] = previous - (index + 1);
       next[player.id] = index + 1;
     });
     prevRanksRef.current = next;
     if (Object.keys(deltas).length) setRankDeltas(deltas);
-  }, [topPlayers, mvpRefresh]);
+  }, [visiblePlayers, mvpRefresh]);
 
   const name = displayTeam.name;
   const nameText = isFrozen ? `❄️ ${name} [CONGELADO] ❄️` : isDamaged ? `💥 ${name} [DESTRUIDO]` : isGalaxyBenefited ? `🌌 ${name} 🌌` : isDonutActive ? `🍩 ${name} [EL MUDO]` : isCowboyActive ? `🤠 ${name} [RETO]` : name;
@@ -116,16 +125,16 @@ export function TeamPanel({ team, score, players, round, wrapperClass, isFrozen,
       </div>
     </div>
 
-    {topPlayers.length > 0 && <div className="players-box" style={{position:"relative",zIndex:10,overflowY:"auto",maxHeight:"220px"}}>
+    {visiblePlayers.length > 0 && <div className="players-box" style={{position:"relative",zIndex:10,overflowY:"auto",maxHeight:"220px"}}>
       {isGalaxyBenefited && galaxyPopup ? <div style={{padding:"8px",textAlign:"center"}}><div style={{fontSize:"11.5px",fontWeight:900,color:"#fff"}}>✨ {galaxyPopup.sender} ✨</div><div style={{fontSize:"7.5px",fontWeight:900,color:"#fff"}}>GALAXY • +1 RONDA</div></div> : <>
-        <div className="players-title">{isFrozen ? "❄️ MVP CONGELADOS" : isDamaged ? "💥 BAJO FUEGO" : isDonutActive ? "🍩 EL MUDO • RETO" : isCowboyActive ? "🤠 RETO CREATIVO" : (roundMvpTitle || "🏆 MVPS (TOP 10)")}</div>
-        {topPlayers.map((player,index) => {
-          const id = player.id || player.playerId;
+        <div className="players-title">{isFrozen ? "❄️ MVP CONGELADOS" : isDamaged ? "💥 BAJO FUEGO" : isDonutActive ? "🍩 EL MUDO • RETO" : isCowboyActive ? "🤠 RETO CREATIVO" : (isGenderBattle ? `🏆 MVPs ${isGirlsTeam ? "CHICAS" : isBoysTeam ? "CHICOS" : "EQUIPO"}` : (roundMvpTitle || "🏆 MVPS (TOP 10)"))}</div>
+        {visiblePlayers.map((player,index) => {
+          const id = player.id || player.playerId || player.tiktokId || player.username;
           const mvpRounds = getPlayerMvpRounds(id);
-          const contributionPoints = getPlayerContributionPoints(id);
+          const contributionPoints = Number(player.contributionPoints || getPlayerContributionPoints(id) || 0);
           const isWinMvp = String(id) === String(winMvpId);
           const isGiftMvp = String(id) === String(giftMvpId);
-          return <div key={id} className="gamer-player" style={{position:"relative",zIndex:2}}><div className="player-position">{index<3?["🥇","🥈","🥉"][index]:`${index+1}º`} <span className="player-name">{player.name}</span>{mvpRounds>0&&<span style={{marginLeft:4,fontSize:8}}>🏆 {mvpRounds}</span>}{contributionPoints>0&&<span style={{marginLeft:4,fontSize:7}}>💠 +{contributionPoints} APORTE</span>}{isWinMvp&&<span style={{marginLeft:4,fontSize:8,color:"#15803d"}}>👑 WIN</span>}{isGiftMvp&&<span style={{marginLeft:4,fontSize:8}}>MVP</span>}{rankDeltas[id]&&<span style={{marginLeft:4}}>▲ +{rankDeltas[id]}</span>}</div><div className="player-points">{player.points || player.wins || 0} pts</div></div>;
+          return <div key={id} className="gamer-player" style={{position:"relative",zIndex:2}}><div className="player-position">{index<3?["🥇","🥈","🥉"][index]:`${index+1}º`} <span className="player-name">{player.name}</span>{mvpRounds>0&&<span style={{marginLeft:4,fontSize:8}}>🏆 {mvpRounds}</span>}{contributionPoints>0&&<span style={{marginLeft:4,fontSize:7}}>💠 +{contributionPoints} APORTE</span>}{isWinMvp&&<span style={{marginLeft:4,fontSize:8,color:"#15803d"}}>👑 WIN</span>}{isGiftMvp&&<span style={{marginLeft:4,fontSize:8}}>MVP</span>}{rankDeltas[id]&&<span style={{marginLeft:4}}>▲ +{rankDeltas[id]}</span>}</div><div className="player-points">{isGenderBattle ? `${contributionPoints} aporte${contributionPoints === 1 ? "" : "s"}` : `${player.points || player.wins || 0} pts`}</div></div>;
         })}
       </>}
     </div>}
