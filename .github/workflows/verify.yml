@@ -6,6 +6,7 @@ on:
       - main
       - final-clean-2026-08-17
       - final-clean-verify
+      - audit/final-clean-2026-08-18
   pull_request:
 
 jobs:
