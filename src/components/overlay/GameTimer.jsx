@@ -13,16 +13,7 @@ export function GameTimer({ timer: initialTimer }) {
       const t = payload?.timer || payload;
       if (t) setTimer(t);
     };
-
-    const names = [
-      "timer:tick",
-      "timer:started",
-      "timer:paused",
-      "timer:resumed",
-      "timer:stopped",
-      "timer:reset"
-    ];
-
+    const names = ["timer:tick", "timer:started", "timer:paused", "timer:resumed", "timer:stopped", "timer:reset"];
     const unsubs = names.map(name => eventBus.subscribe(name, handleTimerUpdate));
     return () => unsubs.forEach(unsub => unsub && unsub());
   }, []);
@@ -30,180 +21,136 @@ export function GameTimer({ timer: initialTimer }) {
   const remainingSeconds = Math.max(0, Number(timer?.remainingSeconds) || 0);
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
-  const formattedMins = String(mins).padStart(2, "0");
-  const formattedSecs = String(secs).padStart(2, "0");
+  const formatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 
   const phase = String(timer?.phase || "IDLE").toUpperCase();
   const isRound = phase === "ROUND";
   const isIntermission = phase === "INTERMISSION";
   const isRunning = timer?.running === true;
-
-  // The urgency state begins exactly at 05:00 and remains active through 00:01.
-  // It is intentionally tied to remainingSeconds, not to elapsed time or render count.
-  const isFiveMinuteAlert = isRound && remainingSeconds > 0 && remainingSeconds <= 300;
-  const isLastMinute = isRound && remainingSeconds > 0 && remainingSeconds <= 60;
-  const isPaused = !isRunning && isRound && remainingSeconds > 0;
+  const urgent = isRound && remainingSeconds > 0 && remainingSeconds <= 300;
+  const critical = isRound && remainingSeconds > 0 && remainingSeconds <= 60;
+  const paused = isRound && !isRunning && remainingSeconds > 0;
 
   return (
-    <div
-      className={`timer-container ${isFiveMinuteAlert ? "timer-urgent-container" : ""}`}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        width: isFiveMinuteAlert ? "104px" : "94px",
-        minWidth: isFiveMinuteAlert ? "104px" : "94px",
-        flex: "0 0 auto",
-        position: "relative",
-        overflow: "visible"
-      }}
-    >
+    <div className="timer-container" style={{
+      width: urgent ? "116px" : "108px",
+      minWidth: urgent ? "116px" : "108px",
+      height: urgent ? "68px" : "62px",
+      flex: "0 0 auto",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+      overflow: "visible",
+      isolation: "isolate"
+    }}>
       <style>{`
-        @keyframes cocoTimerHeartbeat {
+        @keyframes cocoTimerHeartbeatStrong {
           0%, 100% { transform: scale(1); }
-          10% { transform: scale(1.10); }
-          18% { transform: scale(1.02); }
-          28% { transform: scale(1.07); }
-          42%, 100% { transform: scale(1); }
+          8% { transform: scale(1.13); }
+          16% { transform: scale(1.03); }
+          25% { transform: scale(1.09); }
+          38%, 100% { transform: scale(1); }
         }
-
-        @keyframes cocoTimerDangerBackground {
-          0%, 100% {
-            background: linear-gradient(145deg, rgba(72,5,8,.98), rgba(18,2,5,.99));
-            border-color: rgba(255,255,255,.78);
-            box-shadow:
-              0 0 10px rgba(255,25,25,.45),
-              0 0 24px rgba(255,25,25,.22),
-              inset 0 0 12px rgba(255,35,35,.12);
-          }
-          50% {
-            background: linear-gradient(145deg, rgba(190,12,18,1), rgba(58,3,8,1));
-            border-color: rgba(255,255,255,1);
-            box-shadow:
-              0 0 18px rgba(255,40,40,.85),
-              0 0 40px rgba(255,20,20,.42),
-              inset 0 0 18px rgba(255,110,110,.24);
-          }
+        @keyframes cocoTimerRedFlash {
+          0%,100% { background: linear-gradient(180deg,#3b0508 0%,#150205 100%); box-shadow: 0 0 10px rgba(255,0,0,.45), inset 0 0 14px rgba(255,40,40,.12); }
+          50% { background: linear-gradient(180deg,#d71920 0%,#62070d 100%); box-shadow: 0 0 24px rgba(255,0,0,.95), 0 0 50px rgba(255,0,0,.38), inset 0 0 18px rgba(255,150,150,.24); }
         }
-
-        @keyframes cocoTimerGlow {
-          0%, 100% { opacity: .72; transform: scale(.94); }
-          50% { opacity: 1; transform: scale(1.08); }
+        @keyframes cocoTimerHalo {
+          0%,100% { opacity:.25; transform:scale(.88); }
+          50% { opacity:.8; transform:scale(1.12); }
         }
-
-        @keyframes cocoIntermissionPulse {
-          0%, 100% { opacity: .92; }
-          50% { opacity: 1; }
-        }
+        @keyframes cocoTimerPaused { 0%,100% { opacity:.65; } 50% { opacity:1; } }
       `}</style>
 
-      {isFiveMinuteAlert && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "-8px -6px",
-            borderRadius: "14px",
-            background: "rgba(255,20,20,.18)",
-            filter: "blur(8px)",
-            animation: "cocoTimerGlow 1.05s ease-in-out infinite",
-            pointerEvents: "none",
-            zIndex: 0
-          }}
-        />
-      )}
-
-      {isIntermission && (
-        <div style={{
-          fontSize: "9px",
-          lineHeight: 1,
-          fontWeight: 1000,
-          color: "#ffd166",
-          letterSpacing: "1px",
-          textTransform: "uppercase",
-          marginBottom: "3px",
-          animation: "cocoIntermissionPulse 1s ease-in-out infinite",
-          textShadow: "0 0 8px rgba(255,209,102,.75)",
-          position: "relative",
-          zIndex: 2
-        }}>
-          NUEVA RONDA
-        </div>
-      )}
+      {urgent && <div aria-hidden="true" style={{
+        position: "absolute",
+        inset: "-10px -14px",
+        borderRadius: "18px",
+        background: "rgba(255,0,0,.24)",
+        filter: "blur(12px)",
+        animation: "cocoTimerHalo 1.05s ease-in-out infinite",
+        zIndex: 0,
+        pointerEvents: "none"
+      }} />}
 
       <div
-        className={`timer ${isFiveMinuteAlert ? "timer-five-minute-alert" : ""} ${isLastMinute ? "timer-last-minute-alert" : ""}`}
+        className={urgent ? "timer-five-minute-alert" : "timer-standard"}
         style={{
-          width: isFiveMinuteAlert ? "96px" : "88px",
-          minWidth: isFiveMinuteAlert ? "96px" : "88px",
-          height: isFiveMinuteAlert ? "54px" : "46px",
+          width: "100%",
+          height: "100%",
           boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          textAlign: "center",
-          fontSize: isFiveMinuteAlert ? "35px" : "31px",
-          lineHeight: 1,
-          fontWeight: 1000,
-          fontVariantNumeric: "tabular-nums",
-          fontFeatureSettings: '"tnum" 1',
-          color: isIntermission ? "#ffd166" : isFiveMinuteAlert ? "#ff2525" : "#ffffff",
-          WebkitTextStroke: isFiveMinuteAlert ? "1.2px #ffffff" : isIntermission ? "0.5px #3a2100" : "0px transparent",
-          textShadow: isFiveMinuteAlert
-            ? "-1px -1px 0 #050505, 1px -1px 0 #050505, -1px 1px 0 #050505, 1px 1px 0 #050505, 0 0 4px #ffffff, 0 0 10px #ff2020, 0 0 22px rgba(255,20,20,.95)"
-            : isIntermission
-              ? "0 0 8px rgba(255,209,102,.7)"
-              : "0 0 12px rgba(0,245,255,.6)",
-          background: isIntermission
-            ? "rgba(40,25,5,.35)"
-            : isFiveMinuteAlert
-              ? "linear-gradient(145deg, rgba(105,6,10,.98), rgba(34,2,6,.99))"
-              : "rgba(5,18,30,.35)",
-          border: isFiveMinuteAlert ? "2px solid #ffffff" : "1px solid rgba(125,211,252,.16)",
-          borderRadius: "9px",
-          boxShadow: isFiveMinuteAlert
-            ? "0 0 16px rgba(255,25,25,.65), 0 0 34px rgba(255,15,15,.3), inset 0 0 14px rgba(255,60,60,.15)"
-            : "0 0 8px rgba(0,245,255,.08)",
-          transition: "width .25s ease, height .25s ease, font-size .25s ease, color .2s ease, background .25s ease, box-shadow .25s ease",
-          animation: isFiveMinuteAlert
-            ? "cocoTimerHeartbeat 1.05s ease-in-out infinite, cocoTimerDangerBackground 1.05s ease-in-out infinite"
-            : "none",
-          transformOrigin: "center center",
-          whiteSpace: "nowrap",
-          flex: "0 0 auto",
           position: "relative",
-          zIndex: 2
+          zIndex: 2,
+          borderRadius: urgent ? "14px" : "12px",
+          border: urgent ? "3px solid #ffffff" : "2px solid rgba(125,211,252,.72)",
+          background: isIntermission
+            ? "linear-gradient(180deg,#382507,#160d02)"
+            : urgent
+              ? "linear-gradient(180deg,#5b080d,#170205)"
+              : "linear-gradient(180deg,rgba(9,31,48,.98),rgba(3,13,23,.99))",
+          boxShadow: urgent
+            ? "0 0 18px rgba(255,0,0,.75), 0 0 38px rgba(255,0,0,.3), inset 0 0 16px rgba(255,70,70,.18)"
+            : "0 5px 18px rgba(0,0,0,.55), inset 0 1px 2px rgba(255,255,255,.12)",
+          animation: urgent ? "cocoTimerHeartbeatStrong 1.05s ease-in-out infinite, cocoTimerRedFlash 1.05s ease-in-out infinite" : "none",
+          transition: "width .25s ease, height .25s ease, border .25s ease, box-shadow .25s ease",
+          transformOrigin: "center center",
+          overflow: "hidden"
         }}
       >
-        <span>{formattedMins}:</span>
+        <div aria-hidden="true" style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "3px",
+          background: urgent ? "#ffffff" : "linear-gradient(90deg,transparent,#7dd3fc,transparent)",
+          opacity: urgent ? 1 : .75
+        }} />
+
         <span style={{
-          color: isLastMinute ? "#ff1010" : "inherit",
-          WebkitTextStroke: isFiveMinuteAlert ? "1.2px #ffffff" : "inherit",
-          display: "inline-block",
+          fontFamily: "'Arial Black', Impact, sans-serif",
+          fontSize: urgent ? "39px" : "35px",
+          lineHeight: 1,
+          fontWeight: 1000,
+          letterSpacing: "-1px",
           fontVariantNumeric: "tabular-nums",
-          textShadow: isLastMinute
-            ? "-1px -1px 0 #050505, 1px -1px 0 #050505, -1px 1px 0 #050505, 1px 1px 0 #050505, 0 0 5px #ffffff, 0 0 14px #ff1010"
-            : "inherit"
+          color: isIntermission ? "#ffd166" : urgent ? "#ff2020" : "#ffffff",
+          WebkitTextStroke: urgent ? "1.4px #ffffff" : "0px transparent",
+          textShadow: urgent
+            ? "-2px -2px 0 #050000,2px -2px 0 #050000,-2px 2px 0 #050000,2px 2px 0 #050000,0 0 5px #ffffff,0 0 16px #ff0000"
+            : "0 0 12px rgba(0,245,255,.65)",
+          whiteSpace: "nowrap"
         }}>
-          {formattedSecs}
+          {formatted}
         </span>
+
+        {urgent && <div aria-hidden="true" style={{
+          position: "absolute",
+          left: "10px",
+          right: "10px",
+          bottom: "4px",
+          height: "2px",
+          background: "rgba(255,255,255,.85)",
+          boxShadow: "0 0 7px #ffffff",
+          opacity: .75
+        }} />}
       </div>
 
-      {isPaused && (
-        <span style={{
-          fontSize: "9px",
-          color: "#ed8936",
-          fontWeight: "800",
-          letterSpacing: "1px",
-          textTransform: "uppercase",
-          marginTop: "2px",
-          position: "relative",
-          zIndex: 2
-        }}>
-          PAUSED
-        </span>
-      )}
+      {paused && <span style={{
+        position: "absolute",
+        bottom: "-12px",
+        fontSize: "8px",
+        fontWeight: 900,
+        letterSpacing: "1px",
+        color: "#ed8936",
+        textTransform: "uppercase",
+        animation: "cocoTimerPaused 1.2s ease-in-out infinite",
+        zIndex: 4
+      }}>PAUSED</span>}
     </div>
   );
 }
