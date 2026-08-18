@@ -97,15 +97,18 @@ class CommandConfigManager {
         return;
       }
 
-      // CHICOS VS CHICAS has canonical visible identity. Never allow a stale
-      // team label or stale registration command to erase the overlay labels.
+      // GENDER_TEAMS preserves the canonical mechanics (IDs + gender), but
+      // the visible team name is user-configurable. Never overwrite a name
+      // that was explicitly saved by TeamManagement.
       this.config.teams = this.config.teams.slice(0, 2).map((team, index) => ({
         ...team,
         id: team.id || defaults[index].id,
-        name: index === 0 ? "Chicos" : "Chicas",
+        name: String(team.name || defaults[index].name || (index === 0 ? "Chicos" : "Chicas")).trim() || (index === 0 ? "Chicos" : "Chicas"),
         gender: index === 0 ? "male" : "female",
-        color: index === 0 ? "#3182ce" : "#e83e8c",
-        commands: index === 0 ? ["chico"] : ["chica"],
+        color: team.color || (index === 0 ? "#3182ce" : "#e83e8c"),
+        commands: Array.isArray(team.commands) && team.commands.length
+          ? team.commands
+          : (index === 0 ? ["chico"] : ["chica"]),
         minPlayers: Number(team.minPlayers) || 1,
         maxPlayers: Number(team.maxPlayers) || 100,
         gifts: Array.isArray(team.gifts) ? team.gifts : []
@@ -197,13 +200,14 @@ class CommandConfigManager {
 
     if (Array.isArray(newConfig.teams)) {
       this.config.teams = newConfig.teams.map((t, idx) => ({
+        ...t,
         id: t.id || `team_${idx + 1}`,
-        name: t.name || `Equipo ${idx + 1}`,
+        name: String(t.name || `Equipo ${idx + 1}`).trim(),
         color: t.color || (idx === 0 ? "#ff3366" : idx === 1 ? "#00bfff" : "#ffd700"),
-        commands: Array.isArray(t.commands) ? t.commands.map(c => c.trim().toLowerCase()) : [`!t${idx + 1}`],
+        commands: Array.isArray(t.commands) ? t.commands.map(c => String(c).trim().toLowerCase()).filter(Boolean) : [`!t${idx + 1}`],
         minPlayers: Number(t.minPlayers) || 1,
         maxPlayers: Number(t.maxPlayers) || 50,
-        gifts: t.gifts || []
+        gifts: Array.isArray(t.gifts) ? t.gifts : []
       }));
     }
 
