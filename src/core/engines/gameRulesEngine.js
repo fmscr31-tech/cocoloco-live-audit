@@ -7,7 +7,6 @@ import { getTeams } from "../TeamManager";
 /**
  * Game Rules Engine: Centralized module responsible for controlling competitive live rules,
  * scoring calculations, victory conditions, and battle objectives.
- * Communicates exclusively through eventBus and configManager, without visual logic.
  */
 class GameRulesEngine {
   constructor() {
@@ -16,27 +15,36 @@ class GameRulesEngine {
       globalMultiplier: 1.0,
       bonusPerGift: 10
     };
-    this.battleStatus = {
-      winner: null,
-      objectivesCompleted: []
-    };
+    this.battleStatus = { winner: null, objectivesCompleted: [] };
     this.initListeners();
   }
 
   initListeners() {
-    eventBus.subscribe("reward:processed", (reward) => {
-      this.evaluateRewardScoring(reward);
-    });
-
-    eventBus.subscribe("player:updated", (player) => {
-      this.evaluateVictoryConditions(player);
-    });
+    eventBus.subscribe("reward:processed", reward => this.evaluateRewardScoring(reward));
+    eventBus.subscribe("player:updated", player => this.evaluateVictoryConditions(player));
   }
 
   getPlayerTeam(identity) {
     if (!identity) return null;
+    const teams = getTeams();
 
-    const identityText = String(identity).toLowerCase();
+    // Explicit team identity is authoritative. This is important for connector events
+    // where a player registry entry may not yet exist in the receiving window/test.
+    const explicitTeamId = typeof identity === "object" ? identity.teamId : identity;
+    if (explicitTeamId) {
+      const direct = teams.find(team =>
+        String(team.id) === String(explicitTeamId) ||
+        String(team.name || "").trim().toLowerCase() === String(explicitTeamId).trim().toLowerCase()
+      );
+      if (direct) return direct;
+    }
+
+    const identityText = String(
+      typeof identity === "object"
+        ? (identity.displayName || identity.username || identity.sender || identity.id || "")
+        : identity
+    ).toLowerCase();
+
     const player = players.find(p =>
       p.id === identity ||
       p.tiktokId === identity ||
@@ -45,29 +53,19 @@ class GameRulesEngine {
       String(p.username || "").toLowerCase() === identityText
     );
 
-    const requestedTeamId = player?.teamId || (typeof identity === "object" ? identity.teamId : null);
-    if (!requestedTeamId) return null;
-
-    const teams = getTeams();
-    return teams.find(t =>
-      String(t.id) === String(requestedTeamId) ||
-      String(t.name || "").toLowerCase() === String(requestedTeamId).toLowerCase()
-    ) || null;
+    if (!player?.teamId) return null;
+    return teams.find(team => String(team.id) === String(player.teamId)) || null;
   }
 
   evaluateRewardScoring(reward = {}) {
     const customMultiplier = configManager.get("game.globalMultiplier") || this.rules.globalMultiplier;
     const adjustedPoints = Math.round((reward.points || 1) * customMultiplier);
-
-    // Prefer the explicit team identity supplied by the connector/event pipeline.
-    // Fall back to the canonical player registry only when teamId is absent.
     const team = this.getPlayerTeam(reward.teamId || reward.userId || reward.username);
     const userId = reward.userId || reward.username;
 
     if (battleEffectEngine.isUserFrozen(userId, team ? team.id : null, reward.username)) {
       const teams = getTeams();
-      const opposingTeam = team ? teams.find(t => t.id !== team.id) : null;
-
+      const opposingTeam = team ? teams.find(t => String(t.id) !== String(team.id)) : null;
       eventBus.emit("game:score_redirected", {
         originalTeam: team ? team.id : null,
         redirectedTeam: opposingTeam ? opposingTeam.id : null,
@@ -78,15 +76,13 @@ class GameRulesEngine {
       return;
     }
 
-    const scoreUpdatePayload = {
+    eventBus.emit("game:score_updated", {
       userId: reward.userId,
       username: reward.username,
       pointsAdded: adjustedPoints,
       giftName: reward.giftName,
       timestamp: Date.now()
-    };
-
-    eventBus.emit("game:score_updated", scoreUpdatePayload);
+    });
     this.checkObjectives(adjustedPoints);
   }
 
@@ -99,7 +95,7 @@ class GameRulesEngine {
   }
 
   evaluateVictoryConditions(player) {
-    const team = this.getPlayerTeam(player.id || player.tiktokId || player.playerId || player.name);
+    const team = this.getPlayerTeam(player);
     const userId = player.id || player.name;
     if (battleEffectEngine.isUserFrozen(userId, team ? team.id : null, player.name)) return;
 
@@ -111,10 +107,7 @@ class GameRulesEngine {
   }
 
   getRulesState() {
-    return {
-      rules: { ...this.rules },
-      battleStatus: { ...this.battleStatus }
-    };
+    return { rules: { ...this.rules }, battleStatus: { ...this.battleStatus } };
   }
 }
 
