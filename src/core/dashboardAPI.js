@@ -23,11 +23,20 @@ const stableJson = value => {
   try { return JSON.stringify(value ?? null); } catch { return String(value); }
 };
 
+const TRANSIENT_MVP_EVENTS = new Set([
+  "mvp:contribution_pending",
+  "mvp:gift_contribution",
+  "mvp:recipient_selected"
+]);
+
 class DashboardAPI {
   constructor() {
     this.subscribers = new Set();
     this.cachedDashboard = null;
     this.stableSections = new Map();
+    this.pendingMvpSnapshotTimer = null;
+    this.pendingMvpPayload = null;
+    this.lastMvpSnapshotSignature = null;
     this.initReactiveBridge();
     eventBus.subscribe("dashboard:snapshot", (dashboard) => {
       if (!dashboard || typeof dashboard !== "object") return;
@@ -37,6 +46,7 @@ class DashboardAPI {
       this.subscribers.forEach(cb => { try { cb(dashboard); } catch (e) { console.error("[DashboardAPI] remote subscriber", e); } });
     });
   }
+
   getGameMode() { return currentMode; }
   setGameMode(mode) { currentMode = mode; localStorage.setItem('cocoloco_game_mode', mode); this.invalidateCache(); eventBus.emit('GAME_MODE_CHANGED', { mode }); return { success: true, mode }; }
   isLiveActive() { return liveSessionActive; }
@@ -52,66 +62,170 @@ class DashboardAPI {
     return value;
   }
 
-  initReactiveBridge() {
-    const notifySubscribers = (payload, eventName = null, isRemote = false) => {
-      if (isRemote) return;
-      this.invalidateCache();
-      const data = this.getLiveDashboard();
-      const snapshot = eventName === "game:score_updated" ? payload?.playerSnapshot : eventName === "overlay:win" ? {
-        id: payload?.id || payload?.playerId, playerId: payload?.playerId || payload?.id, tiktokId: payload?.tiktokId || "",
-        name: payload?.name || payload?.username || "Jugador", displayName: payload?.name || payload?.username || "Jugador",
-        username: payload?.username || payload?.name || "Jugador", teamId: payload?.teamId || null,
-        points: Number(payload?.points) || 0, wins: Number(payload?.wins) || 0, wordsFound: Number(payload?.wordsFound) || 0
-      } : null;
+  publishSnapshot(payload, eventName = null, isRemote = false) {
+    if (isRemote) return;
 
-      if (snapshot && (eventName === "game:score_updated" || eventName === "overlay:win")) {
-        const snapshotId = snapshot.id || snapshot.playerId || snapshot.tiktokId;
-        const currentPlayers = Array.isArray(data?.game?.players) ? [...data.game.players] : [];
-        const index = currentPlayers.findIndex(player => {
-          const playerId = player?.id || player?.playerId || player?.tiktokId;
-          const pu = String(player?.username || "").trim().toLowerCase(); const su = String(snapshot?.username || "").trim().toLowerCase();
-          const pt = String(player?.tiktokId || player?.playerId || ""); const st = String(snapshot?.tiktokId || snapshot?.playerId || "");
-          return (snapshotId && playerId && String(snapshotId) === String(playerId)) || (su && pu && su === pu) || (st && pt && st === pt);
-        });
-        if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot }; else if (snapshotId || snapshot.username) currentPlayers.push({ ...snapshot });
-        data.game = { ...data.game, players: currentPlayers };
+    this.invalidateCache();
+    const data = this.getLiveDashboard();
 
-        if (payload?.teamId) {
-          const teamId = String(payload.teamId);
-          const teamPayload = payload.teamSnapshot || {
-            id: payload.teamId,
-            name: payload.teamName,
-            points: Number(payload.newTeamTotal ?? payload.points ?? 0),
-            wins: Number(payload.wins ?? 0)
-          };
-          const currentTeams = Array.isArray(data?.game?.teams) ? [...data.game.teams] : [];
-          const teamIndex = currentTeams.findIndex(team => String(team?.id || team?.teamId) === teamId);
-          if (teamIndex >= 0) currentTeams[teamIndex] = { ...currentTeams[teamIndex], ...teamPayload };
-          else currentTeams.push({ ...teamPayload, id: teamPayload.id || payload.teamId });
-          data.game = { ...data.game, teams: currentTeams };
-        }
+    const snapshot = eventName === "game:score_updated" ? payload?.playerSnapshot : eventName === "overlay:win" || eventName === "win:correct" ? {
+      id: payload?.id || payload?.playerId,
+      playerId: payload?.playerId || payload?.id,
+      tiktokId: payload?.tiktokId || "",
+      name: payload?.name || payload?.username || payload?.player?.name || "Jugador",
+      displayName: payload?.displayName || payload?.name || payload?.username || payload?.player?.name || "Jugador",
+      username: payload?.username || payload?.name || payload?.player?.username || "Jugador",
+      teamId: payload?.teamId || payload?.player?.teamId || null,
+      points: Number(payload?.points ?? payload?.player?.points) || 0,
+      wins: Number(payload?.wins ?? payload?.player?.wins) || 0,
+      wordsFound: Number(payload?.wordsFound ?? payload?.player?.wordsFound) || 0
+    } : null;
+
+    if (snapshot && (eventName === "game:score_updated" || eventName === "overlay:win" || eventName === "win:correct")) {
+      const snapshotId = snapshot.id || snapshot.playerId || snapshot.tiktokId;
+      const currentPlayers = Array.isArray(data?.game?.players) ? [...data.game.players] : [];
+      const index = currentPlayers.findIndex(player => {
+        const playerId = player?.id || player?.playerId || player?.tiktokId;
+        const pu = String(player?.username || "").trim().toLowerCase();
+        const su = String(snapshot?.username || "").trim().toLowerCase();
+        const pt = String(player?.tiktokId || player?.playerId || "");
+        const st = String(snapshot?.tiktokId || snapshot?.playerId || "");
+        return (snapshotId && playerId && String(snapshotId) === String(playerId)) || (su && pu && su === pu) || (st && pt && st === pt);
+      });
+      if (index >= 0) currentPlayers[index] = { ...currentPlayers[index], ...snapshot };
+      else if (snapshotId || snapshot.username) currentPlayers.push({ ...snapshot });
+      data.game = { ...data.game, players: currentPlayers };
+
+      if (payload?.teamId || payload?.team?.id || payload?.winningTeamId || payload?.winningTeam?.id) {
+        const teamId = String(payload.teamId || payload.team?.id || payload.winningTeamId || payload.winningTeam?.id);
+        const teamPayload = payload.teamSnapshot || payload.team || {
+          id: teamId,
+          name: payload.teamName || payload.team?.name || payload.winningTeamName || payload.winningTeam?.name,
+          points: Number(payload.newTeamTotal ?? payload.teamPoints ?? payload.team?.points ?? payload.points ?? 0),
+          wins: Number(payload.wins ?? payload.teamWins ?? payload.team?.wins ?? 0)
+        };
+        const currentTeams = Array.isArray(data?.game?.teams) ? [...data.game.teams] : [];
+        const teamIndex = currentTeams.findIndex(team => String(team?.id || team?.teamId) === teamId);
+        if (teamIndex >= 0) currentTeams[teamIndex] = { ...currentTeams[teamIndex], ...teamPayload };
+        else currentTeams.push({ ...teamPayload, id: teamPayload.id || teamId });
+        data.game = { ...data.game, teams: currentTeams };
       }
+    }
 
-      data.timestamp = Date.now();
-      eventBus.emit("dashboard:snapshot", { ...data, timestamp: Date.now() });
-      this.subscribers.forEach(cb => { try { cb(data); } catch (e) { console.error("[DashboardAPI] subscriber", e); } });
-    };
-
-    ["player:created","player:updated","PLAYER_CREATED","reward:processed","session:updated","session:started","session:ended","game:winner_detected","game:objective_completed","effect:activated","effect:updated","effect:expired","effect:removed","powerup:activated","powerup:expired","powerup:removed","live:phase_changed","registration:updated","registration:opened","registration:closed","registration:locked","registration:cleared","registration:player_registered","registration:player_removed","registration:state_synced","round:started","ROUND_STARTED","round:finished","config:command_updated","SESSION_STATUS_CHANGED","timer:started","timer:tick","timer:paused","timer:resumed","timer:stopped","timer:reset","team:updated","teams:updated","team:created","team:removed","mvp:contribution_pending","mvp:gift_contribution","mvp:recipient_selected"].forEach(name => eventBus.subscribe(name, (p, isRemote) => notifySubscribers(p, name, isRemote)));
-    eventBus.subscribe("game:score_updated", (p, isRemote) => notifySubscribers(p, "game:score_updated", isRemote));
-    eventBus.subscribe("overlay:win", (p, isRemote) => notifySubscribers(p, "overlay:win", isRemote));
-    eventBus.subscribe("GAME_MODE_CHANGED", (p, isRemote) => { if (isRemote) return; const m = p?.mode || p; if (typeof m === "string") { currentMode = m; localStorage.setItem('cocoloco_game_mode', m); } notifySubscribers(p, "GAME_MODE_CHANGED", false); });
+    data.timestamp = Date.now();
+    const finalSnapshot = { ...data, timestamp: data.timestamp };
+    eventBus.emit("dashboard:snapshot", finalSnapshot);
+    this.subscribers.forEach(cb => { try { cb(finalSnapshot); } catch (e) { console.error("[DashboardAPI] subscriber", e); } });
   }
 
-  subscribe(callback) { if (typeof callback === "function") { this.subscribers.add(callback); callback(this.getLiveDashboard()); return () => this.subscribers.delete(callback); } }
+  scheduleMvpSnapshot(payload) {
+    this.pendingMvpPayload = payload || {};
+    if (this.pendingMvpSnapshotTimer) return;
+    this.pendingMvpSnapshotTimer = setTimeout(() => {
+      this.pendingMvpSnapshotTimer = null;
+      const pending = this.pendingMvpPayload;
+      this.pendingMvpPayload = null;
+      const signature = stableJson({
+        recipientId: pending?.recipientId || pending?.playerId || pending?.recipient?.id || null,
+        contributionId: pending?.giftEventId || pending?.eventId || pending?.giftId || null,
+        amount: pending?.amount || pending?.points || pending?.value || null,
+        teamId: pending?.teamId || pending?.team?.id || null
+      });
+      if (signature === this.lastMvpSnapshotSignature) return;
+      this.lastMvpSnapshotSignature = signature;
+      this.publishSnapshot(pending, "mvp:gift_contribution", false);
+    }, 50);
+  }
+
+  initReactiveBridge() {
+    const reactiveEvents = [
+      "player:created","player:updated","PLAYER_CREATED","reward:processed","session:updated","session:started","session:ended",
+      "game:winner_detected","game:objective_completed","effect:activated","effect:updated","effect:expired","effect:removed",
+      "powerup:activated","powerup:expired","powerup:removed","live:phase_changed","registration:updated","registration:opened","registration:closed",
+      "registration:locked","registration:cleared","registration:player_registered","registration:player_removed","registration:state_synced",
+      "round:started","ROUND_STARTED","round:finished","round:winner_popup","config:command_updated","SESSION_STATUS_CHANGED",
+      "timer:started","timer:tick","timer:paused","timer:resumed","timer:stopped","timer:reset","team:updated","teams:updated","team:created","team:removed"
+    ];
+
+    reactiveEvents.forEach(name => eventBus.subscribe(name, (p, isRemote) => this.publishSnapshot(p, name, isRemote)));
+
+    eventBus.subscribe("game:score_updated", (p, isRemote) => this.publishSnapshot(p, "game:score_updated", isRemote));
+    eventBus.subscribe("overlay:win", (p, isRemote) => this.publishSnapshot(p, "overlay:win", isRemote));
+    eventBus.subscribe("win:correct", (p, isRemote) => this.publishSnapshot(p, "win:correct", isRemote));
+
+    eventBus.subscribe("mvp:contribution_pending", (p, isRemote) => {
+      if (isRemote) return;
+      this.scheduleMvpSnapshot(p);
+    });
+    eventBus.subscribe("mvp:gift_contribution", (p, isRemote) => {
+      if (isRemote) return;
+      this.scheduleMvpSnapshot(p);
+    });
+    eventBus.subscribe("mvp:recipient_selected", (p, isRemote) => {
+      if (isRemote) return;
+      this.scheduleMvpSnapshot(p);
+    });
+
+    eventBus.subscribe("GAME_MODE_CHANGED", (p, isRemote) => {
+      if (isRemote) return;
+      const m = p?.mode || p;
+      if (typeof m === "string") {
+        currentMode = m;
+        localStorage.setItem('cocoloco_game_mode', m);
+      }
+      this.publishSnapshot(p, "GAME_MODE_CHANGED", false);
+    });
+  }
+
+  subscribe(callback) {
+    if (typeof callback === "function") {
+      this.subscribers.add(callback);
+      callback(this.getLiveDashboard());
+      return () => this.subscribers.delete(callback);
+    }
+  }
+
   getCurrentSession() { return sessionManager.getSession(); }
+
   getLiveDashboard() {
     if (this.cachedDashboard) return this.cachedDashboard;
-    let session={}; try{session=sessionManager.getSession()||{};}catch(e){} let stats={}; try{stats=statisticsEngine.getStatistics()||{};}catch(e){} let rankings=[]; try{if(typeof rankingEngine.getTopPlayers==="function") rankings=rankingEngine.getTopPlayers()||[]; else if(typeof rankingEngine.getPlayerRanking==="function"){const pr=rankingEngine.getPlayerRanking();rankings=pr?.topPoints||pr||[];}}catch(e){} if(!Array.isArray(rankings)) rankings=[];
-    let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){} let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){} let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){} let powerUps={};try{powerUps=powerUpEngine.getPowerUpState()||{};}catch(e){} let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){} let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){} let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){} let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){} let game={};try{game=getState()||{};}catch(e){}
-    const registeredPlayers=Array.isArray(registration?.players)?registration.players:[]; const gamePlayers=Array.isArray(game?.players)?game.players:[];
-    if(registeredPlayers.length>0){const merged=gamePlayers.map(p=>({...p})); registeredPlayers.forEach(r=>{const rid=r?.playerId||r?.id||r?.tiktokId||r?.username; const ru=String(r?.username||"").trim().toLowerCase(); const rn=String(r?.displayName||r?.name||"").trim().toLowerCase(); const i=merged.findIndex(p=>{const pid=p?.id||p?.playerId||p?.tiktokId;const pu=String(p?.username||"").trim().toLowerCase();const pn=String(p?.displayName||p?.name||"").trim().toLowerCase();return(rid&&pid&&String(pid)===String(rid))||(ru&&pu&&ru===pu)||(rn&&pn&&rn===pn);}); if(i>=0) merged[i]={...merged[i],teamId:r.teamId||merged[i].teamId||null,teamName:r.teamName||merged[i].teamName||null,displayName:r.displayName||merged[i].displayName,username:r.username||merged[i].username,avatar:r.avatar||merged[i].avatar||""}; else merged.push({id:rid,playerId:r.playerId||r.id||rid,tiktokId:r.playerId||r.id||r.tiktokId||"",name:r.displayName||r.name||r.username||rid,displayName:r.displayName||r.name||r.username||rid,username:r.username||r.displayName||rid,avatar:r.avatar||"",teamId:r.teamId||null,teamName:r.teamName||null,points:Number(r.points)||0,wins:Number(r.wins)||0,wordsFound:Number(r.wordsFound)||0,messages:Number(r.messages)||0});}); game={...game,players:merged};}
-    this.cachedDashboard={session,stats,statistics:stats,rankings,rules,missions,battleEffects:this.stableSection("battleEffects", battleEffects),powerUps:this.stableSection("powerUps", powerUps),historical,historicalLeaderboard:historical,livePhase,registration,commandConfig,game,recentActivity:[],gameMode:currentMode,liveActive:liveSessionActive,timestamp:Date.now()}; return this.cachedDashboard;
+    let session={}; try{session=sessionManager.getSession()||{};}catch(e){}
+    let stats={}; try{stats=statisticsEngine.getStatistics()||{};}catch(e){}
+    let rankings=[]; try{if(typeof rankingEngine.getTopPlayers==="function") rankings=rankingEngine.getTopPlayers()||[]; else if(typeof rankingEngine.getPlayerRanking==="function"){const pr=rankingEngine.getPlayerRanking();rankings=pr?.topPoints||pr||[];}}catch(e){}
+    if(!Array.isArray(rankings)) rankings=[];
+    let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){}
+    let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){}
+    let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){}
+    let powerUps={};try{powerUps=powerUpEngine.getPowerUpState()||{};}catch(e){}
+    let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){}
+    let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){}
+    let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){}
+    let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){}
+    let game={};try{game=getState()||{};}catch(e){}
+
+    const registeredPlayers=Array.isArray(registration?.players)?registration.players:[];
+    const gamePlayers=Array.isArray(game?.players)?game.players:[];
+    if(registeredPlayers.length>0){
+      const merged=gamePlayers.map(p=>({...p}));
+      registeredPlayers.forEach(r=>{
+        const rid=r?.playerId||r?.id||r?.tiktokId||r?.username;
+        const ru=String(r?.username||"").trim().toLowerCase();
+        const rn=String(r?.displayName||r?.name||"").trim().toLowerCase();
+        const i=merged.findIndex(p=>{
+          const pid=p?.id||p?.playerId||p?.tiktokId;
+          const pu=String(p?.username||"").trim().toLowerCase();
+          const pn=String(p?.displayName||p?.name||"").trim().toLowerCase();
+          return(rid&&pid&&String(pid)===String(rid))||(ru&&pu&&ru===pu)||(rn&&pn&&rn===pn);
+        });
+        if(i>=0) merged[i]={...merged[i],teamId:r.teamId||merged[i].teamId||null,teamName:r.teamName||merged[i].teamName||null,displayName:r.displayName||merged[i].displayName,username:r.username||merged[i].username,avatar:r.avatar||merged[i].avatar||""};
+        else merged.push({id:rid,playerId:r.playerId||r.id||rid,tiktokId:r.playerId||r.id||r.tiktokId||"",name:r.displayName||r.name||r.username||rid,displayName:r.displayName||r.name||r.username||rid,username:r.username||r.displayName||rid,avatar:r.avatar||"",teamId:r.teamId||null,teamName:r.teamName||null,points:Number(r.points)||0,wins:Number(r.wins)||0,wordsFound:Number(r.wordsFound)||0,messages:Number(r.messages)||0});
+      });
+      game={...game,players:merged};
+    }
+
+    this.cachedDashboard={session,stats,statistics:stats,rankings,rules,missions,battleEffects:this.stableSection("battleEffects", battleEffects),powerUps:this.stableSection("powerUps", powerUps),historical,historicalLeaderboard:historical,livePhase,registration,commandConfig,game,recentActivity:[],gameMode:currentMode,liveActive:liveSessionActive,timestamp:Date.now()};
+    return this.cachedDashboard;
   }
 }
+
 export const dashboardAPI=new DashboardAPI();
