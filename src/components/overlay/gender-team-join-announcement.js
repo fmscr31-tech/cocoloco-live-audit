@@ -9,19 +9,20 @@ function installStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    .gbo-team-name.gbo-join-ready{position:relative;min-height:24px;display:flex;align-items:center;justify-content:center;overflow:hidden;max-width:100%;padding-inline:4px;box-sizing:border-box}
+    .gbo-team-name.gbo-join-ready{position:relative;min-height:42px;display:flex;align-items:center;justify-content:center;overflow:hidden;max-width:100%;padding:2px 4px;box-sizing:border-box}
     .gbo-team-name .gbo-team-name-value,.gbo-team-name .gbo-team-join-prompt{transition:opacity .22s ease,transform .22s ease;max-width:100%;box-sizing:border-box}
-    .gbo-team-name .gbo-team-join-prompt{font-size:clamp(9px,1.35vw,12px);line-height:1.05;font-weight:900;letter-spacing:.1px;text-transform:none;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.8),0 0 6px rgba(255,255,255,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;width:100%;text-align:center}
-    .gbo-team-join-prompt .gbo-join-command{font-size:1.08em;font-weight:1000;text-transform:uppercase;display:inline-block;padding:1px 4px;border-radius:5px;background:rgba(255,255,255,.16);box-shadow:0 0 6px rgba(255,255,255,.24);vertical-align:middle}
-    .gbo-team:nth-child(1) .gbo-join-command{color:#8fe8ff}
-    .gbo-team:nth-child(2) .gbo-join-command{color:#ff9fca}
+    .gbo-team-name .gbo-team-join-prompt{font-size:clamp(9px,1.25vw,11px);line-height:1.08;font-weight:900;letter-spacing:.1px;text-transform:none;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.8),0 0 6px rgba(255,255,255,.3);white-space:normal;overflow:hidden;text-align:center;width:100%;display:block}
+    .gbo-join-line{display:block;width:100%;line-height:1.08}
+    .gbo-join-line-command{font-size:1.08em;font-weight:1000;text-transform:uppercase;display:inline-block;padding:1px 5px;border-radius:5px;background:rgba(255,255,255,.16);box-shadow:0 0 6px rgba(255,255,255,.24);vertical-align:middle}
+    .gbo-team:nth-child(1) .gbo-join-line-command{color:#8fe8ff}
+    .gbo-team:nth-child(2) .gbo-join-line-command{color:#ff9fca}
     .gbo-team-name .gbo-team-name-value.is-join-visible{opacity:1;transform:translateY(0)}
     .gbo-team-name .gbo-team-name-value.is-join-hidden{opacity:0;transform:translateY(-3px);pointer-events:none}
     .gbo-team-name .gbo-team-join-prompt.is-join-visible{opacity:1;transform:translateY(0);pointer-events:auto}
     .gbo-team-name .gbo-team-join-prompt.is-join-hidden{opacity:0;transform:translateY(3px);pointer-events:none}
     @keyframes gboJoinPromptPulse{0%,100%{filter:brightness(1);transform:scale(1)}50%{filter:brightness(1.08);transform:scale(1.015)}}
     .gbo-team-name .gbo-team-join-prompt.is-join-visible{animation:gboJoinPromptPulse 1.2s ease-in-out infinite}
-    @media (max-width:520px){.gbo-team-name .gbo-team-join-prompt{font-size:10px;letter-spacing:0}.gbo-team-join-prompt .gbo-join-command{padding:1px 3px}}
+    @media (max-width:520px){.gbo-team-name.gbo-join-ready{min-height:38px}.gbo-team-name .gbo-team-join-prompt{font-size:10px;letter-spacing:0}.gbo-join-line-command{padding:1px 4px}}
   `;
   document.head.appendChild(style);
 }
@@ -66,12 +67,18 @@ function update(root = document.querySelector(ROOT_SELECTOR)) {
 
     if (promptNode.dataset.command !== visibleCommand) {
       promptNode.textContent = "";
-      promptNode.appendChild(document.createTextNode("Escribe "));
+      const line1 = document.createElement("span");
+      line1.className = "gbo-join-line";
+      line1.appendChild(document.createTextNode("Escribe "));
       const commandNode = document.createElement("span");
-      commandNode.className = "gbo-join-command";
+      commandNode.className = "gbo-join-line-command";
       commandNode.textContent = visibleCommand;
-      promptNode.appendChild(commandNode);
-      promptNode.appendChild(document.createTextNode(" para unirte"));
+      line1.appendChild(commandNode);
+      const line2 = document.createElement("span");
+      line2.className = "gbo-join-line";
+      line2.textContent = "para unirte a tu equipo";
+      promptNode.appendChild(line1);
+      promptNode.appendChild(line2);
       promptNode.dataset.command = visibleCommand;
     }
   });
