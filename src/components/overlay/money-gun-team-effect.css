@@ -69,3 +69,8 @@
   0%,100%{opacity:.25;transform:scale(.78) rotate(-5deg)}
   50%{opacity:1;transform:scale(1.18) rotate(4deg)}
 }
+
+/* Match the girls' small outer halo with the same footprint in cyan for boys. */
+.gender-battle-overlay .gbo-arena>.gbo-left>.gbo-team{
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.72),inset 0 -14px 24px rgba(0,30,70,.6),0 0 12px rgba(32,191,255,.8),0 0 30px rgba(32,191,255,.5)!important;
+}
