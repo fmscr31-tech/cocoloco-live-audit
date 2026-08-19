@@ -12,6 +12,22 @@
   -webkit-text-stroke:1px #5c0b35!important;
   text-shadow:0 2px 0 #430820,0 0 8px rgba(255,190,225,.95),0 0 16px rgba(255,20,147,.72)!important;
 }
+/* The live GENDER overlay does not render the join instruction as a JSX node.
+   Render it on the real title wrapper so the instruction is visible in the actual overlay. */
+.gender-battle-overlay .gbo-team.gbo-right .gbo-team-title-wrap::after{
+  content:"ESCRIBE CHICAS PARA UNIRTE A TU EQUIPO";
+  display:block!important;
+  margin-top:3px!important;
+  color:#ffb6dc!important;
+  font-size:7px!important;
+  line-height:1.05!important;
+  font-weight:1000!important;
+  letter-spacing:.25px!important;
+  text-transform:uppercase!important;
+  text-shadow:0 1px 3px rgba(80,0,40,.9)!important;
+  white-space:normal!important;
+  text-align:center!important;
+}
 .gender-battle-overlay .gbo-team.gbo-right .gbo-join-command{
   opacity:1!important;
   color:#ffb6dc!important;
