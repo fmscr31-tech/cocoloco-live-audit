@@ -39,6 +39,17 @@ function repairAnnouncements() {
 
   const expected = `🏆 PUNTO PARA ${String(team.name).toUpperCase()}`;
   if (kicker.textContent.trim() !== expected) kicker.textContent = expected;
+
+  if (!announcement.dataset.cocoFlashBound) {
+    announcement.dataset.cocoFlashBound = "1";
+    announcement.classList.remove("coco-win-flash");
+    void announcement.offsetWidth;
+    announcement.classList.add("coco-win-flash");
+    window.setTimeout(() => {
+      announcement.classList.remove("coco-win-flash");
+      announcement.style.display = "none";
+    }, 1800);
+  }
 }
 
 let observer;
