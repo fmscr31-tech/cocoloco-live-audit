@@ -2,7 +2,6 @@
 .hud-container .gender-boys .team-card,
 .hud-container .gender-girls .team-card{position:relative!important;isolation:isolate!important;overflow:hidden!important}
 .hud-container .gender-boys .team-card{background:linear-gradient(151deg,transparent 0 18%,rgba(8,58,108,.48) 19% 30%,transparent 31% 44%,rgba(72,151,79,.42) 45% 58%,transparent 59%),linear-gradient(27deg,transparent 0 22%,rgba(89,206,232,.55) 23% 37%,transparent 38% 54%,rgba(15,78,126,.58) 55% 72%,transparent 73%),linear-gradient(135deg,#0a4f98 0%,#208bc1 34%,#63cfe1 56%,#4f9c5d 76%,#234d35 100%)!important;border:2px solid #75def7!important;box-shadow:0 0 18px rgba(45,190,240,.72),inset 0 0 30px rgba(0,20,40,.30),inset 0 1px 0 rgba(255,255,255,.42)!important}
-/* Girls card: opaque fuchsia background, no transparency. */
 .hud-container .gender-girls .team-card{background:#e60073!important;border:2px solid #ff66b7!important;box-shadow:0 0 18px rgba(255,20,147,.55),inset 0 0 20px rgba(90,0,45,.16)!important;opacity:1!important}
 .hud-container .gender-boys .team-card::before,.hud-container .gender-girls .team-card::before{content:""!important;position:absolute!important;inset:-35%!important;z-index:1!important;pointer-events:none!important;opacity:.62!important;background-size:150px 110px,190px 130px!important;animation:cocoGenderCamoSweep 8.5s ease-in-out infinite!important}
 .hud-container .gender-boys .team-card::before{background-image:repeating-linear-gradient(122deg,transparent 0 22px,rgba(8,62,112,.38) 23px 39px,transparent 40px 63px),repeating-linear-gradient(36deg,transparent 0 31px,rgba(74,157,78,.34) 32px 52px,transparent 53px 79px)!important}
@@ -12,8 +11,9 @@
 .hud-container .gender-girls .team-card > div[style*="letter-spacing"]:not(.ability-layer),.hud-container .gender-boys .team-card > div[style*="letter-spacing"]:not(.ability-layer){display:none!important}
 .hud-container .gender-boys .team-name,.hud-container .gender-girls .team-name{font-family:Impact,Haettenschweiler,"Arial Black",sans-serif!important;font-size:20px!important;font-weight:900!important;letter-spacing:1.25px!important;line-height:1!important;transform:scale(1.04)!important;transform-origin:center!important}
 .hud-container .gender-boys .team-name{color:#a7efff!important;-webkit-text-stroke:1.25px #06375f!important;text-shadow:0 2px 0 #021b30,0 0 8px rgba(112,229,255,.90),0 0 15px rgba(41,178,230,.42)!important}
-.hud-container .gender-girls .team-name{color:#ff69b2!important;-webkit-text-stroke:1.25px #68103c!important;text-shadow:0 2px 0 #430820,0 0 8px rgba(255,180,220,.95),0 0 15px rgba(255,74,165,.44)!important}
+.hud-container .gender-girls .team-name{color:#ff1493!important;-webkit-text-stroke:1.25px #5a0833!important;text-shadow:0 2px 0 #430820,0 0 8px rgba(255,190,225,.98),0 0 16px rgba(255,20,147,.62)!important}
 .hud-container .gender-boys .team-name>span,.hud-container .gender-girls .team-name>span{transform:none!important;-webkit-text-stroke:0!important;text-shadow:none!important}
+.hud-container .gender-girls .team-name>span:first-child{color:#ff1493!important;font-weight:1000!important}
 @keyframes cocoGenderCamoSweep{0%,100%{transform:translate3d(-24px,-12px,0) rotate(-1deg);opacity:.48}50%{transform:translate3d(24px,14px,0) rotate(1.5deg);opacity:.70}}
 @keyframes cocoGirlsDecor{0%,100%{transform:translateY(2px) scale(.96);opacity:.24}50%{transform:translateY(-2px) scale(1.10);opacity:.52}}
 @keyframes cocoBoysDecor{0%,100%{transform:translateX(-3px) scale(.96);opacity:.18}50%{transform:translateX(3px) scale(1.08);opacity:.40}}
