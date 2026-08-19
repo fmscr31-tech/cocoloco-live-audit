@@ -1,4 +1,4 @@
-/* Authoritative gender-team header: fixed geometry, opacity-only content swap. */
+/* Authoritative gender-team header: fixed geometry, discrete opacity-only content swap. */
 .hud-container .gender-boys .team-name,
 .hud-container .gender-girls .team-name{
   position:relative!important;
@@ -15,6 +15,8 @@
   transform:none!important;
   transition:none!important;
   animation:none!important;
+  will-change:auto!important;
+  box-sizing:border-box!important;
 }
 .hud-container .gender-boys .team-name::before,
 .hud-container .gender-boys .team-name::after,
@@ -22,23 +24,25 @@
 .hud-container .gender-girls .team-name::after{
   content:none!important;
   display:none!important;
+  transform:none!important;
+  animation:none!important;
 }
 .hud-container .gender-boys .team-name>span,
 .hud-container .gender-girls .team-name>span{
   transform:none!important;
-  transition:opacity .35s ease!important;
-  will-change:opacity!important;
+  transition:none!important;
+  will-change:auto!important;
   box-sizing:border-box!important;
 }
 .hud-container .gender-boys .team-name>span:first-child,
 .hud-container .gender-girls .team-name>span:first-child{
   height:20px!important;min-height:20px!important;max-height:20px!important;line-height:20px!important;flex:0 0 20px!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
-  animation:gboStableTeamName 8s ease-in-out infinite!important;
+  animation:gboStableTeamName 6s steps(1,end) infinite!important;
 }
 .hud-container .gender-boys .team-name>span:nth-child(2),
 .hud-container .gender-girls .team-name>span:nth-child(2){
   height:14px!important;min-height:14px!important;max-height:14px!important;flex:0 0 14px!important;display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
-  animation:gboStableTeamCommand 8s ease-in-out infinite!important;
+  animation:gboStableTeamCommand 6s steps(1,end) infinite!important;
   background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important;
 }
 .hud-container .gender-boys .team-name>span:nth-child(2) strong,
@@ -47,6 +51,13 @@
 }
 .hud-container .gender-boys .team-name>span:nth-child(2) strong{color:#20bfff!important}
 .hud-container .gender-girls .team-name>span:nth-child(2) strong{color:#fff!important}
-@keyframes gboStableTeamName{0%,43%{opacity:1}48%,93%{opacity:0}98%,100%{opacity:1}}
-@keyframes gboStableTeamCommand{0%,43%{opacity:0}48%,93%{opacity:1}98%,100%{opacity:0}}
+/* Hold each state; switch visibility instantly. There is no fade, transform, height change or layout animation. */
+@keyframes gboStableTeamName{
+  0%,45%{opacity:1}
+  55%,100%{opacity:0}
+}
+@keyframes gboStableTeamCommand{
+  0%,45%{opacity:0}
+  55%,100%{opacity:1}
+}
 .hud-container .individual-scoreboard-shell [data-cocoloco-registration-prompt="true"]{display:none!important}
