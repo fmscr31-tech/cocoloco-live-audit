@@ -1,0 +1,37 @@
+/* LIVE GENDER BATTLE — requested visual corrections for the REAL overlay. */
+/* The real CHICAS card is .gbo-team.gbo-right inside GenderBattleOverlay. */
+.gender-battle-overlay .gbo-team.gbo-right{
+  background:#e60073!important;
+  background-image:none!important;
+  opacity:1!important;
+  border:3px solid #ff66b7!important;
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.38),inset 0 -14px 24px rgba(105,0,55,.22),0 0 12px rgba(255,20,147,.72),0 0 28px rgba(255,20,147,.45)!important;
+}
+.gender-battle-overlay .gbo-team.gbo-right .gbo-team-name{
+  color:#ff1493!important;
+  -webkit-text-stroke:1px #5c0b35!important;
+  text-shadow:0 2px 0 #430820,0 0 8px rgba(255,190,225,.95),0 0 16px rgba(255,20,147,.72)!important;
+}
+.gender-battle-overlay .gbo-team.gbo-right .gbo-join-command{
+  opacity:1!important;
+  color:#ffb6dc!important;
+  text-shadow:0 1px 3px rgba(80,0,40,.9)!important;
+}
+.gender-battle-overlay .gbo-team.gbo-right .gbo-join-command-text{
+  color:#ffb6dc!important;
+  font-weight:1000!important;
+}
+.gender-battle-overlay .gbo-team.gbo-right .gbo-join-command-text strong{
+  color:#ff69b4!important;
+  font-weight:1000!important;
+  text-shadow:0 0 7px rgba(255,255,255,.55)!important;
+}
+.gender-battle-overlay .gbo-team.gbo-right .gbo-team-score{
+  background:linear-gradient(145deg,#9c004f,#5b0030)!important;
+  border-color:#ff9bd4!important;
+  box-shadow:inset 0 5px 12px rgba(55,0,30,.75),0 0 15px rgba(255,74,177,.58)!important;
+}
+.gender-battle-overlay .gbo-team.gbo-right .gbo-round-badge{
+  background:linear-gradient(180deg,#ff65b7,#c41472)!important;
+  border-color:#ffd0ea!important;
+}
