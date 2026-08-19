@@ -74,10 +74,6 @@ function update(root = document.querySelector(ROOT_SELECTOR)) {
       promptNode.dataset.command = visibleCommand;
     }
   });
-
-  // Mark the current overlay root as initialized so the DOM observer never
-  // re-enters update() because of the mutations update() itself creates.
-  root.dataset.joinAnnouncementReady = "1";
 }
 
 function applyVisibility(root, showJoinPrompt) {
@@ -88,7 +84,6 @@ function applyVisibility(root, showJoinPrompt) {
     const promptNode = nameNode.querySelector(".gbo-team-join-prompt");
     if (!valueNode || !promptNode) return;
 
-    // Hard visibility guarantee: only ONE of the two can occupy the layout at a time.
     valueNode.style.display = showJoinPrompt ? "none" : "block";
     promptNode.style.display = showJoinPrompt ? "inline-flex" : "none";
     valueNode.classList.toggle("is-join-visible", !showJoinPrompt);
@@ -99,7 +94,6 @@ function applyVisibility(root, showJoinPrompt) {
 }
 
 let timer = null;
-let observer = null;
 let unsubscribeDashboard = null;
 let initialized = false;
 let phase = false;
@@ -118,8 +112,9 @@ function start() {
 
   const tick = () => {
     const root = document.querySelector(ROOT_SELECTOR);
+    if (!root) return;
     const teams = getTeams();
-    if (!root || teams.length < 2) return;
+    if (teams.length < 2) return;
     phase = !phase;
     update(root);
     applyVisibility(root, phase);
@@ -127,17 +122,6 @@ function start() {
 
   apply();
   timer = window.setInterval(tick, 2600);
-
-  // IMPORTANT: this observer is only responsible for detecting a NEW overlay
-  // root. It must never call apply()/update() for mutations made by this module,
-  // otherwise each DOM write schedules another mutation and freezes the UI.
-  observer = new MutationObserver(() => {
-    const root = document.querySelector(ROOT_SELECTOR);
-    if (!root || root.dataset.joinAnnouncementReady === "1") return;
-    update(root);
-    applyVisibility(root, phase);
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
   unsubscribeDashboard = dashboardAPI.subscribe(apply);
 }
 
