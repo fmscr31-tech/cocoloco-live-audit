@@ -22,6 +22,7 @@ function installStyles() {
     .gbo-team-name .gbo-team-join-prompt.is-join-hidden{opacity:0;transform:translateY(3px);pointer-events:none}
     @keyframes gboJoinPromptPulse{0%,100%{filter:brightness(1);transform:scale(1)}50%{filter:brightness(1.08);transform:scale(1.015)}}
     .gbo-team-name .gbo-team-join-prompt.is-join-visible{animation:gboJoinPromptPulse 1.2s ease-in-out infinite}
+    .gender-team-wrapper.gender-girls .team-card{background:linear-gradient(145deg,#ff1493 0%,#e60073 52%,#b00058 100%) !important;border-color:#ff66b7 !important;box-shadow:0 0 18px rgba(255,20,147,.62),inset 0 0 24px rgba(255,105,180,.24) !important}
     @media (max-width:520px){.gbo-team-name.gbo-join-ready{min-height:38px}.gbo-team-name .gbo-team-join-prompt{font-size:10px;letter-spacing:0}.gbo-join-line-command{padding:1px 4px}}
   `;
   document.head.appendChild(style);
@@ -37,100 +38,49 @@ function update(root = document.querySelector(ROOT_SELECTOR)) {
   if (typeof document === "undefined" || !root || !root.isConnected) return;
   const teams = getTeams();
   if (teams.length < 2) return;
-
   root.querySelectorAll(".gbo-team").forEach((card, index) => {
     const team = teams[index];
     if (!team) return;
     const nameNode = card.querySelector(".gbo-team-name");
     if (!nameNode) return;
-
     const command = Array.isArray(team.commands) ? team.commands.find(Boolean) : team.commands;
     const visibleName = String(team.name || (index === 0 ? "CHICOS" : "CHICAS")).trim();
     const visibleCommand = String(command || (index === 0 ? "chico" : "chica")).trim();
     nameNode.classList.add("gbo-join-ready");
     nameNode.dataset.joinTeamId = String(team.id || index + 1);
-
     let valueNode = nameNode.querySelector(".gbo-team-name-value");
     let promptNode = nameNode.querySelector(".gbo-team-join-prompt");
-    if (!valueNode) {
-      valueNode = document.createElement("span");
-      valueNode.className = "gbo-team-name-value";
-      nameNode.textContent = "";
-      nameNode.appendChild(valueNode);
-    }
-    if (!promptNode) {
-      promptNode = document.createElement("span");
-      promptNode.className = "gbo-team-join-prompt";
-      nameNode.appendChild(promptNode);
-    }
+    if (!valueNode) { valueNode = document.createElement("span"); valueNode.className = "gbo-team-name-value"; nameNode.textContent = ""; nameNode.appendChild(valueNode); }
+    if (!promptNode) { promptNode = document.createElement("span"); promptNode.className = "gbo-team-join-prompt"; nameNode.appendChild(promptNode); }
     valueNode.textContent = visibleName;
-
     if (promptNode.dataset.command !== visibleCommand) {
       promptNode.textContent = "";
-      const line1 = document.createElement("span");
-      line1.className = "gbo-join-line";
+      const line1 = document.createElement("span"); line1.className = "gbo-join-line";
       line1.appendChild(document.createTextNode("Escribe "));
-      const commandNode = document.createElement("span");
-      commandNode.className = "gbo-join-line-command";
-      commandNode.textContent = visibleCommand;
-      line1.appendChild(commandNode);
-      const line2 = document.createElement("span");
-      line2.className = "gbo-join-line";
-      line2.textContent = "para unirte a tu equipo";
-      promptNode.appendChild(line1);
-      promptNode.appendChild(line2);
-      promptNode.dataset.command = visibleCommand;
+      const commandNode = document.createElement("span"); commandNode.className = "gbo-join-line-command"; commandNode.textContent = visibleCommand; line1.appendChild(commandNode);
+      const line2 = document.createElement("span"); line2.className = "gbo-join-line"; line2.textContent = "para unirte a tu equipo";
+      promptNode.appendChild(line1); promptNode.appendChild(line2); promptNode.dataset.command = visibleCommand;
     }
   });
 }
 
 function applyVisibility(root, showJoinPrompt) {
   root.querySelectorAll(".gbo-team").forEach(card => {
-    const nameNode = card.querySelector(".gbo-team-name");
-    if (!nameNode) return;
-    const valueNode = nameNode.querySelector(".gbo-team-name-value");
-    const promptNode = nameNode.querySelector(".gbo-team-join-prompt");
-    if (!valueNode || !promptNode) return;
-
-    valueNode.style.display = showJoinPrompt ? "none" : "block";
-    promptNode.style.display = showJoinPrompt ? "block" : "none";
-    valueNode.classList.toggle("is-join-visible", !showJoinPrompt);
-    valueNode.classList.toggle("is-join-hidden", showJoinPrompt);
-    promptNode.classList.toggle("is-join-visible", showJoinPrompt);
-    promptNode.classList.toggle("is-join-hidden", !showJoinPrompt);
+    const nameNode = card.querySelector(".gbo-team-name"); if (!nameNode) return;
+    const valueNode = nameNode.querySelector(".gbo-team-name-value"); const promptNode = nameNode.querySelector(".gbo-team-join-prompt"); if (!valueNode || !promptNode) return;
+    valueNode.style.display = showJoinPrompt ? "none" : "block"; promptNode.style.display = showJoinPrompt ? "block" : "none";
+    valueNode.classList.toggle("is-join-visible", !showJoinPrompt); valueNode.classList.toggle("is-join-hidden", showJoinPrompt);
+    promptNode.classList.toggle("is-join-visible", showJoinPrompt); promptNode.classList.toggle("is-join-hidden", !showJoinPrompt);
   });
 }
 
 let initialized = false;
 let phase = false;
-
 function start() {
   if (initialized || typeof window === "undefined" || typeof document === "undefined") return;
-  initialized = true;
-  installStyles();
-
-  const apply = () => {
-    const root = document.querySelector(ROOT_SELECTOR);
-    if (!root) return;
-    update(root);
-    applyVisibility(root, phase);
-  };
-
-  const tick = () => {
-    const root = document.querySelector(ROOT_SELECTOR);
-    if (!root) return;
-    const teams = getTeams();
-    if (teams.length < 2) return;
-    phase = !phase;
-    update(root);
-    applyVisibility(root, phase);
-  };
-
-  apply();
-  window.setInterval(tick, 2600);
-  dashboardAPI.subscribe(apply);
+  initialized = true; installStyles();
+  const apply = () => { const root = document.querySelector(ROOT_SELECTOR); if (!root) return; update(root); applyVisibility(root, phase); };
+  const tick = () => { const root = document.querySelector(ROOT_SELECTOR); if (!root) return; const teams = getTeams(); if (teams.length < 2) return; phase = !phase; update(root); applyVisibility(root, phase); };
+  apply(); window.setInterval(tick, 2600); dashboardAPI.subscribe(apply);
 }
-
-if (typeof window !== "undefined") {
-  window.setTimeout(start, 250);
-}
+if (typeof window !== "undefined") window.setTimeout(start, 250);
