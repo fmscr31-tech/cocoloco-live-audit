@@ -1,9 +1,10 @@
-/* Gender team label — fixed geometry, opacity-only swap. */
+/* Authoritative gender-team header layer: fixed geometry, real spans only. */
 .hud-container .gender-boys .team-name,
 .hud-container .gender-girls .team-name{
   position:relative!important;
   min-height:38px!important;
   height:38px!important;
+  max-height:38px!important;
   display:flex!important;
   flex-direction:column!important;
   align-items:center!important;
@@ -13,12 +14,7 @@
   transform:none!important;
   transition:none!important;
   animation:none!important;
-}
-.hud-container .gender-boys .team-name>span,
-.hud-container .gender-girls .team-name>span{
-  transform:none!important;
-  transition:none!important;
-  will-change:opacity;
+  will-change:auto!important;
 }
 .hud-container .gender-boys .team-name::before,.hud-container .gender-boys .team-name::after,
 .hud-container .gender-girls .team-name::before,.hud-container .gender-girls .team-name::after,
@@ -31,22 +27,31 @@
   animation:none!important;
   transform:none!important;
 }
+.hud-container .gender-boys .team-name>span,
+.hud-container .gender-girls .team-name>span{
+  transform:none!important;
+  transition:none!important;
+  will-change:opacity;
+  box-sizing:border-box!important;
+}
 .hud-container .gender-boys .team-name>span:first-child,
 .hud-container .gender-girls .team-name>span:first-child{
   height:20px!important;
   min-height:20px!important;
+  max-height:20px!important;
   line-height:20px!important;
   flex:0 0 20px!important;
   display:block!important;
   white-space:nowrap!important;
   overflow:hidden!important;
   text-overflow:ellipsis!important;
-  animation:gboLabelNameSwap 6s ease-in-out infinite!important;
+  animation:gboLabelNameSwapStable 6s steps(1,end) infinite!important;
 }
 .hud-container .gender-boys .team-name>span:nth-child(2),
 .hud-container .gender-girls .team-name>span:nth-child(2){
   height:14px!important;
   min-height:14px!important;
+  max-height:14px!important;
   flex:0 0 14px!important;
   display:flex!important;
   align-items:center!important;
@@ -55,16 +60,16 @@
   white-space:nowrap!important;
   overflow:hidden!important;
   text-overflow:ellipsis!important;
-  animation:gboLabelCommandSwap 6s ease-in-out infinite!important;
+  animation:gboLabelCommandSwapStable 6s steps(1,end) infinite!important;
 }
-@keyframes gboLabelNameSwap{
-  0%,42%{opacity:1}
-  50%,92%{opacity:0}
+@keyframes gboLabelNameSwapStable{
+  0%,49.999%{opacity:1}
+  50%,99.999%{opacity:0}
   100%{opacity:1}
 }
-@keyframes gboLabelCommandSwap{
-  0%,42%{opacity:0}
-  50%,92%{opacity:1}
+@keyframes gboLabelCommandSwapStable{
+  0%,49.999%{opacity:0}
+  50%,99.999%{opacity:1}
   100%{opacity:0}
 }
 .hud-container .individual-scoreboard-shell [data-cocoloco-registration-prompt="true"]{display:none!important}
