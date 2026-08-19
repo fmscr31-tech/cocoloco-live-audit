@@ -16,7 +16,6 @@ import "./components/overlay/gender-battle-stability-fix.css";
 import { audioManager } from "./core/audioManager";
 import "./core/live-audio-recovery";
 import "./core/genderTeamRegistrationBridge";
-import "./components/overlay/gender-team-join-announcement";
 import "./components/overlay/gender-team-join-announcement-v2";
 import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
