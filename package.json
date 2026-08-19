@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"node bridge/server.js\"",
+    "dev": "node scripts/ensure-bridge-deps.cjs && concurrently \"vite\" \"node bridge/server.js\"",
     "vite": "vite",
     "bridge": "node bridge/server.js",
     "build": "vite build",
