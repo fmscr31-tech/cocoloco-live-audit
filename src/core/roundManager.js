@@ -1,19 +1,23 @@
 import { resetRoundTeamScores, getTeams, addWinToTeam } from "./TeamManager";
 import { sessionManager } from "./sessionManager";
-import { getPlayers } from "./playerManager";
+import { getPlayers, resetRoundScores } from "./playerManager";
 import { registrationManager } from "./registrationManager";
 import { commandConfigManager } from "./commandConfigManager";
 import { isGenderTeamsMode } from "./genderTeamsMode";
 import { playRoundEndBuzzer } from "./roundEndSound";
 import { beginRoundContributionTracking, getRoundContributions, clearRoundContributions } from "./roundContributionManager";
 import { recordRoundMvp } from "./mvpLeaderboardManager";
+import { resetMvpLeaderboard } from "./mvpLeaderboardManager";
+import { startTimer, stopTimer } from "./timerManager";
 import { eventBus } from "./eventBus";
 
 const ROUND_STORAGE_KEY = "cocoloco_active_round_v2";
 const WINNER_RECOGNITION_MS = 18000;
+const GENDER_ROUND_DURATION_MINUTES = 20;
 let currentRound = null;
 let lastFinishedRoundId = null;
 let nextIndividualRegistrationTimer = null;
+let nextGenderRoundTimer = null;
 
 function persistRound() {
   try {
@@ -21,7 +25,6 @@ function persistRound() {
     else localStorage.removeItem(ROUND_STORAGE_KEY);
   } catch (e) {}
 }
-
 function restoreRound() {
   try {
     const raw = localStorage.getItem(ROUND_STORAGE_KEY);
@@ -30,24 +33,35 @@ function restoreRound() {
     if (saved && saved.status === "active") currentRound = saved;
   } catch (e) {}
 }
-
+function clearNextGenderRoundTimer() {
+  if (nextGenderRoundTimer) { clearTimeout(nextGenderRoundTimer); nextGenderRoundTimer = null; }
+}
 restoreRound();
 
 export function startRound(data = {}) {
-  if (nextIndividualRegistrationTimer) {
-    clearTimeout(nextIndividualRegistrationTimer);
-    nextIndividualRegistrationTimer = null;
-  }
+  if (nextIndividualRegistrationTimer) { clearTimeout(nextIndividualRegistrationTimer); nextIndividualRegistrationTimer = null; }
+  clearNextGenderRoundTimer();
+
+  const config = commandConfigManager.getConfig();
+  const gameMode = data.gameMode || config.gameRegistrationMode || "TEAM";
+  const genderMode = isGenderTeamsMode(gameMode);
+  const duration = genderMode ? GENDER_ROUND_DURATION_MINUTES : (data.duration || 20);
 
   registrationManager.closeRegistration();
+  if (genderMode) {
+    resetRoundScores();
+    resetMvpLeaderboard();
+    resetRoundTeamScores(true);
+  }
 
   currentRound = {
     id: data.id || Date.now(),
     name: data.name || "Ronda Principal",
-    duration: data.duration || 20,
+    duration,
+    roundNumber: (sessionManager.getSession()?.rounds || []).length + 1,
     entryGift: data.entryGift,
     prize: data.prize,
-    gameMode: data.gameMode || commandConfigManager.getConfig().gameRegistrationMode || "TEAM",
+    gameMode,
     status: "active",
     active: true,
     startTime: new Date()
@@ -57,6 +71,9 @@ export function startRound(data = {}) {
   persistRound();
   beginRoundContributionTracking(currentRound.id);
   eventBus.publish("round:started", { round: { ...currentRound }, timestamp: Date.now() });
+
+  // Admin is the timer authority. A GENDER_TEAMS round always starts at 20:00.
+  startTimer(duration, "ROUND");
   return currentRound;
 }
 
@@ -79,6 +96,7 @@ export function endRound() {
   const contributions = getRoundContributions();
   const contributionMvp = contributions.winLimpia || contributions.gift || null;
 
+  stopTimer();
   currentRound.participants = currentPlayers.map(player => ({ ...player }));
   currentRound.winner = topPlayer ? { id: topPlayer.id, name: topPlayer.name, points: topPlayer.points } : null;
   currentRound.mvp = contributionMvp
@@ -117,11 +135,14 @@ export function endRound() {
 
   eventBus.publish("round:winner_popup", {
     roundId: currentRound.id,
+    roundNumber: currentRound.roundNumber,
     mode: config.gameRegistrationMode,
     individual: individualMode,
     winner: currentRound.winner,
     winningTeamId: currentRound.winningTeamId || null,
     winningTeamName: currentRound.winningTeamName || null,
+    winningTeamScore: currentRound.winningTeamScore || 0,
+    mvp: currentRound.mvp || null,
     roundAwarded: currentRound.roundAwarded === true,
     durationMs: WINNER_RECOGNITION_MS,
     timestamp: Date.now()
@@ -137,13 +158,18 @@ export function endRound() {
       const latestConfig = commandConfigManager.getConfig();
       if (String(latestConfig.gameRegistrationMode || "").toUpperCase() !== "INDIVIDUAL") return;
       registrationManager.prepareNextRoundRegistration();
-      eventBus.publish("individual:registration_cycle_opened", {
-        method: latestConfig.individualRegistrationMethod,
-        command: latestConfig.individualCommand,
-        giftName: latestConfig.individualRegistrationGift,
-        giftAsset: latestConfig.individualRegistrationGiftAsset,
-        timestamp: Date.now()
-      });
+      eventBus.publish("individual:registration_cycle_opened", { method: latestConfig.individualRegistrationMethod, command: latestConfig.individualCommand, giftName: latestConfig.individualRegistrationGift, giftAsset: latestConfig.individualRegistrationGiftAsset, timestamp: Date.now() });
+    }, WINNER_RECOGNITION_MS);
+  } else if (genderMode) {
+    registrationManager.prepareNextRoundRegistration();
+    clearNextGenderRoundTimer();
+    nextGenderRoundTimer = setTimeout(() => {
+      nextGenderRoundTimer = null;
+      const latestConfig = commandConfigManager.getConfig();
+      if (!isGenderTeamsMode(latestConfig.gameRegistrationMode)) return;
+      const session = sessionManager.getSession?.();
+      if (!session?.isActive) return;
+      startRound({ name: currentRound?.name || "Ronda Principal", duration: GENDER_ROUND_DURATION_MINUTES, gameMode: latestConfig.gameRegistrationMode });
     }, WINNER_RECOGNITION_MS);
   } else {
     registrationManager.prepareNextRoundRegistration();
@@ -151,12 +177,14 @@ export function endRound() {
 
   eventBus.publish("round:finished", {
     roundId: currentRound.id,
+    roundNumber: currentRound.roundNumber,
     roundName: currentRound.name,
     winningTeamId: currentRound.winningTeamId || null,
     winningTeamName: currentRound.winningTeamName || null,
     roundAwarded: currentRound.roundAwarded === true,
     mvp: currentRound.mvp || null,
     mvpContributions: currentRound.mvpContributions,
+    nextRoundInMs: genderMode ? WINNER_RECOGNITION_MS : null,
     timestamp: Date.now()
   });
 
@@ -165,6 +193,5 @@ export function endRound() {
   return currentRound;
 }
 
-export function getCurrentRound() {
-  return currentRound;
-}
+export function getCurrentRound() { return currentRound; }
+export function getWinnerRecognitionDuration() { return WINNER_RECOGNITION_MS; }
