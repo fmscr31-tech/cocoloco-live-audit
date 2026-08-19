@@ -1,10 +1,11 @@
-/* Authoritative gender-team header layer: fixed geometry, opacity-only swap. */
+/* Authoritative gender-team header: fixed geometry, opacity-only content swap. */
 .hud-container .gender-boys .team-name,
 .hud-container .gender-girls .team-name{
   position:relative!important;
   min-height:38px!important;
   height:38px!important;
   max-height:38px!important;
+  flex:0 0 38px!important;
   display:flex!important;
   flex-direction:column!important;
   align-items:center!important;
@@ -14,62 +15,38 @@
   transform:none!important;
   transition:none!important;
   animation:none!important;
-  will-change:auto!important;
 }
-.hud-container .gender-boys .team-name::before,.hud-container .gender-boys .team-name::after,
-.hud-container .gender-girls .team-name::before,.hud-container .gender-girls .team-name::after,
-.cocoloco-gender-teams .team-one .team-name::before,.cocoloco-gender-teams .team-one .team-name::after,
-.cocoloco-gender-teams .team-two .team-name::before,.cocoloco-gender-teams .team-two .team-name::after,
-.cocoloco-configured-teams .team-one .team-name::before,.cocoloco-configured-teams .team-one .team-name::after,
-.cocoloco-configured-teams .team-two .team-name::before,.cocoloco-configured-teams .team-two .team-name::after{
+.hud-container .gender-boys .team-name::before,
+.hud-container .gender-boys .team-name::after,
+.hud-container .gender-girls .team-name::before,
+.hud-container .gender-girls .team-name::after{
   content:none!important;
   display:none!important;
-  animation:none!important;
-  transform:none!important;
 }
 .hud-container .gender-boys .team-name>span,
 .hud-container .gender-girls .team-name>span{
   transform:none!important;
-  transition:none!important;
-  will-change:auto!important;
+  transition:opacity .35s ease!important;
+  will-change:opacity!important;
   box-sizing:border-box!important;
 }
 .hud-container .gender-boys .team-name>span:first-child,
 .hud-container .gender-girls .team-name>span:first-child{
-  height:20px!important;
-  min-height:20px!important;
-  max-height:20px!important;
-  line-height:20px!important;
-  flex:0 0 20px!important;
-  display:block!important;
-  white-space:nowrap!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-  animation:gboLabelNameSwapStable 6s ease-in-out infinite!important;
+  height:20px!important;min-height:20px!important;max-height:20px!important;line-height:20px!important;flex:0 0 20px!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  animation:gboStableTeamName 8s ease-in-out infinite!important;
 }
 .hud-container .gender-boys .team-name>span:nth-child(2),
 .hud-container .gender-girls .team-name>span:nth-child(2){
-  height:14px!important;
-  min-height:14px!important;
-  max-height:14px!important;
-  flex:0 0 14px!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  width:100%!important;
-  white-space:nowrap!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-  animation:gboLabelCommandSwapStable 6s ease-in-out infinite!important;
+  height:14px!important;min-height:14px!important;max-height:14px!important;flex:0 0 14px!important;display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  animation:gboStableTeamCommand 8s ease-in-out infinite!important;
+  background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important;
 }
-@keyframes gboLabelNameSwapStable{
-  0%,42%{opacity:1}
-  48%,94%{opacity:0}
-  100%{opacity:1}
+.hud-container .gender-boys .team-name>span:nth-child(2) strong,
+.hud-container .gender-girls .team-name>span:nth-child(2) strong{
+  background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important;margin:0 2px!important;
 }
-@keyframes gboLabelCommandSwapStable{
-  0%,42%{opacity:0}
-  48%,94%{opacity:1}
-  100%{opacity:0}
-}
+.hud-container .gender-boys .team-name>span:nth-child(2) strong{color:#20bfff!important}
+.hud-container .gender-girls .team-name>span:nth-child(2) strong{color:#fff!important}
+@keyframes gboStableTeamName{0%,43%{opacity:1}48%,93%{opacity:0}98%,100%{opacity:1}}
+@keyframes gboStableTeamCommand{0%,43%{opacity:0}48%,93%{opacity:1}98%,100%{opacity:0}}
 .hud-container .individual-scoreboard-shell [data-cocoloco-registration-prompt="true"]{display:none!important}
