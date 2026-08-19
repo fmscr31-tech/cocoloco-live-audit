@@ -1,0 +1,2 @@
+.scoreboard .gender-team-wrapper.gender-girls > .team-card{background:linear-gradient(145deg,#ff1493 0%,#e60073 50%,#a90057 100%) !important;border:3px solid #ff66bd !important;box-shadow:inset 0 3px 0 rgba(255,255,255,.72),inset 0 -14px 24px rgba(75,0,48,.62),0 0 12px rgba(255,20,147,.8),0 0 30px rgba(255,20,147,.5) !important}
+.scoreboard .gender-team-wrapper.gender-girls > .team-card:before{border-color:rgba(255,255,255,.42)}
