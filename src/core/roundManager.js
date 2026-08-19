@@ -55,5 +55,11 @@ export function endRound(){
   eventBus.publish("round:finished",{roundId:currentRound.id,roundNumber:currentRound.roundNumber,roundName:currentRound.name,winningTeamId:currentRound.winningTeamId||null,winningTeamName:currentRound.winningTeamName||null,roundAwarded:currentRound.roundAwarded===true,mvp:currentRound.mvp||null,mvpContributions:currentRound.mvpContributions,nextRoundInMs:genderMode?WINNER_RECOGNITION_MS:null,timestamp:Date.now()});
   persistRound(); clearRoundContributions(); return currentRound;
 }
+
+// Timer completion is the authoritative round boundary. The endRound guard makes
+// TIMER_COMPLETED + ROUND_TIME_EXPIRED idempotent if both are emitted by timerManager.
+eventBus.subscribe("ROUND_TIME_EXPIRED", () => { if(currentRound?.status === "active") endRound(); });
+eventBus.subscribe("TIMER_COMPLETED", () => { if(currentRound?.status === "active") endRound(); });
+
 export function getCurrentRound(){return currentRound;}
 export function getWinnerRecognitionDuration(){return WINNER_RECOGNITION_MS;}
