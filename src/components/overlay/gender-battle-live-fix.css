@@ -1,5 +1,5 @@
 /* FINAL LIVE OVERLAY FIX — real GenderBattleOverlay. */
-/* CHICAS uses the exact same header structure/rendering as CHICOS. */
+/* CHICAS keeps the exact same header structure/layout as CHICOS. */
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team{
   background:#e60073!important;
   background-image:none!important;
@@ -7,9 +7,7 @@
   border:3px solid #ff66b7!important;
   box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -14px 24px rgba(110,0,65,.22),0 0 12px #ff35aa,0 0 30px rgba(255,53,170,.60)!important;
 }
-/* Do NOT manufacture a second header/instruction with pseudo-elements.
-   The real GenderBattleOverlay markup is shared by both teams, so CHICAS
-   must inherit the exact same header layout as CHICOS. */
+/* No synthetic header/instruction: the component markup is shared by both teams. */
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-head,
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap,
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{
@@ -22,8 +20,10 @@
   content:none!important;
   display:none!important;
 }
+/* Requested final title color: white, exactly like CHICOS. */
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{
-  color:#ff1493!important;
+  color:#fff!important;
+  text-shadow:0 3px 0 rgba(0,0,0,.48),0 0 7px rgba(255,255,255,.42)!important;
 }
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-score{
   border-color:#ff9bd4!important;
