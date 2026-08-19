@@ -11,6 +11,7 @@ import "./components/overlay/team-identity-final.css";
 import "./components/overlay/money-gun-team-effect.css";
 import "./components/overlay/girls-team-card-fuchsia.css";
 import "./components/overlay/gender-battle-requested-visuals.css";
+import "./components/overlay/gender-battle-live-fix.css";
 import { audioManager } from "./core/audioManager";
 import "./core/genderTeamRegistrationBridge";
 import "./components/overlay/gender-team-join-announcement";
