@@ -1,33 +1,13 @@
 /* FINAL LIVE OVERLAY FIX — real GenderBattleOverlay. */
 /* CHICAS keeps the exact same header structure/layout as CHICOS. */
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team{
-  background:#e60073!important;
-  background-image:none!important;
-  opacity:1!important;
-  border:3px solid #ff66b7!important;
-  box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -14px 24px rgba(110,0,65,.22),0 0 12px #ff35aa,0 0 30px rgba(255,53,170,.60)!important;
-}
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-head,
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap,
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{position:relative!important}
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::before,
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::after,
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::before,
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::after{content:none!important;display:none!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team{background:#e60073!important;background-image:none!important;opacity:1!important;border:3px solid #ff66b7!important;box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -14px 24px rgba(110,0,65,.22),0 0 12px #ff35aa,0 0 30px rgba(255,53,170,.60)!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-head,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{position:relative!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::after,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::after{content:none!important;display:none!important}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{color:#fff!important;text-shadow:0 3px 0 rgba(0,0,0,.48),0 0 7px rgba(255,255,255,.42)!important}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-score{border-color:#ff9bd4!important;box-shadow:inset 0 5px 12px rgba(0,0,0,.7),0 0 15px rgba(255,74,177,.55)!important}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-round-badge{background:linear-gradient(180deg,#ff75bd,#d91679)!important;border-color:#ffd0e9!important}
 
-/* Clean WIN celebration: translucent, bright, exactly three flashes. */
-.gender-battle-overlay .gbo-unified-announcement.is-clean{
-  background:rgba(18,20,42,.68)!important;
-  backdrop-filter:blur(4px)!important;
-  -webkit-backdrop-filter:blur(4px)!important;
-}
-.gender-battle-overlay .gbo-unified-announcement.is-clean.coco-win-flash{
-  animation:cocoCleanWinFlash .6s ease-in-out 0s 3 both!important;
-}
-@keyframes cocoCleanWinFlash{
-  0%,100%{opacity:.78;filter:brightness(1);transform:translate(-50%,-50%) scale(1)}
-  50%{opacity:1;filter:brightness(1.55) saturate(1.35);transform:translate(-50%,-50%) scale(1.025);box-shadow:0 0 28px rgba(255,221,90,.95),0 0 60px rgba(255,78,170,.65)!important}
-}
+/* Every clean WIN and every scored gift gets its own three-flash celebration. */
+.gender-battle-overlay .gbo-unified-announcement.is-clean,.gender-battle-overlay .gbo-unified-announcement.is-gift{background:rgba(18,20,42,.68)!important;backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}
+.gender-battle-overlay .gbo-unified-announcement.is-clean.coco-win-flash,.gender-battle-overlay .gbo-unified-announcement.is-gift.coco-gift-flash{animation:cocoCleanWinFlash .6s ease-in-out 0s 3 both!important}
+@keyframes cocoCleanWinFlash{0%,100%{opacity:.78;filter:brightness(1);transform:translate(-50%,-50%) scale(1)}50%{opacity:1;filter:brightness(1.55) saturate(1.35);transform:translate(-50%,-50%) scale(1.025);box-shadow:0 0 28px rgba(255,221,90,.95),0 0 60px rgba(255,78,170,.65)!important}}
