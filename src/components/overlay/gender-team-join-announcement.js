@@ -9,12 +9,12 @@ function installStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    /* Fixed header geometry: the card never moves when the label changes. */
+    /* Keep the registration prompt inside the same compact 31px header slot. */
     .gbo-team-name.gbo-join-ready{
       position:relative!important;
-      min-height:42px!important;
-      height:42px!important;
-      max-height:42px!important;
+      min-height:31px!important;
+      height:31px!important;
+      max-height:31px!important;
       width:100%!important;
       display:block!important;
       overflow:hidden!important;
@@ -93,8 +93,8 @@ function installStyles() {
       box-shadow:0 0 18px rgba(255,20,147,.62),inset 0 0 24px rgba(255,105,180,.24) !important;
     }
     @media (max-width:520px){
-      .gbo-team-name.gbo-join-ready{min-height:38px!important;height:38px!important;max-height:38px!important}
-      .gbo-team-name .gbo-team-name-value{font-size:19px!important}
+      .gbo-team-name.gbo-join-ready{min-height:31px!important;height:31px!important;max-height:31px!important}
+      .gbo-team-name .gbo-team-name-value{font-size:18px!important}
       .gbo-team-name .gbo-team-join-prompt{font-size:7.5px!important;letter-spacing:0!important}
     }
   `;
