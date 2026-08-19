@@ -2,18 +2,36 @@
 .gender-battle-overlay .gbo-team-column > .gbo-team{transform:none!important;transition:none!important;animation:none!important}
 .gender-battle-overlay .gbo-team-column > .gbo-team.is-highlighted,.gender-battle-overlay .gbo-team-column > .gbo-team.ability-active,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-active,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-silent_challenge,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-creative_challenge,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-ultimate_galaxy,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-epic_impact,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-freeze{transform:none!important;animation:none!important}
 
-/* Fixed two-row header: content changes without any visual deformation. */
-.gender-battle-overlay .gbo-team-head{height:31px!important;min-height:31px!important;max-height:31px!important;box-sizing:border-box!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important}
-.gender-battle-overlay .gbo-team-title-wrap{height:31px!important;min-height:31px!important;max-height:31px!important;width:100%!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
-.gender-battle-overlay .gbo-team-name{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;font-size:18px!important;line-height:20px!important;height:31px!important;max-height:31px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;transform:none!important;transition:none!important;animation:none!important}
-.gender-battle-overlay .gbo-team-name > span{display:block!important;width:100%!important;box-sizing:border-box!important;transform:none!important;transition:none!important;animation:none!important}
-.gender-battle-overlay .gbo-team-name > span:first-child{height:20px!important;min-height:20px!important;line-height:20px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important}
-.gender-battle-overlay .gbo-team-name > span:last-child{height:14px!important;min-height:14px!important;line-height:14px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;font-size:9px!important;font-weight:900!important;letter-spacing:0!important}
-.gender-battle-overlay .gbo-team-name strong{font-size:inherit!important;line-height:inherit!important;transform:none!important;animation:none!important;transition:none!important}
+/* Fixed header geometry. The team card never changes height; only the two labels swap opacity. */
+.gender-battle-overlay .gbo-team-head{height:44px!important;min-height:44px!important;max-height:44px!important;box-sizing:border-box!important;overflow:hidden!important;display:block!important;position:relative!important;padding:0!important}
+.gender-battle-overlay .gbo-team-title-wrap{height:44px!important;min-height:44px!important;max-height:44px!important;width:100%!important;min-width:0!important;display:block!important;position:relative!important;overflow:hidden!important;box-sizing:border-box!important;padding:0!important}
+.gender-battle-overlay .gbo-team-name{display:block!important;position:relative!important;width:100%!important;min-width:0!important;max-width:100%!important;height:44px!important;min-height:44px!important;max-height:44px!important;margin:0!important;padding:0 4px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:clip!important;line-height:1!important;transform:none!important;transition:none!important;animation:none!important;box-sizing:border-box!important}
+
+/* Exact fixed slots: name is lower/inside the card; command has its own stable row. */
+.gender-battle-overlay .gbo-team-name > span{position:absolute!important;left:4px!important;right:4px!important;width:auto!important;margin:0!important;box-sizing:border-box!important;transform:none!important;transition:none!important;will-change:auto!important;text-align:center!important;overflow:hidden!important}
+.gender-battle-overlay .gbo-team-name > span:first-child{top:4px!important;bottom:auto!important;height:24px!important;min-height:24px!important;max-height:24px!important;display:block!important;line-height:24px!important;white-space:nowrap!important;text-overflow:ellipsis!important;font-size:20px!important;font-weight:1000!important;letter-spacing:.3px!important}
+.gender-battle-overlay .gbo-team-name > span:last-child{top:27px!important;bottom:auto!important;height:14px!important;min-height:14px!important;max-height:14px!important;display:block!important;line-height:14px!important;white-space:nowrap!important;text-overflow:clip!important;font-size:9.5px!important;font-weight:900!important;letter-spacing:0!important;padding:0!important}
+.gender-battle-overlay .gbo-team-name strong{font-size:inherit!important;line-height:inherit!important;transform:none!important;animation:none!important;transition:none!important;margin:0 2px!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}
+
+/* Boys command: explanatory text remains white; only the actual command is highlighted. */
+.gender-battle-overlay .gbo-team-column.gbo-left > .gbo-team .gbo-team-name > span:last-child{color:#fff!important;text-shadow:0 2px 4px rgba(0,0,0,.8)!important}
+.gender-battle-overlay .gbo-team-column.gbo-left > .gbo-team .gbo-team-name > span:last-child strong{color:#20bfff!important}
+
+/* Girls: same geometry and wording as boys, with CHICAS and white team name. */
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{color:#fff!important;text-shadow:0 3px 0 rgba(0,0,0,.48),0 0 7px rgba(255,255,255,.42)!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name > span:last-child{color:#fff!important;text-shadow:0 2px 4px rgba(0,0,0,.8)!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name > span:last-child strong{color:#fff!important}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::after,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::after{content:none!important;display:none!important}
+
+/* Never let scoring/effects move the card or its header. */
 .gender-battle-overlay .gbo-team-score{animation:none!important;transform:none!important;transition:none!important}
 .gender-battle-overlay .gbo-team-score-label,.gender-battle-overlay .gbo-round-badge,.gender-battle-overlay .gbo-status{transform:none!important;transition:none!important}
+
+/* Stable opacity-only state swap. No transform, scale, blur or pulse. */
+.gender-battle-overlay .gbo-team-label-name{animation:gboActualTeamNameSwap 6s steps(1,end) infinite!important}
+.gender-battle-overlay .gbo-team-label-command{animation:gboActualTeamCommandSwap 6s steps(1,end) infinite!important}
+@keyframes gboActualTeamNameSwap{0%,49.999%{opacity:1}50%,99.999%{opacity:0}}
+@keyframes gboActualTeamCommandSwap{0%,49.999%{opacity:0}50%,99.999%{opacity:1}}
 
 /* CHICAS approved fuchsia card. */
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team{background:#e60073!important;background-image:none!important;opacity:1!important;border:3px solid #ff66b7!important;box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -14px 24px rgba(110,0,65,.22),0 0 12px #ff35aa,0 0 30px rgba(255,53,170,.60)!important}
