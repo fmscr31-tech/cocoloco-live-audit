@@ -1,21 +1,26 @@
-/* FINAL LIVE OVERLAY FIX — approved girls styling, clean-win celebration and static team geometry. */
-/* Team cards do not translate, scale, pulse, or react to text/status changes. */
+/* FINAL LIVE OVERLAY FIX — stable team header, approved girls styling and clean-win celebration. */
 .gender-battle-overlay .gbo-team-column > .gbo-team{transform:none!important;transition:none!important;animation:none!important}
 .gender-battle-overlay .gbo-team-column > .gbo-team.is-highlighted,.gender-battle-overlay .gbo-team-column > .gbo-team.ability-active,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-active,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-silent_challenge,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-creative_challenge,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-ultimate_galaxy,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-epic_impact,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-freeze{transform:none!important;animation:none!important}
-/* Reserve only the header area; do not force the whole card to a new height. */
+
+/* Fixed two-row header: content changes without any visual deformation. */
 .gender-battle-overlay .gbo-team-head{height:31px!important;min-height:31px!important;max-height:31px!important;box-sizing:border-box!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important}
 .gender-battle-overlay .gbo-team-title-wrap{height:31px!important;min-height:31px!important;max-height:31px!important;width:100%!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
-.gender-battle-overlay .gbo-team-name{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;font-size:18px!important;line-height:20px!important;height:20px!important;max-height:20px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;transform:none!important;transition:none!important;animation:none!important}
+.gender-battle-overlay .gbo-team-name{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;font-size:18px!important;line-height:20px!important;height:31px!important;max-height:31px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;transform:none!important;transition:none!important;animation:none!important}
+.gender-battle-overlay .gbo-team-name > span{display:block!important;width:100%!important;box-sizing:border-box!important;transform:none!important;transition:none!important;animation:none!important}
+.gender-battle-overlay .gbo-team-name > span:first-child{height:20px!important;min-height:20px!important;line-height:20px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important}
+.gender-battle-overlay .gbo-team-name > span:last-child{height:14px!important;min-height:14px!important;line-height:14px!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;font-size:9px!important;font-weight:900!important;letter-spacing:0!important}
+.gender-battle-overlay .gbo-team-name strong{font-size:inherit!important;line-height:inherit!important;transform:none!important;animation:none!important;transition:none!important}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{color:#fff!important;text-shadow:0 3px 0 rgba(0,0,0,.48),0 0 7px rgba(255,255,255,.42)!important}
-/* Prevent score animation from visually moving the team card when the score changes. */
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::after,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::after{content:none!important;display:none!important}
 .gender-battle-overlay .gbo-team-score{animation:none!important;transform:none!important;transition:none!important}
 .gender-battle-overlay .gbo-team-score-label,.gender-battle-overlay .gbo-round-badge,.gender-battle-overlay .gbo-status{transform:none!important;transition:none!important}
+
 /* CHICAS approved fuchsia card. */
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team{background:#e60073!important;background-image:none!important;opacity:1!important;border:3px solid #ff66b7!important;box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -14px 24px rgba(110,0,65,.22),0 0 12px #ff35aa,0 0 30px rgba(255,53,170,.60)!important}
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::after,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::after{content:none!important;display:none!important}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-score{border-color:#ff9bd4!important;box-shadow:inset 0 5px 12px rgba(0,0,0,.7),0 0 15px rgba(255,74,177,.55)!important}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-round-badge{background:linear-gradient(180deg,#ff75bd,#d91679)!important;border-color:#ffd0e9!important}
-/* Clean WIN celebration: translucent, three flashes, then hidden. */
+
+/* Clean WIN celebration: translucent, exactly three flashes, then hidden. */
 .gender-battle-overlay .gbo-unified-announcement.is-clean{background:rgba(18,20,42,.68)!important;backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}
 .gender-battle-overlay .gbo-unified-announcement.is-clean.coco-win-flash{animation:cocoCleanWinFlash .6s ease-in-out 0s 3 both!important}
 @keyframes cocoCleanWinFlash{0%,100%{opacity:.78;filter:brightness(1);transform:translate(-50%,-50%) scale(1)}50%{opacity:1;filter:brightness(1.55) saturate(1.35);transform:translate(-50%,-50%) scale(1.025);box-shadow:0 0 28px rgba(255,221,90,.95),0 0 60px rgba(255,78,170,.65)!important}}
