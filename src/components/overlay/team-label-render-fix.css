@@ -1,129 +1,80 @@
-/* FINAL TEAM LABEL RENDER FIX
-   The previous visual overrides were scoped through .hud-container. The
-   ScoreBoard is not guaranteed to be a descendant of that node, so those
-   selectors could never affect the actual rendered TeamPanel.
-
-   This file targets the real ScoreBoard -> TeamPanel DOM directly.
-   Visual-only: no game state, score, timer, registration or gift logic. */
-
-.scoreboard .team-name {
-  position: relative !important;
-  z-index: 100 !important;
-  min-height: 24px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 100% !important;
-  overflow: visible !important;
-  opacity: 1 !important;
-  visibility: visible !important;
+/* Stable TeamPanel label layer.
+   Team geometry is immutable. The command is plain text with the command token highlighted.
+   No transform, scale, height or nested badge is introduced here. */
+.scoreboard .team-name{
+  position:relative!important;
+  z-index:100!important;
+  min-height:38px!important;
+  height:38px!important;
+  max-height:38px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  width:100%!important;
+  overflow:hidden!important;
+  transform:none!important;
+  transition:none!important;
+  animation:none!important;
 }
-
-.scoreboard .team-name > span {
-  position: relative !important;
-  z-index: 101 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  opacity: 1 !important;
-  visibility: visible !important;
+.scoreboard .team-name>span{
+  position:relative!important;
+  z-index:101!important;
+  box-sizing:border-box!important;
+  transform:none!important;
+  transition:opacity .35s ease!important;
+  will-change:opacity!important;
 }
-
-/* GENDER_TEAMS: authoritative visual labels independent of team-object name
-   propagation. The real TeamPanel remains untouched. */
-.scoreboard .gender-team-wrapper.team-one .team-name > span,
-.scoreboard .gender-team-wrapper.team-two .team-name > span {
-  min-height: 22px !important;
+.scoreboard .team-name>span:first-child{
+  height:20px!important;
+  min-height:20px!important;
+  max-height:20px!important;
+  flex:0 0 20px!important;
+  display:block!important;
+  line-height:20px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
 }
-
-.scoreboard .gender-team-wrapper.team-one .team-name > span:not([style*="text-transform"]),
-.scoreboard .gender-team-wrapper.team-two .team-name > span:not([style*="text-transform"]) {
-  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
-  font-size: 20px !important;
-  font-weight: 950 !important;
-  letter-spacing: 1px !important;
-  white-space: nowrap !important;
+.scoreboard .team-name>span:nth-child(2){
+  height:14px!important;
+  min-height:14px!important;
+  max-height:14px!important;
+  flex:0 0 14px!important;
+  width:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  color:#fff!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  padding:0!important;
+  font-size:7.5px!important;
+  line-height:14px!important;
+  font-weight:950!important;
+  letter-spacing:.15px!important;
+  text-transform:uppercase!important;
 }
-
-.scoreboard .gender-team-wrapper.team-one .team-name > span:not([style*="text-transform"]) {
-  color: #a7efff !important;
-  -webkit-text-stroke: 1.25px #06375f !important;
-  text-shadow: 0 2px 0 #021b30, 0 0 8px rgba(112,229,255,.9), 0 0 15px rgba(41,178,230,.45) !important;
+.scoreboard .team-name>span:nth-child(2) strong{
+  color:#20bfff!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  padding:0!important;
+  margin:0 2px!important;
+  box-shadow:none!important;
+  font-weight:1000!important;
 }
-
-.scoreboard .gender-team-wrapper.team-two .team-name > span:not([style*="text-transform"]) {
-  color: #ff69b2 !important;
-  -webkit-text-stroke: 1.25px #68103c !important;
-  text-shadow: 0 2px 0 #430820, 0 0 8px rgba(255,180,220,.95), 0 0 15px rgba(255,74,165,.45) !important;
-}
-
-/* If the underlying team object loses its display name, the visual identity
-   remains guaranteed by the wrapper position. */
-.scoreboard .gender-team-wrapper.team-one .team-name:has(> span:not([style*="text-transform"]))::before,
-.scoreboard .gender-team-wrapper.team-two .team-name:has(> span:not([style*="text-transform"]))::before {
-  position: absolute !important;
-  inset: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  z-index: 102 !important;
-  pointer-events: none !important;
-  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif !important;
-  font-size: 20px !important;
-  font-weight: 950 !important;
-  letter-spacing: 1px !important;
-  white-space: nowrap !important;
-  opacity: 0 !important;
-}
-
-.scoreboard .gender-team-wrapper.team-one .team-name::after,
-.scoreboard .gender-team-wrapper.team-two .team-name::after {
-  pointer-events: none !important;
-}
-
-/* Hard visual fallback if a global rule hides the actual text. */
-.scoreboard .gender-team-wrapper.team-one .team-name > span:not([style*="text-transform"])::after,
-.scoreboard .gender-team-wrapper.team-two .team-name > span:not([style*="text-transform"])::after {
-  pointer-events: none !important;
-}
-
-/* Keep the command badge above every decorative/background layer. */
-.scoreboard .gender-team-wrapper.team-one .team-name > span[style*="text-transform"],
-.scoreboard .gender-team-wrapper.team-two .team-name > span[style*="text-transform"] {
-  z-index: 103 !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  color: #050505 !important;
-  background: rgba(255,255,255,.97) !important;
-  border-radius: 6px !important;
-  padding: 3px 8px !important;
-  font-size: 8.5px !important;
-  font-weight: 950 !important;
-  white-space: nowrap !important;
-}
-
-.scoreboard .gender-team-wrapper.team-one .team-name > span[style*="text-transform"] strong {
-  color: #075985 !important;
-  background: #dff8ff !important;
-  border: 2px solid #4ed2ff !important;
-  border-radius: 5px !important;
-  padding: 2px 7px !important;
-}
-
-.scoreboard .gender-team-wrapper.team-two .team-name > span[style*="text-transform"] strong {
-  color: #c21875 !important;
-  background: #fff0f8 !important;
-  border: 2px solid #ff6ab5 !important;
-  border-radius: 5px !important;
-  padding: 2px 7px !important;
-}
-
-/* Never let the animated card backgrounds cover identity text. */
-.scoreboard .team-card::before,
-.scoreboard .team-card::after {
-  z-index: 1 !important;
-  pointer-events: none !important;
-}
-.scoreboard .team-card > .team-name {
-  z-index: 100 !important;
+.scoreboard .gender-team-wrapper.team-two .team-name>span:nth-child(2) strong{color:#fff!important}
+.scoreboard .team-name::before,
+.scoreboard .team-name::after{
+  content:none!important;
+  display:none!important;
+  transform:none!important;
+  animation:none!important;
 }
