@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/ensure-bridge-deps.cjs && concurrently \"vite\" \"node bridge/server.js\"",
+    "dev": "concurrently \"vite\" \"node bridge/server.js\"",
     "vite": "vite",
     "bridge": "node bridge/server.js",
     "build": "vite build",
@@ -21,6 +21,7 @@
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
     "@vitejs/plugin-react": "^6.0.3",
     "concurrently": "^10.0.4",
     "eslint": "^10.6.0",
