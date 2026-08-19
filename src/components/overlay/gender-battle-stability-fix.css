@@ -1,0 +1,12 @@
+/* Stable geometry: awarding a point must never lift or scale the team card. */
+.gender-battle-overlay .gbo-team{
+  transition:none!important;
+}
+.gender-battle-overlay .gbo-team.is-highlighted{
+  transform:none!important;
+}
+/* The unified announcement is the only point celebration. Never show the legacy WIN card beneath it. */
+.gender-battle-overlay .gbo-unified-announcement.is-clean ~ .gbo-win,
+.gender-battle-overlay .gbo-unified-announcement.is-gift ~ .gbo-win{
+  display:none!important;
+}
