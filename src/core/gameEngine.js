@@ -126,12 +126,9 @@ function handleTimerCompletion(payload={}){
 
 eventBus.subscribe("timer:completed",handleTimerCompletion);
 
+/* Manual timer authority: changing the timer must work in every mode and does not require a round object. */
 export function startGameTimer(minutes=DEFAULT_TEAM_ROUND_MINUTES){
   const requestedMinutes=Math.max(0,Number(minutes)||0);
-  const activeRound=gameState.round||getCurrentRound();
-  if(!activeRound || activeRound.status!=="active") return getTime();
-  const current=gameState.timer;
-  if(current?.running&&String(current.phase||"").toUpperCase()==="ROUND")return current;
   gameState.timer=startTimer(requestedMinutes,"ROUND");
   return gameState.timer;
 }
