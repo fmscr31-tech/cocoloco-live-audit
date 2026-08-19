@@ -9,6 +9,7 @@ import "./components/overlay/team-gender-visual-overrides.css";
 import "./components/overlay/visual-motion-recovery.css";
 import "./components/overlay/team-identity-final.css";
 import "./components/overlay/money-gun-team-effect.css";
+import "./components/overlay/girls-team-card-fuchsia.css";
 import { audioManager } from "./core/audioManager";
 import "./core/genderTeamRegistrationBridge";
 import "./components/overlay/gender-team-join-announcement";
