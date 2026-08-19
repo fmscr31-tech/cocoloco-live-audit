@@ -1,11 +1,20 @@
-/* FINAL LIVE OVERLAY FIX — static team-card geometry. */
-.gender-battle-overlay .gbo-team-column > .gbo-team{height:220px!important;min-height:220px!important;max-height:220px!important;box-sizing:border-box!important;transform:none!important;transition:none!important;animation:none!important;overflow:hidden!important}
-.gender-battle-overlay .gbo-team-column > .gbo-team.is-highlighted,.gender-battle-overlay .gbo-team-column > .gbo-team.ability-active,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-active,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-silent_challenge,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-creative_challenge,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-ultimate_galaxy,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-epic_impact,.gender-battle-overlay .gbo-team-column > .gbo-team.gbo-effect-freeze{transform:none!important;animation:none!important}
-.gender-battle-overlay .gbo-team-head,.gender-battle-overlay .gbo-team-title-wrap{height:28px!important;min-height:28px!important;max-height:28px!important;box-sizing:border-box!important;overflow:hidden!important;flex:0 0 28px!important}
-.gender-battle-overlay .gbo-team-name{height:20px!important;line-height:20px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-.gender-battle-overlay .gbo-team-meta{height:0!important;max-height:0!important;margin:0!important;overflow:hidden!important}
-.gender-battle-overlay .gbo-team-score-label,.gender-battle-overlay .gbo-team-score,.gender-battle-overlay .gbo-round-badge,.gender-battle-overlay .gbo-status,.gender-battle-overlay .gbo-mvp-panel{flex-shrink:0!important}
-/* CHICAS: preserve approved fuchsia card and white title. */
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team{background:#e60073!important;background-image:none!important;opacity:1!important;border:3px solid #ff66b7!important;box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -14px 24px rgba(110,0,65,.22),0 0 12px #ff35aa,0 0 30px rgba(255,53,170,.60)!important}
+/* FINAL LIVE OVERLAY FIX — approved girls styling and clean-win celebration. */
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team{
+  background:#e60073!important;
+  background-image:none!important;
+  opacity:1!important;
+  border:3px solid #ff66b7!important;
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -14px 24px rgba(110,0,65,.22),0 0 12px #ff35aa,0 0 30px rgba(255,53,170,.60)!important;
+}
 .gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name{color:#fff!important;text-shadow:0 3px 0 rgba(0,0,0,.48),0 0 7px rgba(255,255,255,.42)!important}
-.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::after,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::before,.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::after{content:none!important;display:none!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::before,
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-name::after,
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::before,
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-title-wrap::after{content:none!important;display:none!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-team-score{border-color:#ff9bd4!important;box-shadow:inset 0 5px 12px rgba(0,0,0,.7),0 0 15px rgba(255,74,177,.55)!important}
+.gender-battle-overlay .gbo-team-column.gbo-right > .gbo-team .gbo-round-badge{background:linear-gradient(180deg,#ff75bd,#d91679)!important;border-color:#ffd0e9!important}
+
+/* Clean WIN celebration: translucent, three flashes, then hidden. */
+.gender-battle-overlay .gbo-unified-announcement.is-clean{background:rgba(18,20,42,.68)!important;backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}
+.gender-battle-overlay .gbo-unified-announcement.is-clean.coco-win-flash{animation:cocoCleanWinFlash .6s ease-in-out 0s 3 both!important}
+@keyframes cocoCleanWinFlash{0%,100%{opacity:.78;filter:brightness(1);transform:translate(-50%,-50%) scale(1)}50%{opacity:1;filter:brightness(1.55) saturate(1.35);transform:translate(-50%,-50%) scale(1.025);box-shadow:0 0 28px rgba(255,221,90,.95),0 0 60px rgba(255,78,170,.65)!important}}
