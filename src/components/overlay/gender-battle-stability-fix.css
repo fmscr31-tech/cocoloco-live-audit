@@ -10,3 +10,7 @@
 .gender-battle-overlay .gbo-unified-announcement.is-gift ~ .gbo-win{
   display:none!important;
 }
+/* Compact the vertical gap between the rotating team header/command and the score box. */
+.gender-battle-overlay .gbo-team-score{
+  margin-top:2px!important;
+}
