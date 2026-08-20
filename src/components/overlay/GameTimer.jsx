@@ -15,9 +15,9 @@ function normalizeTimer(raw) {
   if (!raw) return null;
   const phase = String(raw.phase || "IDLE").toUpperCase();
   const remainingSeconds = Math.max(0, Number(raw.remainingSeconds) || 0);
-  // running is authoritative only when explicitly boolean. This prevents an
-  // incomplete/stale overlay payload from turning a live ROUND into PAUSED.
-  const running = typeof raw.running === "boolean" ? raw.running : phase === "ROUND" && remainingSeconds > 0;
+  const running = typeof raw.running === "boolean"
+    ? raw.running
+    : phase === "ROUND" && remainingSeconds > 0;
   return { ...raw, phase, remainingSeconds, running };
 }
 
