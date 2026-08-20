@@ -106,6 +106,18 @@ class DashboardAPI {
     let session={}; try{session=sessionManager.getSession()||{};}catch(e){} let stats={}; try{stats=statisticsEngine.getStatistics()||{};}catch(e){} let rankings=[]; try{if(typeof rankingEngine.getTopPlayers==="function") rankings=rankingEngine.getTopPlayers()||[]; else if(typeof rankingEngine.getPlayerRanking==="function"){const pr=rankingEngine.getPlayerRanking();rankings=pr?.topPoints||pr||[];}}catch(e){} if(!Array.isArray(rankings)) rankings=[];
     let rules={};try{rules=gameRulesEngine.getCurrentRules()||{};}catch(e){} let missions=[];try{missions=missionEngine.getActiveMissions()||[];}catch(e){} let battleEffects={};try{battleEffects=battleEffectEngine.getEffectState()||{};}catch(e){} let powerUps={};try{powerUps={};}catch(e){} let historical={};try{historical=historicalLeaderboardEngine.getSessionLeaderboard(session)||{};}catch(e){} let livePhase={};try{livePhase=liveFlowManager.getPhaseState()||{};}catch(e){} let registration={};try{registration=registrationManager.getRegistrationState()||{};}catch(e){} let commandConfig={};try{commandConfig=commandConfigManager.getConfig()||{};}catch(e){} let game={};try{game=getState()||{};}catch(e){}
 
+    // Keep the timer in the dashboard snapshot authoritative. The game engine
+    // now supplies running directly from timerManager; retain it explicitly so
+    // overlay consumers never lose it when a dashboard snapshot is rebuilt.
+    try {
+      const dashboardTimer = game?.timer || {};
+      game = { ...game, timer: {
+        ...dashboardTimer,
+        phase: String(dashboardTimer.phase || "IDLE").toUpperCase(),
+        running: typeof dashboardTimer.running === "boolean" ? dashboardTimer.running : isTimerRunning()
+      }};
+    } catch (e) {}
+
     const configuredTeams = Array.isArray(commandConfig?.teams) ? commandConfig.teams : [];
     const gameTeams = Array.isArray(game?.teams) ? game.teams : [];
     if (configuredTeams.length >= 2) {
