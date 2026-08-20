@@ -1,7 +1,7 @@
 import { addPlayer, players, addWin, getLeaderboard, assignTeam, removePlayer, getPlayer } from "./playerManager";
 import { startRound, endRound, getCurrentRound } from "./roundManager";
 import { eventBus } from "./eventBus";
-import { startTimer, pauseTimer, resumeTimer, resetTimer, getTime } from "./timerManager";
+import { startTimer, pauseTimer, resumeTimer, resetTimer, getTime, isTimerRunning } from "./timerManager";
 import { saveData, loadData } from "./storageManager";
 import { getBattle, addBattlePlayer, battlePlayerWin, removeBattlePlayer } from "./battlemanager";
 import { createEvent } from "./eventManager";
@@ -143,8 +143,19 @@ export function getState(){
   const activePlayers=leaderBoard.length>0?leaderBoard:regPlayers;
   const configTeams=commandConfigManager.getConfig().teams||[];
   const teams=gameState.teams.length>0?gameState.teams:configTeams;
+
+  // Timer is authoritative in timerManager. Do not reconstruct it from the
+  // persisted phase alone: that used to omit `running` and could make the
+  // overlay interpret an active round as PAUSED.
+  const liveTimer = getTime() || {};
+  const timer = {
+    ...liveTimer,
+    phase: String(liveTimer.phase || getPersistedPhase() || "IDLE").toUpperCase(),
+    running: typeof liveTimer.running === "boolean" ? liveTimer.running : isTimerRunning()
+  };
+  gameState.timer = timer;
   gameState.round=gameState.round||getCurrentRound();
-  return{players:activePlayers,registeredPlayers:regPlayers,round:gameState.round,timer:{...getTime(),phase:getPersistedPhase()},battle:getBattle(),teams};
+  return{players:activePlayers,registeredPlayers:regPlayers,round:gameState.round,timer,battle:getBattle(),teams};
 }
 
 export function getGlobalGameState(){return getGlobalState();}
