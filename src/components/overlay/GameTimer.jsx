@@ -11,15 +11,34 @@ const TIMER_ALERT_CSS = `
 }
 `;
 
+function normalizeTimer(raw) {
+  if (!raw) return null;
+  const phase = String(raw.phase || "IDLE").toUpperCase();
+  const remainingSeconds = Math.max(0, Number(raw.remainingSeconds) || 0);
+  // running is authoritative only when explicitly boolean. This prevents an
+  // incomplete/stale overlay payload from turning a live ROUND into PAUSED.
+  const running = typeof raw.running === "boolean" ? raw.running : phase === "ROUND" && remainingSeconds > 0;
+  return { ...raw, phase, remainingSeconds, running };
+}
+
 export function GameTimer({ timer: initialTimer }) {
-  const [timer, setTimer] = useState(initialTimer || { remainingSeconds: 0, running: false, phase: "IDLE" });
-  useEffect(() => { if (initialTimer) setTimer(initialTimer); }, [initialTimer?.remainingSeconds, initialTimer?.phase, initialTimer?.running]);
+  const [timer, setTimer] = useState(() => normalizeTimer(initialTimer) || { remainingSeconds: 0, running: false, phase: "IDLE" });
+
   useEffect(() => {
-    const handleTimerUpdate = payload => { const t = payload?.timer || payload; if (t) setTimer(t); };
+    const next = normalizeTimer(initialTimer);
+    if (next) setTimer(next);
+  }, [initialTimer?.remainingSeconds, initialTimer?.phase, initialTimer?.running]);
+
+  useEffect(() => {
+    const handleTimerUpdate = payload => {
+      const next = normalizeTimer(payload?.timer || payload);
+      if (next) setTimer(next);
+    };
     const names = ["timer:tick", "timer:started", "timer:paused", "timer:resumed", "timer:stopped", "timer:reset"];
     const unsubs = names.map(name => eventBus.subscribe(name, handleTimerUpdate));
     return () => unsubs.forEach(unsub => unsub && unsub());
   }, []);
+
   const remainingSeconds = Math.max(0, Number(timer?.remainingSeconds) || 0);
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
@@ -30,6 +49,7 @@ export function GameTimer({ timer: initialTimer }) {
   const isRunning = timer?.running === true;
   const paused = isRound && !isRunning && remainingSeconds > 0;
   const alertMode = isRound && isRunning && remainingSeconds <= 300 && remainingSeconds > 0;
+
   return (
     <div className="timer-container" style={{ width:"112px", minWidth:"112px", height:"58px", flex:"0 0 auto", display:"flex", alignItems:"center", justifyContent:"center", position:"relative", overflow:"visible", isolation:"isolate" }}>
       <style>{TIMER_ALERT_CSS}</style>
