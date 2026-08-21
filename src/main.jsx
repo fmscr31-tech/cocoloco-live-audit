@@ -21,6 +21,7 @@ import "./core/chatCommandParser";
 import "./core/winBridgeWatchdog";
 import "./core/roundContributionManager";
 import "./core/gameModeSync";
+import "./overlaySyncTransport";
 import { installGenderBattleStabilityFix } from "./components/overlay/gender-battle-stability-fix";
 
 window.__cocoAudioManager = audioManager;
