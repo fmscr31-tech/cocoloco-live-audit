@@ -162,27 +162,38 @@ try {
     $overlayUrl = "$publicUrl/overlay"
     Write-Host "URL publica: $publicUrl" -ForegroundColor Green
 
-    Write-Host 'Verificando acceso publico...' -ForegroundColor Yellow
+    Write-Host 'Esperando propagacion DNS y verificando acceso publico...' -ForegroundColor Yellow
     $publicReady = $false
-    $publicDeadline = (Get-Date).AddSeconds(45)
+    $publicDeadline = (Get-Date).AddSeconds(120)
+    $lastPublicError = $null
+
     while ((Get-Date) -lt $publicDeadline) {
         if ($cloud.HasExited) {
             Tail-Log $cloudErr
             throw 'Cloudflare se detuvo mientras se verificaba la URL publica.'
         }
+
         try {
+            Resolve-DnsName -Name ([Uri]$publicUrl).Host -Type A -ErrorAction Stop | Out-Null
             $publicResponse = Invoke-WebRequest -Uri "$publicUrl/" -UseBasicParsing -TimeoutSec 5
             if ($publicResponse.StatusCode -ge 200 -and $publicResponse.StatusCode -lt 500) {
                 $publicReady = $true
                 break
             }
-        } catch {}
+        } catch {
+            $lastPublicError = $_.Exception.Message
+        }
+
         Start-Sleep -Seconds 2
     }
 
     if (-not $publicReady) {
-        Tail-Log $cloudErr
-        throw "La URL publica $publicUrl no responde. No se abrira el panel para evitar una URL rota."
+        Write-Warning "La URL publica todavia no pudo verificarse automaticamente: $publicUrl"
+        if ($lastPublicError) {
+            Write-Host "Ultimo error: $lastPublicError" -ForegroundColor DarkYellow
+        }
+        Write-Host 'El tunel sigue activo. No se cerraran los servicios.' -ForegroundColor Yellow
+        Write-Host "Prueba manualmente: $publicUrl/" -ForegroundColor Yellow
     }
 
     Set-Clipboard -Value $overlayUrl
