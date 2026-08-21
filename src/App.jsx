@@ -55,7 +55,21 @@ function Admin(){
   function beginBattle(){ startBattle(); refresh(); }
   function endBattle(){ finishBattle(); refresh(); }
   function addTeam(){ if(!teamName.trim()) return; createTeam({name:teamName}); setTeamName(""); refresh(); }
-  function openOverlay(){ window.open("/overlay","_blank","width=480,height=720"); }
+
+  async function openOverlay(){
+    let origin = window.location.origin;
+    try {
+      const response = await fetch(`/tunnel-url.txt?ts=${Date.now()}`, { cache: "no-store" });
+      if (response.ok) {
+        const publicOrigin = (await response.text()).trim().replace(/\/$/, "");
+        if (/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(publicOrigin)) origin = publicOrigin;
+      }
+    } catch {}
+    const overlayUrl = `${origin}/overlay`;
+    try { await navigator.clipboard.writeText(overlayUrl); } catch {}
+    window.open(overlayUrl,"_blank","width=480,height=720");
+  }
+
   function openPreview(){ window.open("/preview.html","_blank","width=520,height=850"); }
 
   return (
@@ -64,7 +78,7 @@ function Admin(){
         <GlobalLiveStatusHeader />
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px",borderBottom:"1px solid rgba(255,255,255,.1)",paddingBottom:"12px"}}>
           <h1 style={{fontSize:"22px",margin:0,color:"#00f5ff"}}>Coco🥥Loco <span style={{fontSize:"14px",color:"#a0aec0",fontWeight:400}}>Live Manager Dashboard</span></h1>
-          <div style={{display:"flex",gap:"10px"}}><button onClick={openPreview} style={{background:"linear-gradient(135deg,#ffd700,#ff8c00)",color:"#000",border:"none",padding:"8px 16px",borderRadius:"8px",fontWeight:800,cursor:"pointer",fontSize:"13px"}}>🎨 Abrir Preview Visual</button><button onClick={openOverlay} style={{background:"linear-gradient(135deg,#00f5ff,#0099ff)",color:"#000",border:"none",padding:"8px 16px",borderRadius:"8px",fontWeight:800,cursor:"pointer",fontSize:"13px"}}>🎥 Abrir Overlay</button></div>
+          <div style={{display:"flex",gap:"10px"}}><button onClick={openPreview} style={{background:"linear-gradient(135deg,#ffd700,#ff8c00)",color:"#000",border:"none",padding:"8px 16px",borderRadius:"8px",fontWeight:800,cursor:"pointer",fontSize:"13px"}}>🎨 Abrir Preview Visual</button><button onClick={openOverlay} style={{background:"linear-gradient(135deg,#00f5ff,#0099ff)",color:"#000",border:"none",padding:"8px 16px",borderRadius:"8px",fontWeight:800,cursor:"pointer",fontSize:"13px"}}>🎥 Abrir Overlay Público</button></div>
         </div>
 
         <div style={{display:"flex",gap:"6px",marginBottom:"20px",borderBottom:"1px solid rgba(255,255,255,.1)",paddingBottom:"12px",flexWrap:"wrap"}}>{[{id:"live",label:"🔴 Live Control"},{id:"game_control",label:"🎮 Game Control"},{id:"gifts",label:"🎁 Gift Configuration"},{id:"abilities",label:"⚡ Ability Manager"},{id:"debug",label:"🧪 Test / Debug"},{id:"history",label:"📊 History"}].map(tab=><button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{background:activeTab===tab.id?"linear-gradient(135deg,#00f5ff,#0099ff)":"rgba(255,255,255,.06)",color:activeTab===tab.id?"#000":"#fff",border:"none",padding:"6px 10px",borderRadius:"8px",fontSize:"11px",fontWeight:800,cursor:"pointer"}}>{tab.label}</button>)}</div>

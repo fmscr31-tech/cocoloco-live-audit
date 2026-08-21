@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"node bridge/server.js\"",
+    "dev": "concurrently -k \"vite\" \"node bridge/server.js\" \"node scripts/start-cloudflare-tunnel.mjs\"",
     "vite": "vite",
     "bridge": "node bridge/server.js",
+    "tunnel": "node scripts/start-cloudflare-tunnel.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
