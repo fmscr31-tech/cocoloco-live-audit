@@ -1,7 +1,7 @@
 {
-  "name": "cocoloco-live-manager",
+  "name": "cocoloco-live-manager-v2",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0-transport",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"node bridge/server.js\" \"node overlay-sync/server.js\"",
@@ -11,7 +11,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --import ./tests/nodeTestSetup.js --experimental-loader ./tests/resolve-loader.mjs --test"
+    "test": "node --import ./tests/nodeTestSetup.js --experimental-loader ./tests/resolve-loader.mjs --test",
+    "v2:build": "vite build",
+    "v2:serve": "node bridge/liveTransportServerV2.js",
+    "v2:live": "npm run v2:build && node bridge/liveTransportServerV2.js"
   },
   "dependencies": {
     "react": "^19.2.7",
