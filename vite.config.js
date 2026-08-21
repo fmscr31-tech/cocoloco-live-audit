@@ -25,7 +25,6 @@ function soundAutoDiscoveryPlugin() {
         const audioExts = ['.mp3', '.wav', '.ogg', '.m4a']
         const sounds = []
 
-        // Check root public/mudo.mp3 if exists
         const rootDir = path.resolve(process.cwd(), 'public')
         try {
           const rootFiles = fs.readdirSync(rootDir)
@@ -48,7 +47,6 @@ function soundAutoDiscoveryPlugin() {
           }
         })
 
-        // Sort alphabetically
         sounds.sort((a, b) => a.label.localeCompare(b.label))
 
         return {
@@ -81,10 +79,13 @@ export const AVAILABLE_SOUNDS = ${JSON.stringify(sounds, null, 2)};`,
   }
 }
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), soundAutoDiscoveryPlugin()],
   server: {
+    host: '0.0.0.0',
+    // The public hostname is generated dynamically by the Cloudflare Quick Tunnel.
+    // Allowing all hosts is intentional for this local-only development server.
+    allowedHosts: true,
     port: 5173,
     strictPort: true,
   },
