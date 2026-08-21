@@ -35,15 +35,17 @@ while ((Get-Date) -lt $deadline -and -not $publicUrl) {
     foreach ($file in @($cloudLog,$cloudErr)) {
         if (Test-Path $file) {
             $text = Get-Content $file -Raw -ErrorAction SilentlyContinue
-            $m = [regex]::Match($text, 'https://[a-z0-9-]+\.trycloudflare\.com')
-            if ($m.Success) { $publicUrl = $m.Value; break }
+            if (-not [string]::IsNullOrWhiteSpace($text)) {
+                $m = [regex]::Match($text, 'https://[a-z0-9-]+\.trycloudflare\.com')
+                if ($m.Success) { $publicUrl = $m.Value; break }
+            }
         }
     }
 }
 
 if (-not $publicUrl) {
     if (-not $cloud.HasExited) { Stop-Process -Id $cloud.Id -Force -ErrorAction SilentlyContinue }
-    throw "Cloudflare no entrego una URL publica. Revisa $cloudLog"
+    throw "Cloudflare no entrego una URL publica. Revisa $cloudLog y $cloudErr"
 }
 
 $publicHost = ([uri]$publicUrl).Host
