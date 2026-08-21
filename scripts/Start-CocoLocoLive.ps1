@@ -48,14 +48,16 @@ if (-not $publicUrl) {
     throw "Cloudflare no entrego una URL publica. Revisa $cloudLog y $cloudErr"
 }
 
-$publicHost = ([uri]$publicUrl).Host
 $overlayUrl = "$publicUrl/overlay"
 
 Write-Host "URL publica: $publicUrl" -ForegroundColor Green
-Write-Host 'Iniciando Vite con el host de Cloudflare permitido...' -ForegroundColor Yellow
+Write-Host 'Iniciando Vite...' -ForegroundColor Yellow
 
+# vite.config.js already sets allowedHosts: true, so do not pass the unsupported
+# --allowed-hosts CLI option. This also lets the Quick Tunnel hostname change
+# automatically on every launch.
 $vite = Start-Process -FilePath 'npm.cmd' `
-    -ArgumentList @('run','vite','--','--host','0.0.0.0','--allowed-hosts',$publicHost) `
+    -ArgumentList @('run','vite','--','--host','0.0.0.0') `
     -WorkingDirectory $root `
     -PassThru
 
@@ -100,7 +102,11 @@ try {
     while ($true) {
         Start-Sleep -Seconds 2
         if ($vite.HasExited -or $bridge.HasExited -or $cloud.HasExited) {
-            Write-Warning 'Uno de los procesos principales se detuvo.'
+            $stopped = @()
+            if ($vite.HasExited) { $stopped += 'Vite' }
+            if ($bridge.HasExited) { $stopped += 'bridge' }
+            if ($cloud.HasExited) { $stopped += 'Cloudflare' }
+            Write-Warning ('Uno de los procesos principales se detuvo: ' + ($stopped -join ', '))
             break
         }
     }
