@@ -15,7 +15,7 @@ function Stop-PortOwner($port) {
         if ($ownerPid -and $ownerPid -ne 0) {
             $process = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
             if ($process) {
-                Write-Host "Liberando puerto $port (PID $ownerPid: $($process.ProcessName))..." -ForegroundColor DarkYellow
+                Write-Host "Liberando puerto ${port} (PID ${ownerPid}: $($process.ProcessName))..." -ForegroundColor DarkYellow
                 Stop-Process -Id $ownerPid -Force -ErrorAction SilentlyContinue
             }
         }
@@ -46,8 +46,6 @@ Remove-Item $viteOut,$viteErr,$bridgeOut,$bridgeErr,$cloudOut,$cloudErr -Force -
 Write-Host '=== COCOLOCO LIVE MANAGER ===' -ForegroundColor Cyan
 Write-Host 'Preparando servicios...' -ForegroundColor White
 
-# The launcher owns these two local ports. Clear stale Node processes from a previous run
-# so the user never has to diagnose EADDRINUSE manually.
 Stop-PortOwner 5173
 Stop-PortOwner 8080
 
@@ -126,8 +124,6 @@ try {
     Write-Host 'Bridge listo.' -ForegroundColor Green
     Write-Host 'Creando URL publica temporal automaticamente...' -ForegroundColor White
 
-    # Start Cloudflare only after the local app is healthy. This prevents the public tunnel
-    # from being advertised while the origin is still starting.
     $cloud = Start-Process -FilePath 'cloudflared.exe' `
         -ArgumentList @('tunnel','--url','http://127.0.0.1:5173') `
         -RedirectStandardOutput $cloudOut `
@@ -166,7 +162,6 @@ try {
     $overlayUrl = "$publicUrl/overlay"
     Write-Host "URL publica: $publicUrl" -ForegroundColor Green
 
-    # Do not claim success until the public hostname actually reaches Vite.
     Write-Host 'Verificando acceso publico...' -ForegroundColor Yellow
     $publicReady = $false
     $publicDeadline = (Get-Date).AddSeconds(45)
