@@ -124,78 +124,86 @@ try {
     Write-Host 'Bridge listo.' -ForegroundColor Green
     Write-Host 'Creando URL publica temporal automaticamente...' -ForegroundColor White
 
-    $cloud = Start-Process -FilePath 'cloudflared.exe' `
-        -ArgumentList @('tunnel','--url','http://127.0.0.1:5173') `
-        -RedirectStandardOutput $cloudOut `
-        -RedirectStandardError $cloudErr `
-        -PassThru
-
     $publicUrl = $null
-    $deadline = (Get-Date).AddSeconds(60)
-    while ((Get-Date) -lt $deadline -and -not $publicUrl) {
-        Start-Sleep -Milliseconds 500
-        if ($cloud.HasExited) {
-            Tail-Log $cloudErr
-            Tail-Log $cloudOut
-            throw 'Cloudflare se cerro antes de entregar una URL publica.'
+    $publicReady = $false
+    $maxTunnelAttempts = 5
+
+    for ($attempt = 1; $attempt -le $maxTunnelAttempts -and -not $publicReady; $attempt++) {
+        if ($cloud -and -not $cloud.HasExited) {
+            Stop-Process -Id $cloud.Id -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
         }
-        foreach ($file in @($cloudOut,$cloudErr)) {
-            if (Test-Path $file) {
-                $text = Get-Content $file -Raw -ErrorAction SilentlyContinue
-                if (-not [string]::IsNullOrWhiteSpace($text)) {
-                    $m = [regex]::Match($text, 'https://[a-z0-9-]+\.trycloudflare\.com')
-                    if ($m.Success) {
-                        $publicUrl = $m.Value
-                        break
+
+        Remove-Item $cloudOut,$cloudErr -Force -ErrorAction SilentlyContinue
+
+        Write-Host "Creando tunel Cloudflare (intento $attempt de $maxTunnelAttempts)..." -ForegroundColor White
+        $cloud = Start-Process -FilePath 'cloudflared.exe' `
+            -ArgumentList @('tunnel','--url','http://127.0.0.1:5173') `
+            -RedirectStandardOutput $cloudOut `
+            -RedirectStandardError $cloudErr `
+            -PassThru
+
+        $publicUrl = $null
+        $deadline = (Get-Date).AddSeconds(45)
+        while ((Get-Date) -lt $deadline -and -not $publicUrl) {
+            Start-Sleep -Milliseconds 500
+            if ($cloud.HasExited) { break }
+            foreach ($file in @($cloudOut,$cloudErr)) {
+                if (Test-Path $file) {
+                    $text = Get-Content $file -Raw -ErrorAction SilentlyContinue
+                    if (-not [string]::IsNullOrWhiteSpace($text)) {
+                        $m = [regex]::Match($text, 'https://[a-z0-9-]+\.trycloudflare\.com')
+                        if ($m.Success) {
+                            $publicUrl = $m.Value
+                            break
+                        }
                     }
                 }
             }
         }
+
+        if (-not $publicUrl) {
+            Write-Warning 'Cloudflare no entrego una URL publica en este intento.'
+            continue
+        }
+
+        Write-Host "URL publica: $publicUrl" -ForegroundColor Green
+        Write-Host 'Esperando propagacion DNS y verificando acceso publico...' -ForegroundColor Yellow
+
+        $publicDeadline = (Get-Date).AddSeconds(45)
+        $lastPublicError = $null
+
+        while ((Get-Date) -lt $publicDeadline) {
+            if ($cloud.HasExited) { break }
+            try {
+                Resolve-DnsName -Name ([Uri]$publicUrl).Host -Type A -Server 1.1.1.1 -ErrorAction Stop | Out-Null
+                $publicResponse = Invoke-WebRequest -Uri "$publicUrl/" -UseBasicParsing -TimeoutSec 5
+                if ($publicResponse.StatusCode -ge 200 -and $publicResponse.StatusCode -lt 500) {
+                    $publicReady = $true
+                    break
+                }
+            } catch {
+                $lastPublicError = $_.Exception.Message
+            }
+            Start-Sleep -Seconds 2
+        }
+
+        if (-not $publicReady) {
+            Write-Warning "La URL no estuvo disponible: $publicUrl"
+            if ($lastPublicError) {
+                Write-Host "Ultimo error: $lastPublicError" -ForegroundColor DarkYellow
+            }
+            Write-Host 'Se generara una nueva URL automaticamente.' -ForegroundColor Yellow
+        }
     }
 
-    if (-not $publicUrl) {
+    if (-not $publicReady -or -not $publicUrl) {
         Tail-Log $cloudErr
         Tail-Log $cloudOut
-        throw 'Cloudflare no entrego una URL publica.'
+        throw 'Cloudflare no pudo entregar una URL publica verificable despues de varios intentos.'
     }
 
     $overlayUrl = "$publicUrl/overlay"
-    Write-Host "URL publica: $publicUrl" -ForegroundColor Green
-
-    Write-Host 'Esperando propagacion DNS y verificando acceso publico...' -ForegroundColor Yellow
-    $publicReady = $false
-    $publicDeadline = (Get-Date).AddSeconds(120)
-    $lastPublicError = $null
-
-    while ((Get-Date) -lt $publicDeadline) {
-        if ($cloud.HasExited) {
-            Tail-Log $cloudErr
-            throw 'Cloudflare se detuvo mientras se verificaba la URL publica.'
-        }
-
-        try {
-            Resolve-DnsName -Name ([Uri]$publicUrl).Host -Type A -ErrorAction Stop | Out-Null
-            $publicResponse = Invoke-WebRequest -Uri "$publicUrl/" -UseBasicParsing -TimeoutSec 5
-            if ($publicResponse.StatusCode -ge 200 -and $publicResponse.StatusCode -lt 500) {
-                $publicReady = $true
-                break
-            }
-        } catch {
-            $lastPublicError = $_.Exception.Message
-        }
-
-        Start-Sleep -Seconds 2
-    }
-
-    if (-not $publicReady) {
-        Write-Warning "La URL publica todavia no pudo verificarse automaticamente: $publicUrl"
-        if ($lastPublicError) {
-            Write-Host "Ultimo error: $lastPublicError" -ForegroundColor DarkYellow
-        }
-        Write-Host 'El tunel sigue activo. No se cerraran los servicios.' -ForegroundColor Yellow
-        Write-Host "Prueba manualmente: $publicUrl/" -ForegroundColor Yellow
-    }
-
     Set-Clipboard -Value $overlayUrl
     Start-Process "$publicUrl/"
 
