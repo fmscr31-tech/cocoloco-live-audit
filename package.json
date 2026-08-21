@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"node bridge/server.js\"",
+    "dev": "concurrently \"vite\" \"node bridge/server.js\" \"node overlay-sync/server.js\"",
     "vite": "vite",
     "bridge": "node bridge/server.js",
+    "overlay-sync": "node overlay-sync/server.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
