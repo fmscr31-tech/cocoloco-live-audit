@@ -2,10 +2,7 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { config } from "./config.js";
 import { logger } from "./logger.js";
-import { tiktokBridge } from "./tiktokBridge.js";
-import { V2TikfinityClient } from "./v2TikfinityClient.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,22 +15,13 @@ class LiveTransportServerV2 {
     this.server = null;
     this.clients = new Set();
     this.nextId = 1;
-    this.tikfinity = new V2TikfinityClient({
-      url: process.env.TIKFINITY_WS_URL || config.tikfinityWsUrl,
-      onEvent: (event) => this.broadcast(event)
-    });
   }
 
   start() {
     this.server = http.createServer((req, res) => this.handle(req, res));
     this.server.listen(this.port, () => {
-      logger.connect(`[V2] Live Studio transport listening on http://127.0.0.1:${this.port}`);
+      logger.connect(`[V2] Live Studio SSE transport listening on http://127.0.0.1:${this.port}`);
     });
-
-    this.tikfinity.connect();
-    tiktokBridge.setUsername(config.username);
-    tiktokBridge.onEvent((event) => this.broadcast(event));
-    tiktokBridge.connect().catch((error) => logger.error(`[V2] TikTok connection failed: ${error.message}`, error));
   }
 
   cors(res) {
@@ -52,14 +40,8 @@ class LiveTransportServerV2 {
 
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
-    if (req.method === "GET" && url.pathname === "/api/live/events") {
-      return this.openSse(req, res);
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/live/events") {
-      return this.receiveEvent(req, res);
-    }
-
+    if (req.method === "GET" && url.pathname === "/api/live/events") return this.openSse(req, res);
+    if (req.method === "POST" && url.pathname === "/api/live/events") return this.receiveEvent(req, res);
     if (req.method === "GET" && url.pathname === "/api/live/health") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       return res.end(JSON.stringify({
@@ -80,7 +62,7 @@ class LiveTransportServerV2 {
       "Connection": "keep-alive",
       "X-Accel-Buffering": "no"
     });
-    res.write(`retry: 1500\n\n`);
+    res.write("retry: 1500\n\n");
 
     const client = { id: this.nextId++, res };
     this.clients.add(client);
@@ -184,8 +166,6 @@ class LiveTransportServerV2 {
   }
 
   async stop() {
-    this.tikfinity.close();
-    tiktokBridge.disconnect();
     for (const client of this.clients) this.removeClient(client);
     await new Promise((resolve) => this.server?.close(() => resolve()));
   }
