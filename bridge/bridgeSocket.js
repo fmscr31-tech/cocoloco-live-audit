@@ -16,6 +16,30 @@ class BridgeSocketServer {
     this.wss = null;
     this.clients = new Set();
     this.heartbeatTimer = null;
+    this.replayableEventNames = new Set([
+      "dashboard:snapshot",
+      "config:command_updated",
+      "GAME_MODE_CHANGED",
+      "SESSION_STATUS_CHANGED",
+      "registration:state_synced",
+      "registration:updated",
+      "registration:opened",
+      "registration:closed",
+      "registration:locked",
+      "registration:cleared",
+      "round:started",
+      "timer:started",
+      "timer:paused",
+      "timer:resumed",
+      "timer:stopped",
+      "timer:reset",
+      "live:phase_changed",
+      "session:started",
+      "session:updated",
+      "team:updated",
+      "teams:updated"
+    ]);
+    this.replayableEvents = new Map();
   }
 
   getGiftFiles() {
@@ -86,6 +110,13 @@ class BridgeSocketServer {
       ws.isAlive = true;
       ws.on("pong", () => { ws.isAlive = true; });
 
+      // A newly opened overlay may have a different browser origin from the
+      // Admin panel. Replay the latest authoritative state so it initializes
+      // immediately even if the config change happened before it connected.
+      this.replayableEvents.forEach((message) => {
+        try { ws.send(JSON.stringify({ type: "event", message })); } catch (e) {}
+      });
+
       ws.on("message", (message) => {
         try {
           const data = JSON.parse(message);
@@ -96,6 +127,8 @@ class BridgeSocketServer {
             tiktokBridge.setUsername(data.uniqueId);
             tiktokBridge.reconnect().catch(err => logger.error(`Error reconnecting with new uniqueId: ${err.message}`, err));
             ws.send(JSON.stringify({ type: "STATUS", clientsCount: this.clients.size, username: data.uniqueId, status: tiktokBridge.getStatus().status }));
+          } else if (data.action === "eventBus" && data.message?.eventName) {
+            this.relayEventBusMessage(data.message);
           }
         } catch {
           // ignore non-json messages
@@ -123,6 +156,14 @@ class BridgeSocketServer {
     this.server.listen(this.port, () => {
       logger.connect(`Bridge HTTP Webhook & WebSocket Server running on port ${this.port}`);
     });
+  }
+
+  relayEventBusMessage(message) {
+    if (!message?.eventName) return;
+    if (this.replayableEventNames.has(message.eventName)) {
+      this.replayableEvents.set(message.eventName, message);
+    }
+    this.broadcast({ type: "event", message });
   }
 
   broadcast(data) {
