@@ -1,15 +1,68 @@
 $ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
+Set-Location $root
 
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
-Set-Location $ProjectRoot
+function Require-Command($name) {
+    if (-not (Get-Command $name -ErrorAction SilentlyContinue)) {
+        throw "$name no esta disponible en PATH."
+    }
+}
+
+Require-Command 'node'
+Require-Command 'npm'
+Require-Command 'cloudflared'
+
+$logDir = Join-Path $env:TEMP 'CocoLocoLiveManager'
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$cloudLog = Join-Path $logDir 'cloudflared.log'
+$cloudErr = Join-Path $logDir 'cloudflared.err.log'
+Remove-Item $cloudLog,$cloudErr -Force -ErrorAction SilentlyContinue
 
 Write-Host '=== COCOLOCO LIVE MANAGER ===' -ForegroundColor Cyan
-Write-Host 'Starting local services...' -ForegroundColor White
+Write-Host 'Creando URL publica temporal automaticamente...' -ForegroundColor White
 
-# Start the application (Vite + bridge) in its own window.
-Start-Process powershell.exe -ArgumentList '-NoExit','-Command',"Set-Location -LiteralPath '$ProjectRoot'; npm run dev"
+# Create the Quick Tunnel first so we know its hostname before Vite starts.
+$cloud = Start-Process -FilePath 'cloudflared.exe' `
+    -ArgumentList @('tunnel','--url','http://127.0.0.1:5173') `
+    -RedirectStandardOutput $cloudLog `
+    -RedirectStandardError $cloudErr `
+    -PassThru
 
-# Wait for Vite to answer locally.
+$publicUrl = $null
+$deadline = (Get-Date).AddSeconds(45)
+while ((Get-Date) -lt $deadline -and -not $publicUrl) {
+    Start-Sleep -Milliseconds 500
+    foreach ($file in @($cloudLog,$cloudErr)) {
+        if (Test-Path $file) {
+            $text = Get-Content $file -Raw -ErrorAction SilentlyContinue
+            $m = [regex]::Match($text, 'https://[a-z0-9-]+\.trycloudflare\.com')
+            if ($m.Success) { $publicUrl = $m.Value; break }
+        }
+    }
+}
+
+if (-not $publicUrl) {
+    if (-not $cloud.HasExited) { Stop-Process -Id $cloud.Id -Force -ErrorAction SilentlyContinue }
+    throw "Cloudflare no entrego una URL publica. Revisa $cloudLog"
+}
+
+$publicHost = ([uri]$publicUrl).Host
+$overlayUrl = "$publicUrl/overlay"
+
+Write-Host "URL publica: $publicUrl" -ForegroundColor Green
+Write-Host 'Iniciando Vite con el host de Cloudflare permitido...' -ForegroundColor Yellow
+
+$vite = Start-Process -FilePath 'npm.cmd' `
+    -ArgumentList @('run','vite','--','--host','0.0.0.0','--allowed-hosts',$publicHost) `
+    -WorkingDirectory $root `
+    -PassThru
+
+Write-Host 'Iniciando bridge...' -ForegroundColor Yellow
+$bridge = Start-Process -FilePath 'node.exe' `
+    -ArgumentList @('bridge/server.js') `
+    -WorkingDirectory $root `
+    -PassThru
+
 $ready = $false
 for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 1
@@ -23,67 +76,37 @@ for ($i = 0; $i -lt 30; $i++) {
 }
 
 if (-not $ready) {
-    Write-Host 'ERROR: Vite did not become available on port 5173.' -ForegroundColor Red
-    Read-Host 'Press ENTER to close'
-    exit 1
+    throw 'Vite no respondio en http://127.0.0.1:5173.'
 }
 
-# A stable named Cloudflare Tunnel is preferred. Configure it once with:
-#   .\scripts\Setup-CocoLocoTunnel.ps1
-$configPath = Join-Path $env:USERPROFILE '.cloudflared\cocoloco-config.yml'
-$hostnameFile = Join-Path $ProjectRoot '.cocoloco-tunnel-hostname'
-
-if (Test-Path $configPath) {
-    $hostname = if (Test-Path $hostnameFile) { (Get-Content $hostnameFile -Raw).Trim() } else { '' }
-    Write-Host "Starting Cloudflare Tunnel${hostname}..." -ForegroundColor Yellow
-    Start-Process powershell.exe -ArgumentList '-NoExit','-Command',"cloudflared tunnel --config `"$configPath`" run"
-
-    if ($hostname) {
-        $publicBase = "https://$hostname"
-        Set-Clipboard -Value "$publicBase/overlay"
-        Start-Process $publicBase
-        Start-Process "$publicBase/"
-        Write-Host ''
-        Write-Host "PUBLIC PANEL:   $publicBase/" -ForegroundColor Green
-        Write-Host "PUBLIC OVERLAY: $publicBase/overlay" -ForegroundColor Green
-        Write-Host 'The overlay URL has been copied to the clipboard.' -ForegroundColor Green
-        Write-Host ''
-        Read-Host 'Press ENTER to close this launcher window (services remain running)'
-        exit 0
-    }
-}
-
-# Fallback for first-time testing: Quick Tunnel. Its URL changes when restarted.
-Write-Host 'No stable named tunnel is configured. Starting a temporary Quick Tunnel...' -ForegroundColor Yellow
-$log = Join-Path $env:TEMP 'cocoloco-cloudflared.log'
-Remove-Item $log -Force -ErrorAction SilentlyContinue
-Start-Process powershell.exe -ArgumentList '-NoExit','-Command',"cloudflared tunnel --url http://127.0.0.1:5173 2>&1 | Tee-Object -FilePath `"$log`""
-
-$publicBase = $null
-for ($i = 0; $i -lt 30 -and -not $publicBase; $i++) {
-    Start-Sleep -Seconds 1
-    if (Test-Path $log) {
-        $text = Get-Content $log -Raw -ErrorAction SilentlyContinue
-        $m = [regex]::Match($text, 'https://[a-z0-9-]+\.trycloudflare\.com')
-        if ($m.Success) { $publicBase = $m.Value }
-    }
-}
-
-if (-not $publicBase) {
-    Write-Host 'ERROR: Cloudflare did not provide a public URL.' -ForegroundColor Red
-    Read-Host 'Press ENTER to close'
-    exit 1
-}
-
-$overlayUrl = "$publicBase/overlay"
 Set-Clipboard -Value $overlayUrl
-Start-Process $publicBase
-Start-Process $overlayUrl
+Start-Process "$publicUrl/"
 
 Write-Host ''
-Write-Host "TEMPORARY PANEL:   $publicBase/" -ForegroundColor Green
-Write-Host "TEMPORARY OVERLAY: $overlayUrl" -ForegroundColor Green
-Write-Host 'The overlay URL has been copied to the clipboard.' -ForegroundColor Green
-Write-Host 'IMPORTANT: this Quick Tunnel URL changes after restart. Use the one-time setup for a permanent URL.' -ForegroundColor Yellow
+Write-Host '==========================================' -ForegroundColor Cyan
+Write-Host ' COCOLOCO LIVE MANAGER LISTO' -ForegroundColor Green
+Write-Host " PANEL:   $publicUrl/" -ForegroundColor Green
+Write-Host " OVERLAY: $overlayUrl" -ForegroundColor Green
+Write-Host ' OVERLAY COPIADO AL PORTAPAPELES' -ForegroundColor Green
+Write-Host '==========================================' -ForegroundColor Cyan
 Write-Host ''
-Read-Host 'Press ENTER to close this launcher window (services remain running)'
+Write-Host 'Deja esta ventana abierta durante el LIVE.' -ForegroundColor Yellow
+Write-Host 'Cuando termines, cierra esta ventana para detener Vite, bridge y Cloudflare.' -ForegroundColor Yellow
+Write-Host ''
+
+try {
+    while ($true) {
+        Start-Sleep -Seconds 2
+        if ($vite.HasExited -or $bridge.HasExited -or $cloud.HasExited) {
+            Write-Warning 'Uno de los procesos principales se detuvo.'
+            break
+        }
+    }
+}
+finally {
+    foreach ($process in @($bridge,$vite,$cloud)) {
+        if ($process -and -not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
