@@ -11,12 +11,12 @@ function Require-Command($name) {
 function Stop-PortOwner($port) {
     $connections = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
     foreach ($connection in $connections) {
-        $pid = $connection.OwningProcess
-        if ($pid -and $pid -ne 0) {
-            $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        $ownerPid = $connection.OwningProcess
+        if ($ownerPid -and $ownerPid -ne 0) {
+            $process = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
             if ($process) {
-                Write-Host "Liberando puerto $port (PID $pid: $($process.ProcessName))..." -ForegroundColor DarkYellow
-                Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                Write-Host "Liberando puerto $port (PID $ownerPid: $($process.ProcessName))..." -ForegroundColor DarkYellow
+                Stop-Process -Id $ownerPid -Force -ErrorAction SilentlyContinue
             }
         }
     }
