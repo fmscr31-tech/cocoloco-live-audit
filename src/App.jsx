@@ -108,5 +108,5 @@ function Admin(){
   );
 }
 
-function App(){return <Routes><Route path="/" element={<Admin/>}/><Route path="/overlay" element={<OverlayPage/>}/><Route path="/cocoloco-live" element={<OverlayPage/>}/><Route path="/preview" element={<OverlayPreview/>}/></Routes>;}
+function App(){return <Routes><Route path="/" element={<Admin/>}/><Route path="/overlay" element={<OverlayPage/>}/><Route path="/preview" element={<OverlayPreview/>}/></Routes>;}
 export default App;
