@@ -9,6 +9,22 @@ function sendSnapshot(ws) {
   ws.send(JSON.stringify({ type: "COCO_OVERLAY_SNAPSHOT", snapshot: latestSnapshot, timestamp: Date.now() }));
 }
 
+function broadcastOverlayEvent(source, eventName, payload) {
+  if (!eventName || !payload) return;
+  const packet = JSON.stringify({
+    type: "COCO_OVERLAY_EVENT",
+    eventName,
+    payload,
+    timestamp: Date.now()
+  });
+
+  for (const client of wss.clients) {
+    if (client !== source && client.role === "overlay" && client.readyState === WebSocket.OPEN) {
+      client.send(packet);
+    }
+  }
+}
+
 wss.on("connection", (ws) => {
   ws.role = "unknown";
 
@@ -31,15 +47,20 @@ wss.on("connection", (ws) => {
         for (const client of wss.clients) {
           if (client !== ws && client.role === "overlay") sendSnapshot(client);
         }
+        return;
+      }
+
+      if (message.action === "publishOverlayEvent" && ws.role === "dashboard") {
+        broadcastOverlayEvent(ws, message.eventName, message.payload);
       }
     } catch (_) {
-      // This server accepts only its tiny JSON protocol. Ignore anything else.
+      // This server accepts only its small JSON protocol. Ignore anything else.
     }
   });
 });
 
 wss.on("listening", () => {
-  console.log(`[OverlaySync] Visual overlay sync listening on ws://127.0.0.1:${PORT}`);
+  console.log(`[OverlaySync] Overlay sync listening on ws://127.0.0.1:${PORT}`);
 });
 
 wss.on("error", (error) => {
