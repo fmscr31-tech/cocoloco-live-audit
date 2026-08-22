@@ -1,8 +1,8 @@
 import { dashboardAPI } from "./core/dashboardAPI";
 import { eventBus } from "./core/eventBus";
 
-// Dedicated visual-state channel for the embedded TikTok LIVE Studio browser.
-// Intentionally separate from the TikFinity/TikTok bridge on port 8080.
+// Dedicated overlay channel on 8090. Visual snapshots and live gift events
+// travel here; TikFinity/TikTok remains isolated on port 8080.
 const WS_URL = "ws://127.0.0.1:8090";
 const pathName = typeof window !== "undefined" ? window.location.pathname : "";
 const isDashboard = pathName === "/" || pathName === "";
@@ -12,6 +12,7 @@ if (typeof window !== "undefined" && (isDashboard || isOverlay)) {
   let socket = null;
   let reconnectTimer = null;
   let unsubscribeDashboard = null;
+  let unsubscribeGiftRelay = null;
   let lastSignature = "";
 
   const scheduleReconnect = () => {
@@ -48,6 +49,15 @@ if (typeof window !== "undefined" && (isDashboard || isOverlay)) {
     }
   };
 
+  const publishLiveEvent = (eventName, payload) => {
+    if (!isDashboard || !socket || socket.readyState !== WebSocket.OPEN || !payload) return;
+    try {
+      socket.send(JSON.stringify({ action: "publishOverlayEvent", eventName, payload }));
+    } catch (error) {
+      console.warn(`[OverlaySync] Could not publish ${eventName}:`, error);
+    }
+  };
+
   const connect = () => {
     try { socket = new WebSocket(WS_URL); }
     catch (_) { scheduleReconnect(); return; }
@@ -56,6 +66,9 @@ if (typeof window !== "undefined" && (isDashboard || isOverlay)) {
       socket.send(JSON.stringify({ action: "registerOverlaySync", role: isDashboard ? "dashboard" : "overlay" }));
       if (isDashboard) {
         if (!unsubscribeDashboard) unsubscribeDashboard = dashboardAPI.subscribe((snapshot) => publishSnapshot(snapshot));
+        if (!unsubscribeGiftRelay) {
+          unsubscribeGiftRelay = eventBus.subscribe("normalized:gift", (gift) => publishLiveEvent("normalized:gift", gift));
+        }
         publishSnapshot(dashboardAPI.getLiveDashboard());
       } else {
         socket.send(JSON.stringify({ action: "getOverlaySnapshot" }));
@@ -66,8 +79,17 @@ if (typeof window !== "undefined" && (isDashboard || isOverlay)) {
       if (!isOverlay) return;
       try {
         const message = JSON.parse(event.data);
-        if (message?.type === "COCO_OVERLAY_SNAPSHOT" && message.snapshot) applyOverlaySnapshot(message.snapshot);
-      } catch (_) {}
+        if (message?.type === "COCO_OVERLAY_SNAPSHOT" && message.snapshot) {
+          applyOverlaySnapshot(message.snapshot);
+          return;
+        }
+        if (message?.type === "COCO_OVERLAY_EVENT" && message.eventName === "normalized:gift" && message.payload) {
+          console.log("[OverlaySync] Live gift received", message.payload);
+          eventBus.publish("normalized:gift", { ...message.payload, source: message.payload.source || "overlay-sync" }, true);
+        }
+      } catch (error) {
+        console.warn("[OverlaySync] Could not consume overlay message:", error);
+      }
     };
     socket.onclose = () => scheduleReconnect();
     socket.onerror = () => { try { socket.close(); } catch (_) {} };
@@ -77,6 +99,7 @@ if (typeof window !== "undefined" && (isDashboard || isOverlay)) {
   window.addEventListener("beforeunload", () => {
     if (reconnectTimer) window.clearTimeout(reconnectTimer);
     unsubscribeDashboard?.();
+    unsubscribeGiftRelay?.();
     try { socket?.close(); } catch (_) {}
   });
 }
